@@ -154,8 +154,7 @@ export default function AppPage() {
       setLoading(false)
     }
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // initial load only
 
   // Apply layout class to body
   useEffect(() => {
