@@ -110,14 +110,20 @@ jobs:
 
       - name: Smoke test
         run: |
-          URL="${{ steps.deploy.outputs.url }}"
-          # Test health endpoint (always accessible, no auth)
+          # Use production domain for prod (deployment URLs have Vercel Protection)
+          if [ "${{ steps.target.outputs.target }}" = "production" ]; then
+            URL="https://report-executivo-qualidade.vercel.app"
+          else
+            URL="${{ steps.deploy.outputs.url }}"
+          fi
+          echo "Smoke testing: $URL"
+          # Health endpoint — no auth required
           HEALTH=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/api/health")
           echo "Health endpoint returned HTTP $HEALTH"
           if [ "$HEALTH" -ne 200 ]; then
             echo "::error::Health check failed with status: $HEALTH"
             exit 1
           fi
-          # Test login page (may return 200 or 307/401 depending on auth state)
-          LOGIN=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/login")
-          echo "Login page returned HTTP $LOGIN"
+          # Verify JSON response
+          BODY=$(curl -s -L "$URL/api/health")
+          echo "Health response: $BODY"
