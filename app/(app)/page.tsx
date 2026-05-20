@@ -3,6 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
+  LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
+  Zap, FileText, Archive, GripVertical, Download, Upload, Plus,
+  LogOut, Users, ArrowUpDown, X, MessageSquare, Copy,
+} from 'lucide-react'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDroppable,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS as DndCSS } from '@dnd-kit/utilities'
+import {
   Item, UserProfile, Filters, Role, Gain, Product, GainType,
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, gainTypeTone,
   normalizeItem, normalizeStatus, inferProduct,
@@ -52,15 +63,15 @@ function BarChart({ data, total }: { data: Record<string, number>; total: number
 
 type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'archived'
 
-const VIEWS: { id: ViewId; label: string }[] = [
-  { id: 'dashboard', label: '📊 Dashboard' },
-  { id: 'portfolio', label: '📋 Carteira' },
-  { id: 'board', label: '🗂 Board' },
-  { id: 'risks', label: '⚠️ Riscos' },
-  { id: 'timeline', label: '📅 Timeline' },
-  { id: 'capacity', label: '⚡ Capacidade' },
-  { id: 'executive', label: '📝 Executivo' },
-  { id: 'archived', label: '🗃 Arquivados' },
+const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
+  { id: 'portfolio', label: 'Carteira', icon: <Briefcase size={16} /> },
+  { id: 'board', label: 'Board', icon: <Kanban size={16} /> },
+  { id: 'risks', label: 'Riscos', icon: <AlertTriangle size={16} /> },
+  { id: 'timeline', label: 'Timeline', icon: <Calendar size={16} /> },
+  { id: 'capacity', label: 'Capacidade', icon: <Zap size={16} /> },
+  { id: 'executive', label: 'Executivo', icon: <FileText size={16} /> },
+  { id: 'archived', label: 'Arquivados', icon: <Archive size={16} /> },
 ]
 
 export default function AppPage() {
@@ -431,79 +442,46 @@ export default function AppPage() {
 
   return (
     <div className="app">
-      {/* ── Hero ────────────────────────────────────────────── */}
-      <header className="hero soft-shell">
-        <div className="topline">
-          <div className="brandmark">
-            <div className="brand-meta">
-              <span>QualiData</span>
-              <strong>Superintendência Vivo &amp; Nubank</strong>
-              <small>Gestão de carteira e capacidade — {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</small>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div className="layout-indicator">
-              Largura: <strong>{uiLayout === 'standard' ? 'Padrão' : uiLayout === 'ultra' ? 'Ultra' : 'Ampla'}</strong>
-            </div>
-            {profile && (
-              <div className="layout-indicator">
-                <strong>{profile.full_name || profile.email}</strong>
-                &nbsp;·&nbsp;{profile.role}
-              </div>
-            )}
-            {isAdmin(role) && (
-              <a className="btn small" href="/admin/users">Usuários</a>
-            )}
-            <button className="btn small danger" onClick={signOut}>Sair</button>
+      {/* ── Topbar (compact) ────────────────────────────────── */}
+      <header className="topbar animate-fade-up">
+        <div className="topbar-brand">
+          <div>
+            <div className="topbar-brand-name">QualiData</div>
+            <div className="topbar-brand-title">Superintendência Vivo &amp; Nubank</div>
+            <div className="topbar-brand-sub">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
           </div>
         </div>
-
-        <div className="hero-content">
-          <div className="hero-copy">
-            <div className="eyebrow"><span className="pulse-dot" /> Ao vivo · {total} frente(s) no recorte</div>
-            <h1 className="hero-title">Command Center<br />Qualidade &amp; Dados</h1>
-            <p>Visão executiva integrada da carteira Vivo e Nubank — riscos, capacidade e decisões em um único painel.</p>
-          </div>
-          <div className="hero-actions">
-            {canEditItems && <button className="btn primary" onClick={() => openModal(null)}>+ Nova frente</button>}
-            <button className="btn" onClick={exportCSV}>CSV</button>
-            <button className="btn" onClick={exportJSON}>JSON</button>
-            {canEditItems && <label className="btn" style={{ cursor: 'pointer' }}>Importar <input type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} /></label>}
-            <button className="btn small ghost" onClick={() => { const o: ('standard'|'wide'|'ultra')[] = ['standard','wide','ultra']; setUiLayout(o[(o.indexOf(uiLayout)+1)%3]) }}>
-              Largura
+        <div className="topbar-actions">
+          <div className="hero-product-strip">
+            <button className={`brand-pill all ${filters.product === '' ? 'active' : ''}`} onClick={() => setFilters(f => ({ ...f, product: '' }))}>
+              <span />Todos
             </button>
-            <button className="btn small ghost" onClick={() => setTableDense(d => !d)}>
-              {tableDense ? 'Confortável' : 'Compacta'}
+            <button className={`brand-pill ${filters.product === 'Vivo' ? 'active' : ''}`} onClick={() => setFilters(f => ({ ...f, product: 'Vivo' }))}>
+              <span />Vivo
+            </button>
+            <button className={`brand-pill nubank ${filters.product === 'Nubank' ? 'active' : ''}`} onClick={() => setFilters(f => ({ ...f, product: 'Nubank' }))}>
+              <span />Nubank
             </button>
           </div>
-        </div>
-
-        <div className="hero-product-strip">
-          <button className="brand-pill all" onClick={() => setFilters(f => ({ ...f, product: '' }))}>
-            <span />Carteira completa
+          {canEditItems && <button className="btn primary small" onClick={() => openModal(null)}><Plus size={14} /> Nova frente</button>}
+          <button className="btn small" onClick={exportCSV}><Download size={14} /> CSV</button>
+          <button className="btn small" onClick={exportJSON}><Download size={14} /> JSON</button>
+          {canEditItems && <label className="btn small" style={{ cursor: 'pointer' }}><Upload size={14} /> Importar <input type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} /></label>}
+          <button className="btn small ghost" onClick={() => { const o: ('standard'|'wide'|'ultra')[] = ['standard','wide','ultra']; setUiLayout(o[(o.indexOf(uiLayout)+1)%3]) }}>
+            <ArrowUpDown size={14} />
           </button>
-          <button className="brand-pill" onClick={() => setFilters(f => ({ ...f, product: 'Vivo' }))}>
-            <span />Vivo
+          <button className="btn small ghost" onClick={() => setTableDense(d => !d)}>
+            {tableDense ? 'Confortável' : 'Compacta'}
           </button>
-          <button className="brand-pill nubank" onClick={() => setFilters(f => ({ ...f, product: 'Nubank' }))}>
-            <span />Nubank
-          </button>
-        </div>
-
-        <div className="hero-metrics" style={{ marginTop: 14 }}>
-          {[
-            { label: 'Total de frentes', value: total, sub: `${done} concluídas`, color: '' },
-            { label: 'Críticos / Atrasados', value: late, sub: `${soon} vencem em breve`, color: late > 0 ? '#bd2f3d' : '' },
-            { label: 'Score executivo', value: `${avgScore}%`, sub: 'Média ponderada', color: '' },
-            { label: 'Esforço restante', value: `${effort}h`, sub: `${gaps} lacunas de governança`, color: '' },
-            { label: 'Frentes ativas', value: active, sub: `${total - active} encerradas`, color: '' },
-          ].map(m => (
-            <div className="hero-metric" key={m.label}>
-              <span>{m.label}</span>
-              <strong style={m.color ? { color: m.color } : {}}>{m.value}</strong>
-              <small>{m.sub}</small>
-            </div>
-          ))}
+          {profile && (
+            <span style={{ fontSize: 'var(--text-caption)', color: 'var(--muted)', fontWeight: 600 }}>
+              {profile.full_name || profile.email} · {profile.role}
+            </span>
+          )}
+          {isAdmin(role) && (
+            <a className="btn small" href="/admin/users"><Users size={14} /> Usuários</a>
+          )}
+          <button className="btn small danger" onClick={signOut}><LogOut size={14} /> Sair</button>
         </div>
       </header>
 
@@ -550,8 +528,8 @@ export default function AppPage() {
           { label: 'Vence em breve', count: soon, sub: 'nos próximos 7 dias', cls: soon > 0 ? 'warn' : '' },
           { label: 'Concluídos', count: done, sub: `de ${total} frentes`, cls: done > 0 ? 'good' : '' },
           { label: 'Lacunas governança', count: gaps, sub: 'sem prazo/resp/status', cls: gaps > 0 ? 'warn' : '' },
-        ].map(t => (
-          <div key={t.label} className={`status-tile ${t.cls ?? ''}`}>
+        ].map((t, idx) => (
+          <div key={t.label} className={`status-tile ${t.cls ?? ''} animate-fade-up stagger-${idx + 1}`}>
             <span>{t.label}</span>
             <strong>{t.count}</strong>
             <small>{t.sub}</small>
@@ -563,16 +541,16 @@ export default function AppPage() {
       <div className="tabs">
         {VIEWS.map(v => (
           <button key={v.id} className={`tab ${view === v.id ? 'active' : ''}`} onClick={() => setView(v.id)}>
-            {v.label}
+            {v.icon} {v.label}
           </button>
         ))}
       </div>
 
       {/* ── Views ────────────────────────────────────────────── */}
 
-      {view === 'dashboard' && <DashboardView filtered={filtered} donutDeg={donutDeg} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} onEdit={openModal} gains={gains} items={items} />}
+      {view === 'dashboard' && <DashboardView filtered={filtered} donutDeg={donutDeg} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} />}
       {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProducts()} />}
-      {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} />}
+      {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
@@ -588,7 +566,7 @@ export default function AppPage() {
                 <h2>{modalId === 'new' ? 'Nova frente' : `Editar ${modalId}`}</h2>
                 <p>{modalItem ? `${modalItem.product ?? 'Sem produto'} · ${modalItem.project ?? ''} · Score ${scoreOf(modalItem)}%` : 'Preencha os dados da nova frente.'}</p>
               </div>
-              <button className="btn square" onClick={closeModal} aria-label="Fechar">✕</button>
+              <button className="btn square" onClick={closeModal} aria-label="Fechar"><X size={18} /></button>
             </div>
             <div className="modal-body">
               <form onSubmit={submitModal}>
@@ -775,8 +753,8 @@ export default function AppPage() {
 
 // ── Sub-view components ───────────────────────────────────────────────────────
 
-function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active, total, onEdit, gains, items }: {
-  filtered: Item[]; donutDeg: string; avgScore: number; late: number; soon: number; gaps: number; active: number; total: number; onEdit: (id: string) => void; gains: Gain[]; items: Item[]
+function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active, total, effort, onEdit, gains, items }: {
+  filtered: Item[]; donutDeg: string; avgScore: number; late: number; soon: number; gaps: number; active: number; total: number; effort: number; onEdit: (id: string) => void; gains: Gain[]; items: Item[]
 }) {
   const decisionQueue = [...filtered].filter(i => !isDone(i)).sort((a, b) => riskSeverity(riskOf(a)) - riskSeverity(riskOf(b)) || scoreOf(a) - scoreOf(b)).slice(0, 8)
   const govGaps = [...filtered].filter(i => dataGaps(i).length > 0 && !isDone(i)).sort((a, b) => dataGaps(b).length - dataGaps(a).length).slice(0, 8)
@@ -797,14 +775,14 @@ function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active,
     <>
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         {[
-          { label: 'Total', value: total, sub: 'frentes no recorte', cls: 'blue' },
-          { label: 'Ativas', value: active, sub: 'em execução ou planejadas', cls: 'blue' },
-          { label: 'Concluídas', value: total - active, sub: 'entregues ou canceladas', cls: 'green' },
-          { label: 'Críticas', value: late, sub: 'atrasadas ou bloqueadas', cls: late > 0 ? 'red' : 'green' },
-          { label: 'Lacunas', value: gaps, sub: 'governança incompleta', cls: gaps > 0 ? 'amber' : 'green' },
-          { label: 'Score', value: `${avgScore}%`, sub: 'média da carteira', cls: avgScore < 60 ? 'red' : avgScore < 80 ? 'amber' : 'green' },
-        ].map(k => (
-          <div className={`kpi ${k.cls}`} key={k.label}>
+          { label: 'Score executivo', value: `${avgScore}%`, sub: `Média ponderada · ${total} frentes`, cls: avgScore < 60 ? 'red' : avgScore < 80 ? 'amber' : 'green', hero: true },
+          { label: 'Ativas', value: active, sub: 'em execução ou planejadas', cls: 'blue', hero: false },
+          { label: 'Concluídas', value: total - active, sub: 'entregues ou canceladas', cls: 'green', hero: false },
+          { label: 'Críticas', value: late, sub: 'atrasadas ou bloqueadas', cls: late > 0 ? 'red' : 'green', hero: false },
+          { label: 'Lacunas', value: gaps, sub: 'governança incompleta', cls: gaps > 0 ? 'amber' : 'green', hero: false },
+          { label: 'Esforço restante', value: `${effort}h`, sub: `${soon} vencem em breve`, cls: 'blue', hero: false },
+        ].map((k, idx) => (
+          <div className={`kpi ${k.cls}${k.hero ? ' kpi-hero' : ''} animate-fade-up stagger-${idx + 1}`} key={k.label}>
             <span>{k.label}</span>
             <strong>{k.value}</strong>
             <small>{k.sub}</small>
@@ -1122,7 +1100,7 @@ function PortfolioView({ filtered, onEdit, onQuickComment, canEdit, onFieldChang
                 {/* Ações — Abrir + Coment. (era só Editar) */}
                 <td className="row-actions" style={{ whiteSpace: 'nowrap' }}>
                   <button className="btn small" onClick={() => onEdit(it.id)}>Abrir</button>
-                  <button className="btn small" onClick={() => onQuickComment(it.id)} style={{ marginLeft: 4 }}>Coment.</button>
+                  <button className="btn small" onClick={() => onQuickComment(it.id)} style={{ marginLeft: 4 }}><MessageSquare size={12} /></button>
                 </td>
               </tr>
             ))}
@@ -1133,39 +1111,116 @@ function PortfolioView({ filtered, onEdit, onQuickComment, canEdit, onFieldChang
   )
 }
 
-function BoardView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string) => void }) {
-  const LANES = ['A iniciar','Em andamento','Em validação','Bloqueado','Atrasado','Pausado','Concluído','Entregue','Sem status']
+// ── Sortable Card (DnD) ────────────────────────────────────────────────────
+function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const style: React.CSSProperties = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
   return (
-    <div className="board">
-      {LANES.map(status => {
-        const rows = filtered.filter(it => it.status === status)
-        if (!rows.length && !['A iniciar','Em andamento','Em validação','Bloqueado','Atrasado','Concluído','Entregue'].includes(status)) return null
-        return (
-          <div key={status} className="lane">
-            <div className="lane-head">
-              <h3>{status}</h3>
-              <Badge label={String(rows.length)} />
-            </div>
-            {rows.length === 0 ? <div className="empty" style={{ padding: 18 }}>Sem itens</div> : rows.map(it => (
-              <article key={it.id} className="task-card">
-                <div className="task-meta">
-                  <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
-                  <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
-                  <Badge label={it.priority ?? 'Média'} tone={priorityTone(it.priority ?? 'Média')} />
-                </div>
-                <h4>{it.project ?? 'Sem projeto'}</h4>
-                <p>{it.demand ?? it.definition ?? 'Sem demanda'}</p>
-                <div><small>{dateFmt(it.dueDate)} · {it.owner ?? 'Sem responsável'}</small></div>
-                <div className="progress-line"><i style={{ width: `${clamp(Number(it.progress ?? 0), 0, 100)}%` }} /></div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <small>Score {scoreOf(it)}%</small>
-                  <button className="btn small" onClick={() => onEdit(it.id)}>Editar</button>
-                </div>
-              </article>
-            ))}
+    <article ref={setNodeRef} style={style} className={`task-card${isDragging ? ' dragging' : ''}`} {...attributes}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <button className="btn-drag" {...listeners} aria-label="Arrastar" style={{ cursor: 'grab', background: 'none', border: 'none', padding: '2px 0', color: 'var(--muted-2)', flexShrink: 0 }}>
+          <GripVertical size={14} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="task-meta">
+            <Badge label={item.product ?? 'Sem produto'} tone={productTone(item.product)} />
+            <Badge label={riskOf(item)} tone={riskTone(riskOf(item))} />
+            <Badge label={item.priority ?? 'Média'} tone={priorityTone(item.priority ?? 'Média')} />
           </div>
-        )
-      })}
+          <h4>{item.project ?? 'Sem projeto'}</h4>
+          <p>{item.demand ?? item.definition ?? 'Sem demanda'}</p>
+          <div><small>{dateFmt(item.dueDate)} · {item.owner ?? 'Sem responsável'}</small></div>
+          <div className="progress-line"><i style={{ width: `${clamp(Number(item.progress ?? 0), 0, 100)}%` }} /></div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+            <small>Score {scoreOf(item)}%</small>
+            <button className="btn small" onClick={() => onEdit(item.id)}>Editar</button>
+          </div>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+const BOARD_LANES: { status: string; dot: string }[] = [
+  { status: 'A iniciar', dot: 'lane-dot-iniciar' },
+  { status: 'Em andamento', dot: 'lane-dot-andamento' },
+  { status: 'Em validação', dot: 'lane-dot-validacao' },
+  { status: 'Bloqueado', dot: 'lane-dot-bloqueado' },
+  { status: 'Concluído', dot: 'lane-dot-concluido' },
+  { status: 'Entregue', dot: 'lane-dot-concluido' },
+]
+
+function BoardView({ filtered, onEdit, onStatusChange }: { filtered: Item[]; onEdit: (id: string) => void; onStatusChange: (id: string, newStatus: string) => void }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over) return
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    if (activeId === overId) return
+
+    let targetStatus: string | null = null
+
+    // If dropped on a lane (lane IDs are prefixed with "lane-")
+    if (overId.startsWith('lane-')) {
+      const laneStatus = overId.replace('lane-', '')
+      const lane = BOARD_LANES.find(l => l.status === laneStatus)
+      if (lane) targetStatus = lane.status
+    } else {
+      // Dropped on another card — find which lane that card belongs to
+      const targetItem = filtered.find(i => i.id === overId)
+      if (targetItem) targetStatus = targetItem.status
+    }
+
+    if (targetStatus) {
+      const item = filtered.find(i => i.id === activeId)
+      if (item && item.status !== targetStatus) {
+        onStatusChange(activeId, targetStatus)
+      }
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="board">
+        {BOARD_LANES.map(({ status, dot }) => {
+          const rows = filtered.filter(it => it.status === status)
+          const ids = rows.map(r => r.id)
+          return (
+            <SortableContext key={status} items={ids} strategy={verticalListSortingStrategy}>
+              <DroppableLane laneId={`lane-${status}`} status={status} dot={dot} count={rows.length}>
+                {rows.length === 0 ? (
+                  <div className="empty" style={{ padding: 18 }}>Sem itens</div>
+                ) : rows.map(it => (
+                  <SortableTaskCard key={it.id} item={it} onEdit={onEdit} />
+                ))}
+              </DroppableLane>
+            </SortableContext>
+          )
+        })}
+      </div>
+    </DndContext>
+  )
+}
+
+// ── Droppable Lane wrapper ────────────────────────────────────────────────
+function DroppableLane({ laneId, status, dot, count, children }: {
+  laneId: string; status: string; dot: string; count: number; children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: laneId })
+  return (
+    <div ref={setNodeRef} className={`lane${isOver ? ' lane-over' : ''}`}>
+      <div className="lane-head">
+        <div className={`lane-dot ${dot}`} />
+        <h3>{status}</h3>
+        <Badge label={String(count)} />
+      </div>
+      {children}
     </div>
   )
 }
@@ -1476,7 +1531,7 @@ function ExecutiveView({ filtered, filters }: { filtered: Item[]; filters: Filte
         <div className="card-head">
           <h3 className="card-title">Insights executivos</h3>
           <button className="btn small" onClick={() => { navigator.clipboard?.writeText(report); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
-            {copied ? '✓ Copiado' : 'Copiar relatório'}
+            <Copy size={14} /> {copied ? 'Copiado' : 'Copiar relatório'}
           </button>
         </div>
         <div className="card-body insight-list">
