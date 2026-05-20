@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import pkg from '@/package.json' with { type: 'json' }
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,7 +25,7 @@ export async function GET() {
   return NextResponse.json({
     status: supabaseStatus === 'connected' ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '0.1.0',
+    version: pkg.version,
     supabase: supabaseStatus,
     latencyMs,
     environment: process.env.NODE_ENV,
