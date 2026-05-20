@@ -111,9 +111,13 @@ jobs:
       - name: Smoke test
         run: |
           URL="${{ steps.deploy.outputs.url }}"
-          # Vercel deploys return shortlink first; resolve to actual URL
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/login")
-          echo "Login page returned HTTP $STATUS"
-          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 307 ]; then
-            echo "::warning::Smoke test returned unexpected status: $STATUS"
+          # Test health endpoint (always accessible, no auth)
+          HEALTH=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/api/health")
+          echo "Health endpoint returned HTTP $HEALTH"
+          if [ "$HEALTH" -ne 200 ]; then
+            echo "::error::Health check failed with status: $HEALTH"
+            exit 1
           fi
+          # Test login page (may return 200 or 307/401 depending on auth state)
+          LOGIN=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/login")
+          echo "Login page returned HTTP $LOGIN"
