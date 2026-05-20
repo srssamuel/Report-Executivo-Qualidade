@@ -1,0 +1,116 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deploy target'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SUPABASE_URL: https://rirkdpsyuvhumuhejofv.supabase.co
+      SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Link project (first run creates it)
+        run: |
+          if [ -z "$VERCEL_PROJECT_ID" ]; then
+            vercel link --yes \
+              --project report-executivo-qualidade \
+              --scope srssamueldatacx-agi \
+              --token=$VERCEL_TOKEN
+            # capture the project id for subsequent runs (user should copy to secret)
+            cat .vercel/project.json
+          else
+            mkdir -p .vercel
+            echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
+          fi
+
+      - name: Sync production env vars
+        run: |
+          set +e
+          add_env() {
+            local key=$1
+            local value=$2
+            if [ -z "$value" ]; then
+              echo "skip $key (empty)"
+              return
+            fi
+            vercel env rm "$key" production --token=$VERCEL_TOKEN --yes >/dev/null 2>&1
+            printf "%s" "$value" | vercel env add "$key" production --token=$VERCEL_TOKEN
+          }
+          add_env NEXT_PUBLIC_SUPABASE_URL "$SUPABASE_URL"
+          add_env NEXT_PUBLIC_SUPABASE_ANON_KEY "$SUPABASE_ANON_KEY"
+          add_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
+
+      - name: Determine target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target=${{ inputs.target }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "target=production" >> $GITHUB_OUTPUT
+          else
+            echo "target=preview" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=${{ steps.target.outputs.target }} --token=$VERCEL_TOKEN
+
+      - name: Build
+        run: |
+          if [ "${{ steps.target.outputs.target }}" = "production" ]; then
+            vercel build --prod --token=$VERCEL_TOKEN
+          else
+            vercel build --token=$VERCEL_TOKEN
+          fi
+
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "${{ steps.target.outputs.target }}" = "production" ]; then
+            URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+          else
+            URL=$(vercel deploy --prebuilt --token=$VERCEL_TOKEN)
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "### 🚀 Deployed to $URL" >> $GITHUB_STEP_SUMMARY
+          echo "- Target: **${{ steps.target.outputs.target }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Smoke test
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          # Vercel deploys return shortlink first; resolve to actual URL
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/login")
+          echo "Login page returned HTTP $STATUS"
+          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 307 ]; then
+            echo "::warning::Smoke test returned unexpected status: $STATUS"
+          fi
