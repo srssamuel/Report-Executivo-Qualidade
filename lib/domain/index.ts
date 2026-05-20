@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'superintendente' | 'lider' | 'analista' | 'viewer'
+export type Role = 'admin' | 'superintendente' | 'gerente' | 'coordenador' | 'consultor' | 'lider' | 'analista' | 'viewer'
 
 export interface ItemComment {
   id?: string
@@ -61,16 +61,19 @@ export const PRODUCT_SUGGESTIONS = ['Vivo','Nubank','Enel','Athena','Madeira Mad
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrador',
   superintendente: 'Superintendente',
+  gerente: 'Gerente',
+  coordenador: 'Coordenador',
+  consultor: 'Consultor',
   lider: 'Líder',
   analista: 'Analista',
   viewer: 'Visualizador',
 }
 
 export function canEdit(role: Role) {
-  return ['admin','superintendente','lider','analista'].includes(role)
+  return ['admin','superintendente','gerente','coordenador','consultor','lider','analista'].includes(role)
 }
 export function canDelete(role: Role) {
-  return ['admin','superintendente','lider'].includes(role)
+  return ['admin','superintendente','gerente','coordenador','lider'].includes(role)
 }
 export function isAdmin(role: Role) { return role === 'admin' }
 
