@@ -11,6 +11,7 @@
 ## Recursos já provisionados — NÃO RECRIAR
 
 ### Supabase
+
 - **Projeto:** `report-executivo-qualidade`
 - **ID:** `rirkdpsyuvhumuhejofv`
 - **Region:** sa-east-1
@@ -22,6 +23,7 @@
 - **31 itens** importados (G6-001 a G6-031)
 
 ### Vercel
+
 - **Team:** `DataCX-AGI` (slug `srssamueldatacx-agi`, id `team_8fyhRYXjuzjs3ByUQTtPJNbL`)
 - **Projeto:** `report-executivo-qualidade` (id `prj_KgJ92OeoCACarNQzzfLrR5U65zRk`)
 - **Env vars:** 3 configuradas (SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY)
@@ -29,23 +31,25 @@
 ## CI/CD
 
 ### Deploy (`.github/workflows/deploy.yml`)
+
 - Push em `main` → produção
 - Push em `claude/**` → preview
 - `workflow_dispatch` → manual para production ou preview
 - Smoke test automático no login
 
 ### Quality gate (`.github/workflows/ci.yml`)
+
 - Lint → Typecheck → Build
 - Roda em push + PRs para main
 
 ### Secrets necessários (GitHub Settings → Secrets)
 
-| Secret | Obrigatório | Para que serve |
-|--------|-------------|----------------|
-| `VERCEL_TOKEN` | Sim | Deploy na Vercel |
-| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow | `/api/admin/invite` |
-| `VERCEL_ORG_ID` | Auto após 1º deploy | ID da org |
-| `VERCEL_PROJECT_ID` | Auto após 1º deploy | ID do projeto |
+| Secret                      | Obrigatório         | Para que serve      |
+| --------------------------- | ------------------- | ------------------- |
+| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel    |
+| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow    | `/api/admin/invite` |
+| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org           |
+| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto       |
 
 ## Estrutura do código
 
@@ -57,10 +61,15 @@ app/
   admin/users/                 # Gestão de usuários (admin only)
   api/admin/invite/route.ts    # Convite em lote (Zod + rate limit)
   api/health/route.ts          # Health check + conectividade Supabase
-  globals.css                  # Design system completo (~550 linhas)
+  error.tsx                    # Error boundary global
+  layout.tsx                   # Root layout (Analytics + SpeedInsights)
+  globals.css                  # Design system completo (~684 linhas)
 lib/
   domain/index.ts              # Lógica de negócio em TS puro (tipos, cálculos, filtros)
+  design-tokens.json           # Design tokens exportáveis (cores, tipografia, espaçamento)
   supabase/{client,server}.ts  # Clientes browser/SSR
+eslint.config.mjs              # ESLint flat config (typescript-eslint)
+.husky/pre-commit              # Pre-commit hook (lint-staged)
 proxy.ts                       # Auth middleware (renomeado de middleware.ts em Next 16)
 supabase/migrations/
   001_schema.sql               # 7 tabelas + triggers
@@ -82,6 +91,7 @@ npx tsc --noEmit     # Typecheck
 ## Padrões de código
 
 ### Geral
+
 - **CSS:** preservar `app/globals.css` — design system custom. NÃO substituir por Tailwind.
 - **Lógica de domínio:** funções puras em `lib/domain/index.ts`. Reusar sempre.
 - **Tipos:** Definidos no domain/index.ts. Usar `z.infer` de Zod quando possível.
@@ -89,6 +99,7 @@ npx tsc --noEmit     # Typecheck
 - **Idioma:** PT-BR em UI e commits
 
 ### RLS & Segurança
+
 - Todas as tabelas têm RLS ativa
 - Funções helper são SECURITY DEFINER com `SET search_path = public`
 - Validação de input via Zod em todos os endpoints de API
@@ -96,9 +107,11 @@ npx tsc --noEmit     # Typecheck
 - Rate limiting in-memory nos endpoints sensíveis
 
 ### Roles
+
 `admin` / `superintendente` / `gerente` / `coordenador` / `consultor` / `lider` / `analista` / `viewer`
 
 ### Views da SPA
+
 Dashboard · Carteira · Board · Riscos · Timeline · Capacidade · Executivo · Arquivados
 
 ## Não fazer

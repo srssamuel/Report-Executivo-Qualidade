@@ -1,0 +1,132 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": {
+    "name": "Report Executivo Qualidade — Design Tokens",
+    "version": "0.2.0",
+    "source": "app/globals.css :root"
+  },
+  "color": {
+    "blue": {
+      "950": {
+        "value": "#06162a",
+        "description": "Darkest blue — hero backgrounds"
+      },
+      "900": { "value": "#0b1f3a", "description": "Primary ink color" },
+      "850": { "value": "#0d2b55", "description": "Deep blue accent" },
+      "800": { "value": "#123e7c", "description": "Strong blue" },
+      "700": {
+        "value": "#1d559a",
+        "description": "Primary blue — buttons, links"
+      },
+      "600": { "value": "#2f6db5", "description": "Medium blue" },
+      "500": { "value": "#3f82cf", "description": "Active state blue" },
+      "400": { "value": "#6fa8dc", "description": "Light blue accent" },
+      "300": {
+        "value": "#a9cef2",
+        "description": "Pale blue — subtle highlights"
+      }
+    },
+    "semantic": {
+      "green": { "value": "#0b8a5b", "description": "Success, concluído" },
+      "green-soft": { "value": "#e8f7f1", "description": "Success background" },
+      "amber": { "value": "#b86b00", "description": "Warning, em andamento" },
+      "amber-soft": { "value": "#fff4df", "description": "Warning background" },
+      "red": {
+        "value": "#bd2f3d",
+        "description": "Error, atrasado, risco alto"
+      },
+      "red-soft": { "value": "#ffecef", "description": "Error background" },
+      "purple": { "value": "#6843c6", "description": "Info, planejado" },
+      "purple-soft": { "value": "#f0ebff", "description": "Info background" }
+    },
+    "surface": {
+      "bg": { "value": "#f5f9ff", "description": "App background" },
+      "surface": { "value": "#ffffff", "description": "Card surface" },
+      "surface-soft": { "value": "#fbfdff", "description": "Subtle surface" },
+      "surface-2": { "value": "#f7fafe", "description": "Alternate surface" }
+    },
+    "neutral": {
+      "ink": { "value": "#0b1f3a", "description": "Primary text" },
+      "muted": { "value": "#5f7188", "description": "Secondary text" },
+      "muted-2": { "value": "#8a98aa", "description": "Tertiary text" },
+      "line": { "value": "#e3ecf6", "description": "Default border" },
+      "line-strong": { "value": "#c8d9ec", "description": "Strong border" },
+      "gray-soft": { "value": "#f1f5f9", "description": "Disabled/muted bg" }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": {
+        "value": "Bahnschrift, 'Aptos Display', 'Segoe UI Variable', 'Segoe UI', Arial, sans-serif"
+      },
+      "body": {
+        "value": "'Segoe UI Variable Text', 'Aptos', 'Inter', 'Segoe UI', Arial, sans-serif"
+      }
+    },
+    "scale": {
+      "description": "Escala tipográfica (rem) — referência para consistência",
+      "caption": {
+        "value": "0.75rem",
+        "px": "12px",
+        "use": "labels auxiliares, timestamps"
+      },
+      "small": {
+        "value": "0.813rem",
+        "px": "13px",
+        "use": "tabelas, metadata"
+      },
+      "body": {
+        "value": "0.875rem",
+        "px": "14px",
+        "use": "texto corrido, inputs"
+      },
+      "body-lg": { "value": "1rem", "px": "16px", "use": "texto de destaque" },
+      "subtitle": {
+        "value": "1.125rem",
+        "px": "18px",
+        "use": "subtítulos de seção"
+      },
+      "title": {
+        "value": "1.35rem",
+        "px": "21.6px",
+        "use": "títulos de card/módulo"
+      },
+      "heading": {
+        "value": "1.7rem",
+        "px": "27.2px",
+        "use": "títulos de seção"
+      },
+      "display": {
+        "value": "2.2rem",
+        "px": "35.2px",
+        "use": "hero title, KPI grande"
+      }
+    }
+  },
+  "spacing": {
+    "description": "Escala 4pt (px)",
+    "4": { "value": "4px" },
+    "6": { "value": "6px" },
+    "8": { "value": "8px" },
+    "10": { "value": "10px" },
+    "12": { "value": "12px" },
+    "16": { "value": "16px" },
+    "20": { "value": "20px" },
+    "24": { "value": "24px" },
+    "32": { "value": "32px" },
+    "40": { "value": "40px" },
+    "48": { "value": "48px" },
+    "64": { "value": "64px" }
+  },
+  "radius": {
+    "sm": { "value": "10px" },
+    "md": { "value": "14px" },
+    "lg": { "value": "18px" },
+    "xl": { "value": "22px" }
+  },
+  "shadow": {
+    "xs": { "value": "0 1px 2px rgba(11, 31, 58, 0.04)" },
+    "soft": { "value": "0 8px 22px rgba(11, 31, 58, 0.045)" },
+    "md": { "value": "0 18px 44px rgba(11, 31, 58, 0.08)" }
+  }
+}
