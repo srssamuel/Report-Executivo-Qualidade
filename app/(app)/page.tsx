@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Item, UserProfile, Filters, Role,
-  STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS,
+  Item, UserProfile, Filters, Role, Gain, Product, GainType,
+  STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, gainTypeTone,
   normalizeItem, normalizeStatus, inferProduct,
   filteredItems, sortItems, countsBy,
   riskOf, riskSeverity, riskTone, statusTone, priorityTone, productTone,
@@ -50,7 +50,7 @@ function BarChart({ data, total }: { data: Record<string, number>; total: number
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
-type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive'
+type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'archived'
 
 const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'dashboard', label: '📊 Dashboard' },
@@ -60,6 +60,7 @@ const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'timeline', label: '📅 Timeline' },
   { id: 'capacity', label: '⚡ Capacidade' },
   { id: 'executive', label: '📝 Executivo' },
+  { id: 'archived', label: '🗃 Arquivados' },
 ]
 
 export default function AppPage() {
@@ -80,9 +81,15 @@ export default function AppPage() {
   const [weeklyCapacity, setWeeklyCapacity] = useState(30)
   const [urgentForm, setUrgentForm] = useState({ product: 'Vivo', title: '', owner: '', effort: 16, dueDate: '', reason: '' })
   const [urgentSimulated, setUrgentSimulated] = useState(false)
+  const [gains, setGains] = useState<Gain[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [showArchived, setShowArchived] = useState(false)
 
   // ── Form state (modal) ────────────────────────────────────────────────────
   const [form, setForm] = useState<Partial<Item> & { tagsRaw?: string; commentText?: string; commentAuthor?: string; commentType?: string }>({})
+  const [gainForm, setGainForm] = useState<{ gain_type: GainType; kpi: string; gain_value: string; detail: string }>({ gain_type: 'Financeiro', kpi: '', gain_value: '', detail: '' })
+  const [modalGains, setModalGains] = useState<Gain[]>([])
+  const [modalHistory, setModalHistory] = useState<{ at: string; field: string; old_value: string; new_value: string; changed_by: string }[]>([])
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -97,12 +104,24 @@ export default function AppPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [profileRes, itemsRes] = await Promise.all([
+      const [profileRes, itemsRes, gainsRes, productsRes] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', user.id).single(),
         supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
+        supabase.from('gains').select('*').order('created_at', { ascending: false }),
+        supabase.from('products').select('*').order('name'),
       ])
 
-      if (profileRes.data) setProfile(profileRes.data as UserProfile)
+      if (profileRes.data) {
+        const prof = profileRes.data as UserProfile & { password_changed?: boolean }
+        setProfile(prof)
+        // First-login: redirect to password change if not yet changed
+        if (prof.password_changed === false) {
+          window.location.href = '/reset-password?first=1'
+          return
+        }
+      }
+      if (gainsRes.data) setGains(gainsRes.data as Gain[])
+      if (productsRes.data) setProducts(productsRes.data as Product[])
 
       if (itemsRes.data) {
         const mapped = itemsRes.data.map((row: Record<string, unknown>) => normalizeItem({
@@ -150,8 +169,9 @@ export default function AppPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = sortItems(filteredItems(items, filters), filters.sort)
 
+  const productNames = products.filter(p => p.active).map(p => p.name)
   function uniqueProducts() {
-    return [...new Set([...PRODUCT_SUGGESTIONS, ...items.filter(i => !i.archived).map(i => i.product).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    return [...new Set([...productNames, ...PRODUCT_SUGGESTIONS, ...items.filter(i => !i.archived).map(i => i.product).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   }
   function uniqueProjects() {
     return [...new Set(items.filter(i => !i.archived && (!filters.product || i.product === filters.product)).map(i => i.project).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -208,14 +228,20 @@ export default function AppPage() {
   }
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
-  function openModal(id: string | null) {
+  async function openModal(id: string | null) {
     if (id) {
       const it = items.find(x => x.id === id)
       if (!it) return
       setForm({ ...it, tagsRaw: (it.tags ?? []).join(', '), commentText: '', commentAuthor: profile?.full_name || profile?.email || '', commentType: 'Comentário' })
+      setModalGains(gains.filter(g => g.item_id === id))
+      const { data: hist } = await supabase.from('item_history').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(30)
+      setModalHistory((hist ?? []).map((h: Record<string, unknown>) => ({ at: h.changed_at as string, field: h.field as string, old_value: h.old_value as string, new_value: h.new_value as string, changed_by: h.changed_by as string })))
     } else {
       setForm({ status: 'A iniciar', priority: 'Média', progress: 0, product: filters.product || 'Vivo', tagsRaw: '', commentText: '', commentAuthor: profile?.full_name || profile?.email || '', commentType: 'Comentário' })
+      setModalGains([])
+      setModalHistory([])
     }
+    setGainForm({ gain_type: 'Financeiro', kpi: '', gain_value: '', detail: '' })
     setModalId(id ?? 'new')
   }
   function closeModal() { setModalId(null) }
@@ -278,6 +304,39 @@ export default function AppPage() {
     await updateField(modalId as string, 'executiveComment', text)
     setForm(f => ({ ...f, commentText: '' }))
     showToast('Comentário registrado.')
+  }
+
+  async function addGain() {
+    if (!modalId || modalId === 'new') return
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase.from('gains').insert({
+      item_id: modalId,
+      gain_type: gainForm.gain_type,
+      kpi: gainForm.kpi || null,
+      gain_value: gainForm.gain_value || null,
+      detail: gainForm.detail || null,
+      created_by: user?.id,
+    }).select().single()
+    if (error) { showToast(`Erro ao registrar ganho: ${error.message}`); return }
+    const newGain = data as Gain
+    setGains(prev => [newGain, ...prev])
+    setModalGains(prev => [newGain, ...prev])
+    setGainForm({ gain_type: 'Financeiro', kpi: '', gain_value: '', detail: '' })
+    showToast('Ganho registrado.')
+  }
+
+  async function deleteGain(gainId: string) {
+    if (!confirm('Remover este ganho?')) return
+    await supabase.from('gains').delete().eq('id', gainId)
+    setGains(prev => prev.filter(g => g.id !== gainId))
+    setModalGains(prev => prev.filter(g => g.id !== gainId))
+    showToast('Ganho removido.')
+  }
+
+  async function restoreItem(id: string) {
+    await updateField(id, 'archived', false)
+    setItems(prev => prev.map(i => i.id === id ? { ...i, archived: false } : i))
+    showToast('Item restaurado.')
   }
 
   // ── Export helpers ────────────────────────────────────────────────────────
@@ -484,13 +543,14 @@ export default function AppPage() {
 
       {/* ── Views ────────────────────────────────────────────── */}
 
-      {view === 'dashboard' && <DashboardView filtered={filtered} donutDeg={donutDeg} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} onEdit={openModal} />}
+      {view === 'dashboard' && <DashboardView filtered={filtered} donutDeg={donutDeg} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} onEdit={openModal} gains={gains} items={items} />}
       {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} canEdit={canEditItems} onFieldChange={updateField} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
+      {view === 'archived' && <ArchivedView items={items} onEdit={openModal} onRestore={restoreItem} canEdit={canEditItems} />}
 
       {/* ── Modal ────────────────────────────────────────────── */}
       {modalId !== null && (
@@ -508,7 +568,7 @@ export default function AppPage() {
                 <div className="form-grid">
                   <label>Produto/cliente
                     <input list="productOptions" value={form.product ?? ''} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} />
-                    <datalist id="productOptions">{PRODUCT_SUGGESTIONS.map(p => <option key={p} value={p} />)}</datalist>
+                    <datalist id="productOptions">{uniqueProducts().map(p => <option key={p} value={p} />)}</datalist>
                   </label>
                   <label>Projeto
                     <input value={form.project ?? ''} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} />
@@ -596,6 +656,85 @@ export default function AppPage() {
                   )}
                 </div>
               )}
+
+              {/* Gains */}
+              {modalId !== 'new' && (
+                <div style={{ marginTop: 16 }}>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Ganhos registrados</h3>
+                  {canEditItems && (
+                    <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Tipo de ganho
+                          <select value={gainForm.gain_type} onChange={e => setGainForm(f => ({ ...f, gain_type: e.target.value as GainType }))}>
+                            {GAIN_TYPES.map(t => <option key={t}>{t}</option>)}
+                          </select>
+                        </label>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>KPI impactado
+                          <input placeholder="Ex.: NPS, CSAT, Tempo médio…" value={gainForm.kpi} onChange={e => setGainForm(f => ({ ...f, kpi: e.target.value }))} />
+                        </label>
+                      </div>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Valor do ganho
+                        <input placeholder="Ex.: +12%, R$ 50k/mês, 2h reduzidas…" value={gainForm.gain_value} onChange={e => setGainForm(f => ({ ...f, gain_value: e.target.value }))} />
+                      </label>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Detalhamento
+                        <textarea rows={2} placeholder="Detalhe o ganho obtido com esta frente…" value={gainForm.detail} onChange={e => setGainForm(f => ({ ...f, detail: e.target.value }))} />
+                      </label>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button className="btn small primary" type="button" onClick={addGain}>Registrar ganho</button>
+                      </div>
+                    </div>
+                  )}
+                  {modalGains.length === 0 ? (
+                    <div className="empty" style={{ padding: 12 }}>Nenhum ganho registrado para esta frente.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {modalGains.map(g => (
+                        <div key={g.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="task-meta" style={{ marginBottom: 4 }}>
+                              <Badge label={g.gain_type} tone={gainTypeTone(g.gain_type)} />
+                              {g.kpi && <Badge label={g.kpi} tone="tone-blue" />}
+                              {g.gain_value && <Badge label={g.gain_value} tone="tone-green" />}
+                            </div>
+                            {g.detail && <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{g.detail}</p>}
+                            <small style={{ color: '#9ca3af' }}>{new Date(g.created_at).toLocaleDateString('pt-BR')} {new Date(g.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>
+                          </div>
+                          {canDeleteItems && <button className="btn small danger" type="button" onClick={() => deleteGain(g.id)}>✕</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* History */}
+              {modalId !== 'new' && modalHistory.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Histórico de alterações</h3>
+                  <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Data</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Campo</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>De</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Para</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {modalHistory.map((h, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: '#5f7188' }}>{new Date(h.at).toLocaleDateString('pt-BR')} {new Date(h.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td style={{ padding: '4px 8px', fontWeight: 600 }}>{h.field}</td>
+                            <td style={{ padding: '4px 8px', color: '#9ca3af', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.old_value || '—'}</td>
+                            <td style={{ padding: '4px 8px', color: '#374151', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.new_value || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -609,8 +748,8 @@ export default function AppPage() {
 
 // ── Sub-view components ───────────────────────────────────────────────────────
 
-function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active, total, onEdit }: {
-  filtered: Item[]; donutDeg: string; avgScore: number; late: number; soon: number; gaps: number; active: number; total: number; onEdit: (id: string) => void
+function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active, total, onEdit, gains, items }: {
+  filtered: Item[]; donutDeg: string; avgScore: number; late: number; soon: number; gaps: number; active: number; total: number; onEdit: (id: string) => void; gains: Gain[]; items: Item[]
 }) {
   const decisionQueue = [...filtered].filter(i => !isDone(i)).sort((a, b) => riskSeverity(riskOf(a)) - riskSeverity(riskOf(b)) || scoreOf(a) - scoreOf(b)).slice(0, 8)
   const govGaps = [...filtered].filter(i => dataGaps(i).length > 0 && !isDone(i)).sort((a, b) => dataGaps(b).length - dataGaps(a).length).slice(0, 8)
@@ -717,6 +856,48 @@ function DashboardView({ filtered, donutDeg, avgScore, late, soon, gaps, active,
           </div>
         </div>
       </div>
+
+      {/* Gains summary */}
+      {gains.length > 0 && (
+        <div className="grid two" style={{ marginTop: 16 }}>
+          <div className="card">
+            <div className="card-head"><h3 className="card-title">Ganhos por tipo</h3><Badge label={`${gains.length} registros`} tone="tone-green" /></div>
+            <div className="card-body">
+              <BarChart data={countsBy(gains, g => g.gain_type)} total={gains.length} />
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                {(GAIN_TYPES as readonly string[]).map(t => {
+                  const count = gains.filter(g => g.gain_type === t).length
+                  return (
+                    <div key={t} style={{ padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                      <Badge label={t} tone={gainTypeTone(t)} />
+                      <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, color: '#0f172a' }}>{count}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-head"><h3 className="card-title">Ganhos recentes</h3></div>
+            <div className="card-body insight-list">
+              {gains.slice(0, 8).map(g => {
+                const it = items.find(x => x.id === g.item_id)
+                return (
+                  <div key={g.id} className="insight" style={{ cursor: it ? 'pointer' : 'default' }} onClick={() => it && onEdit(it.id)}>
+                    <div className="task-meta" style={{ marginBottom: 4 }}>
+                      <Badge label={g.gain_type} tone={gainTypeTone(g.gain_type)} />
+                      {g.kpi && <Badge label={g.kpi} tone="tone-blue" />}
+                      {g.gain_value && <Badge label={g.gain_value} tone="tone-green" />}
+                    </div>
+                    <strong>{it ? `${it.product ?? ''} — ${it.project ?? it.demand ?? 'Sem projeto'}` : g.item_id}</strong>
+                    {g.detail && <span style={{ color: '#5f7188', fontSize: 12 }}>{g.detail}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -1162,5 +1343,54 @@ function ExecutiveView({ filtered, filters }: { filtered: Item[]; filters: Filte
         </div>
       </div>
     </div>
+  )
+}
+
+function ArchivedView({ items, onEdit, onRestore, canEdit }: {
+  items: Item[]; onEdit: (id: string) => void; onRestore: (id: string) => void; canEdit: boolean
+}) {
+  const archived = items.filter(i => i.archived)
+  return (
+    <>
+      <div className="section-head">
+        <h2>Itens arquivados</h2>
+        <Badge label={`${archived.length} itens`} tone="tone-gray" />
+      </div>
+      {archived.length === 0 ? (
+        <div className="card">
+          <div className="card-body">
+            <div className="empty" style={{ padding: 32 }}>Nenhum item arquivado. Itens arquivados podem ser restaurados aqui.</div>
+          </div>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Produto</th><th>Projeto</th><th>Demanda</th>
+                <th>Status</th><th>Responsável</th><th>Última atualização</th><th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {archived.map(it => (
+                <tr key={it.id} style={{ opacity: 0.75 }}>
+                  <td style={{ fontWeight: 700 }}>{it.id}</td>
+                  <td><Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} /></td>
+                  <td>{it.project ?? '—'}</td>
+                  <td>{it.demand ?? '—'}</td>
+                  <td><Badge label={it.status} tone={statusTone(it.status)} /></td>
+                  <td>{it.owner ?? '—'}</td>
+                  <td style={{ fontSize: 12, color: '#5f7188' }}>{it.lastUpdate ? new Date(it.lastUpdate).toLocaleDateString('pt-BR') : '—'}</td>
+                  <td className="row-actions" style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn small" onClick={() => onEdit(it.id)}>Ver</button>
+                    {canEdit && <button className="btn small primary" onClick={() => onRestore(it.id)}>Restaurar</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   )
 }

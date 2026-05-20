@@ -51,6 +51,36 @@ export interface UserProfile {
   created_at: string
 }
 
+export interface Gain {
+  id: string
+  item_id: string
+  gain_type: 'Financeiro' | 'Processo' | 'Relacionamento' | 'Resultado'
+  kpi?: string
+  gain_value?: string
+  detail?: string
+  created_by?: string
+  created_at: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  color: string
+  active: boolean
+  created_at: string
+}
+
+export const GAIN_TYPES = ['Financeiro', 'Processo', 'Relacionamento', 'Resultado'] as const
+export type GainType = typeof GAIN_TYPES[number]
+
+export function gainTypeTone(type: string): string {
+  if (type === 'Financeiro') return 'tone-green'
+  if (type === 'Processo') return 'tone-blue'
+  if (type === 'Relacionamento') return 'tone-purple'
+  if (type === 'Resultado') return 'tone-amber'
+  return 'tone-gray'
+}
+
 export const STATUSES = [
   'A iniciar','Em andamento','Em validação','Bloqueado',
   'Atrasado','Pausado','Concluído','Entregue','Cancelado','Sem status',

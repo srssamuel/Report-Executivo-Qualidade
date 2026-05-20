@@ -31,7 +31,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthRoute) {
+  // Allow authenticated users to access /reset-password (first-login password change)
+  // Only redirect away from /login if authenticated
+  if (user && pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

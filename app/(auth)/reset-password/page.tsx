@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ResetPasswordPage() {
@@ -10,6 +10,12 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [isFirstLogin, setIsFirstLogin] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setIsFirstLogin(params.get('first') === '1')
+  }, [])
 
   async function handleReset(e: FormEvent) {
     e.preventDefault()
@@ -17,33 +23,69 @@ export default function ResetPasswordPage() {
     if (password !== confirm) { setError('As senhas não coincidem.'); return }
     if (password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return }
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password })
+
+    // Update password in Supabase Auth
+    const { error: authError } = await supabase.auth.updateUser({ password })
+    if (authError) { setError(authError.message); setLoading(false); return }
+
+    // Mark password as changed in profile
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('user_profiles').update({ password_changed: true }).eq('id', user.id)
+    }
+
     setLoading(false)
-    if (error) { setError(error.message); return }
-    setSuccess('Senha alterada. Redirecionando…')
+    setSuccess('Senha alterada com sucesso! Redirecionando…')
     setTimeout(() => window.location.href = '/', 2000)
   }
 
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <h1>Nova senha</h1>
-        <p>Defina uma senha segura de pelo menos 8 caracteres.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#123e7c,#3f82cf)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8a98aa' }}>QualiData</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0b1f3a', lineHeight: 1.2 }}>Report Executivo</div>
+          </div>
+        </div>
+
+        {isFirstLogin ? (
+          <>
+            <h1>Bem-vindo ao QualiData!</h1>
+            <p>Este é seu primeiro acesso. Por segurança, defina uma senha pessoal para substituir a senha temporária.</p>
+          </>
+        ) : (
+          <>
+            <h1>Nova senha</h1>
+            <p>Defina uma senha segura de pelo menos 8 caracteres.</p>
+          </>
+        )}
         {error && <div className="auth-error">{error}</div>}
         {success && <div className="auth-success">{success}</div>}
         <form onSubmit={handleReset}>
           <div className="auth-field">
             <label>Nova senha</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
           </div>
           <div className="auth-field">
             <label>Confirmar senha</label>
-            <input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" />
+            <input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" autoComplete="new-password" />
           </div>
           <button className="btn primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 8, minHeight: 44 }}>
             {loading ? 'Salvando…' : 'Salvar nova senha'}
           </button>
         </form>
+        {!isFirstLogin && (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <a className="btn ghost" style={{ fontSize: 13 }} href="/login">Voltar ao login</a>
+          </div>
+        )}
       </div>
     </div>
   )
