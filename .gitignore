@@ -22,6 +22,9 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
+# Sentry
+sentry.properties
+
 # Logs
 *.log
 npm-debug.log*
