@@ -5,7 +5,7 @@ import { createClient } from '@/shared/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,
-  LogOut, Users, ArrowUpDown, X,
+  LogOut, Users, ArrowUpDown, X, Sun, Moon,
 } from 'lucide-react'
 import { Badge, ConfirmDialog } from '@/shared/components'
 import {
@@ -53,7 +53,7 @@ export default function AppPage() {
   const [view, setView] = useState<ViewId>('dashboard')
   const [modalId, setModalId] = useState<string | null | 'new'>(null)
   const [toast, setToast] = useState('')
-  const [toastTimer, setToastTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [uiLayout, setUiLayout] = useState<'standard' | 'wide' | 'ultra'>('wide')
   const [tableDense, setTableDense] = useState(false)
   const [filters, setFilters] = useState<Filters>({
@@ -78,6 +78,36 @@ export default function AppPage() {
     confirmLabel?: string; onConfirm: (value?: string) => void
   }>({ open: false, title: '', message: '', onConfirm: () => {} })
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [darkMode, setDarkMode] = useState(false)
+
+  // Initialize dark mode from localStorage or system preference
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark') {
+      setDarkMode(true)
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else if (stored === 'light') {
+      setDarkMode(false)
+      document.documentElement.removeAttribute('data-theme')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setDarkMode(true)
+      document.documentElement.setAttribute('data-theme', 'dark')
+    }
+  }, [])
+
+  function toggleDarkMode() {
+    setDarkMode(prev => {
+      const next = !prev
+      if (next) {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        localStorage.setItem('theme', 'dark')
+      } else {
+        document.documentElement.removeAttribute('data-theme')
+        localStorage.setItem('theme', 'light')
+      }
+      return next
+    })
+  }
 
   function openConfirm(opts: Omit<typeof confirmDialog, 'open'>) {
     setConfirmDialog({ ...opts, open: true })
@@ -88,10 +118,16 @@ export default function AppPage() {
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
-    if (toastTimer) clearTimeout(toastTimer)
-    const t = setTimeout(() => setToast(''), 2400)
-    setToastTimer(t)
-  }, [toastTimer])
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(''), 2400)
+  }, [])
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -477,8 +513,8 @@ export default function AppPage() {
   if (loadError) {
     return (
       <div className="loading-screen">
-        <AlertTriangle size={32} style={{ color: 'var(--red)' }} />
-        <p style={{ color: 'var(--red)', fontWeight: 600 }}>{loadError}</p>
+        <AlertTriangle size={32} className="error-text" />
+        <p className="error-text">{loadError}</p>
         <button className="btn primary" onClick={() => window.location.reload()}>Tentar novamente</button>
       </div>
     )
@@ -512,15 +548,18 @@ export default function AppPage() {
           {canEditItems && <button className="btn primary small" onClick={() => openModal(null)}><Plus size={14} /> Nova frente</button>}
           <button className="btn small" onClick={exportCSV}><Download size={14} /> CSV</button>
           <button className="btn small" onClick={exportJSON}><Download size={14} /> JSON</button>
-          {canEditItems && <label className="btn small" style={{ cursor: 'pointer' }}><Upload size={14} /> Importar <input type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} /></label>}
+          {canEditItems && <label className="btn small" style={{ cursor: 'pointer' }}><Upload size={14} /> Importar <input type="file" accept=".json" className="sr-file-input" onChange={importJSON} /></label>}
           <button className="btn small ghost" onClick={() => { const o: ('standard'|'wide'|'ultra')[] = ['standard','wide','ultra']; setUiLayout(o[(o.indexOf(uiLayout)+1)%3]) }}>
             <ArrowUpDown size={14} />
           </button>
           <button className="btn small ghost" onClick={() => setTableDense(d => !d)}>
             {tableDense ? 'Confortável' : 'Compacta'}
           </button>
+          <button className="btn small ghost theme-toggle" onClick={toggleDarkMode} title={darkMode ? 'Modo claro' : 'Modo escuro'}>
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           {profile && (
-            <span style={{ fontSize: 'var(--text-caption)', color: 'var(--muted)', fontWeight: 600 }}>
+            <span className="user-info">
               {profile.full_name || profile.email} · {profile.role}
             </span>
           )}
@@ -678,7 +717,7 @@ export default function AppPage() {
                     <input value={form.dependencyNote ?? ''} onChange={e => setForm(f => ({ ...f, dependencyNote: e.target.value }))} />
                   </label>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 8 }}>
+                <div className="modal-form-actions">
                   {modalId !== 'new' && canEditItems && <button type="button" className="btn" onClick={duplicateItem}>Duplicar</button>}
                   {modalId !== 'new' && canDeleteItems && <button type="button" className="btn danger" onClick={archiveItem}>Arquivar</button>}
                   <button type="button" className="btn ghost" onClick={closeModal}>Cancelar</button>
@@ -689,17 +728,17 @@ export default function AppPage() {
               {/* Comments */}
               {modalId !== 'new' && (
                 <div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Comentários</h3>
+                  <h3 className="modal-section-title">Comentários</h3>
                   {canEditItems && (
-                    <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div className="comment-form">
+                      <div className="comment-form-row">
                         <input placeholder="Autor" value={form.commentAuthor ?? ''} onChange={e => setForm(f => ({ ...f, commentAuthor: e.target.value }))} />
                         <select value={form.commentType ?? 'Comentário'} onChange={e => setForm(f => ({ ...f, commentType: e.target.value }))}>
                           {['Comentário','Decisão','Risco','Atualização','Bloqueio'].map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                       <textarea ref={commentTextareaRef} rows={2} placeholder="Adicionar comentário…" value={form.commentText ?? ''} onChange={e => setForm(f => ({ ...f, commentText: e.target.value }))} />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div className="modal-form-actions-end">
                         <button className="btn small primary" type="button" onClick={addComment}>Registrar</button>
                       </div>
                     </div>
@@ -709,45 +748,45 @@ export default function AppPage() {
 
               {/* Gains */}
               {modalId !== 'new' && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Ganhos registrados</h3>
+                <div className="modal-section">
+                  <h3 className="modal-section-title">Ganhos registrados</h3>
                   {canEditItems && (
-                    <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Tipo de ganho
+                    <div className="gain-form">
+                      <div className="gain-form-row">
+                        <label>Tipo de ganho
                           <select value={gainForm.gain_type} onChange={e => setGainForm(f => ({ ...f, gain_type: e.target.value as GainType }))}>
                             {GAIN_TYPES.map(t => <option key={t} value={t}>{GAIN_TYPE_LABELS[t]}</option>)}
                           </select>
                         </label>
-                        <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>KPI impactado
+                        <label>KPI impactado
                           <input placeholder="Ex.: NPS, CSAT, Tempo médio…" value={gainForm.kpi} onChange={e => setGainForm(f => ({ ...f, kpi: e.target.value }))} />
                         </label>
                       </div>
-                      <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Valor do ganho
+                      <label>Valor do ganho
                         <input placeholder="Ex.: +12%, R$ 50k/mês, 2h reduzidas…" value={gainForm.gain_value} onChange={e => setGainForm(f => ({ ...f, gain_value: e.target.value }))} />
                       </label>
-                      <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Detalhamento
+                      <label>Detalhamento
                         <textarea rows={2} placeholder="Detalhe o ganho obtido com esta frente…" value={gainForm.detail} onChange={e => setGainForm(f => ({ ...f, detail: e.target.value }))} />
                       </label>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div className="modal-form-actions-end">
                         <button className="btn small primary" type="button" onClick={addGain}>Registrar ganho</button>
                       </div>
                     </div>
                   )}
                   {modalGains.length === 0 ? (
-                    <div className="empty" style={{ padding: 12 }}>Nenhum ganho registrado para esta frente.</div>
+                    <div className="empty">Nenhum ganho registrado para esta frente.</div>
                   ) : (
-                    <div style={{ display: 'grid', gap: 8 }}>
+                    <div className="gain-list">
                       {modalGains.map(g => (
-                        <div key={g.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                          <div style={{ flex: 1 }}>
-                            <div className="task-meta" style={{ marginBottom: 4 }}>
+                        <div key={g.id} className="gain-card">
+                          <div className="gain-card-body">
+                            <div className="task-meta gain-card-meta">
                               <Badge label={g.gain_type} tone={gainTypeTone(g.gain_type)} />
                               {g.kpi && <Badge label={g.kpi} tone="tone-blue" />}
                               {g.gain_value && <Badge label={g.gain_value} tone="tone-green" />}
                             </div>
-                            {g.detail && <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{g.detail}</p>}
-                            <small style={{ color: '#9ca3af' }}>{new Date(g.created_at).toLocaleDateString('pt-BR')} {new Date(g.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>
+                            {g.detail && <p className="gain-detail">{g.detail}</p>}
+                            <small className="gain-timestamp">{new Date(g.created_at).toLocaleDateString('pt-BR')} {new Date(g.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>
                           </div>
                           {canDeleteItems && <button className="btn small danger" type="button" onClick={() => deleteGain(g.id)}>✕</button>}
                         </div>
@@ -759,25 +798,25 @@ export default function AppPage() {
 
               {/* History */}
               {modalId !== 'new' && modalHistory.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Histórico de alterações</h3>
-                  <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <div className="modal-section">
+                  <h3 className="modal-section-title">Histórico de alterações</h3>
+                  <div className="history-wrap">
+                    <table className="history-table">
                       <thead>
-                        <tr style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
-                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Data</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Campo</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>De</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: '#5f7188' }}>Para</th>
+                        <tr>
+                          <th>Data</th>
+                          <th>Campo</th>
+                          <th>De</th>
+                          <th>Para</th>
                         </tr>
                       </thead>
                       <tbody>
                         {modalHistory.map((h, i) => (
-                          <tr key={i} style={{ borderTop: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: '#5f7188' }}>{new Date(h.at).toLocaleDateString('pt-BR')} {new Date(h.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td style={{ padding: '4px 8px', fontWeight: 600 }}>{h.field}</td>
-                            <td style={{ padding: '4px 8px', color: '#9ca3af', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.old_value || '—'}</td>
-                            <td style={{ padding: '4px 8px', color: '#374151', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.new_value || '—'}</td>
+                          <tr key={i}>
+                            <td>{new Date(h.at).toLocaleDateString('pt-BR')} {new Date(h.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td className="history-field">{h.field}</td>
+                            <td className="history-old">{h.old_value || '—'}</td>
+                            <td className="history-new">{h.new_value || '—'}</td>
                           </tr>
                         ))}
                       </tbody>

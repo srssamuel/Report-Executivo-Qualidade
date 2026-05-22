@@ -22,7 +22,7 @@ export function ArchivedView({ items, onEdit, onRestore, canEdit }: ArchivedView
       {archived.length === 0 ? (
         <div className="card">
           <div className="card-body">
-            <div className="empty" style={{ padding: 32 }}>
+            <div className="empty">
               Nenhum item arquivado. Itens arquivados podem ser restaurados aqui.
             </div>
           </div>
@@ -44,17 +44,17 @@ export function ArchivedView({ items, onEdit, onRestore, canEdit }: ArchivedView
             </thead>
             <tbody>
               {archived.map(it => (
-                <tr key={it.id} style={{ opacity: 0.75 }}>
-                  <td style={{ fontWeight: 700 }}>{it.id}</td>
+                <tr key={it.id} className="archived-row">
+                  <td className="row-title">{it.id}</td>
                   <td><Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} /></td>
                   <td>{it.project ?? '—'}</td>
                   <td>{it.demand ?? '—'}</td>
                   <td><Badge label={it.status} tone={statusTone(it.status)} /></td>
                   <td>{it.owner ?? '—'}</td>
-                  <td style={{ fontSize: 12, color: '#5f7188' }}>
+                  <td className="gain-timestamp">
                     {it.lastUpdate ? new Date(it.lastUpdate).toLocaleDateString('pt-BR') : '—'}
                   </td>
-                  <td className="row-actions" style={{ display: 'flex', gap: 4 }}>
+                  <td className="row-actions">
                     <button className="btn small" onClick={() => onEdit(it.id)}>Ver</button>
                     {canEdit && <button className="btn small primary" onClick={() => onRestore(it.id)}>Restaurar</button>}
                   </td>
