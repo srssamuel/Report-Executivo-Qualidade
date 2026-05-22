@@ -54,7 +54,7 @@ export interface UserProfile {
 export interface Gain {
   id: string
   item_id: string
-  gain_type: 'Financeiro' | 'Processo' | 'Relacionamento' | 'Resultado'
+  gain_type: GainType
   kpi?: string
   gain_value?: string
   detail?: string
@@ -70,13 +70,34 @@ export interface Product {
   created_at: string
 }
 
-export const GAIN_TYPES = ['Financeiro', 'Processo', 'Relacionamento', 'Resultado'] as const
+export const GAIN_TYPES = [
+  'Financeiro',
+  'KPI',
+  'Relacionamento',
+  'Consultividade',
+  'Processo',
+  'Experiência',
+  'Resultado',
+] as const
 export type GainType = typeof GAIN_TYPES[number]
+
+export const GAIN_TYPE_LABELS: Record<GainType, string> = {
+  Financeiro: 'Financeiro (Grana)',
+  KPI: 'KPI / Indicador',
+  Relacionamento: 'Relacionamento',
+  Consultividade: 'Consultividade',
+  Processo: 'Processo',
+  Experiência: 'Experiência do Cliente',
+  Resultado: 'Resultado / Entrega',
+}
 
 export function gainTypeTone(type: string): string {
   if (type === 'Financeiro') return 'tone-green'
+  if (type === 'KPI') return 'tone-blue'
   if (type === 'Processo') return 'tone-blue'
   if (type === 'Relacionamento') return 'tone-purple'
+  if (type === 'Consultividade') return 'tone-amber'
+  if (type === 'Experiência') return 'tone-green'
   if (type === 'Resultado') return 'tone-amber'
   return 'tone-gray'
 }

@@ -2,12 +2,19 @@
 
 Painel executivo de gestão de carteira e capacidade — Superintendência Vivo e Nubank.
 
-| Item | Detalhe |
-|------|---------|
-| **Stack** | Next.js 16 (App Router) · React 19 · TypeScript strict · Supabase Auth + Postgres + RLS |
-| **Deploy** | Vercel (auto via GitHub Actions em `main`) |
-| **Supabase** | Projeto `rirkdpsyuvhumuhejofv` · sa-east-1 |
-| **Repo** | `srssamuel/Report-Executivo-Qualidade` |
+## 📚 Documentação Técnica
+
+Para compreender os detalhes operacionais e arquiteturais, acesse:
+
+- [Especificação de APIs e Endpoints](file:///D:/Projetos%20IA/02_PROJETOS_ATIVOS/Report-Executivo-Qualidade/docs/api.md)
+- [Arquitetura de Software e Fluxos de Dados](file:///D:/Projetos%20IA/02_PROJETOS_ATIVOS/Report-Executivo-Qualidade/docs/architecture.md)
+
+| Item         | Detalhe                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------- |
+| **Stack**    | Next.js 16 (App Router) · React 19 · TypeScript strict · Supabase Auth + Postgres + RLS |
+| **Deploy**   | Vercel (auto via GitHub Actions em `main`)                                              |
+| **Supabase** | Projeto `rirkdpsyuvhumuhejofv` · sa-east-1                                              |
+| **Repo**     | `srssamuel/Report-Executivo-Qualidade`                                                  |
 
 ---
 
@@ -23,22 +30,22 @@ npm run dev                        # http://localhost:3000
 
 ### Variáveis de ambiente
 
-| Variável | Obrigatória | Descrição |
-|----------|-------------|-----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Sim | URL do projeto Supabase (`https://rirkdpsyuvhumuhejofv.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Chave pública (anon) do Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Sim (invite flow) | Chave service role — usada apenas no endpoint `/api/admin/invite` |
+| Variável                        | Obrigatória       | Descrição                                                            |
+| ------------------------------- | ----------------- | -------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Sim               | URL do projeto Supabase (`https://rirkdpsyuvhumuhejofv.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim               | Chave pública (anon) do Supabase                                     |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Sim (invite flow) | Chave service role — usada apenas no endpoint `/api/admin/invite`    |
 
 > **Primeiro admin:** faça signup com `srssamuel@hotmail.com` — já está pré-cadastrado via tabela `invitations` e o trigger promove para admin automaticamente.
 
 ### Scripts disponíveis
 
-| Comando | O que faz |
-|---------|-----------|
-| `npm run dev` | Dev server com Turbopack |
-| `npm run build` | Build de produção |
-| `npm start` | Serve build de produção |
-| `npm run lint` | ESLint via Next.js |
+| Comando         | O que faz                |
+| --------------- | ------------------------ |
+| `npm run dev`   | Dev server com Turbopack |
+| `npm run build` | Build de produção        |
+| `npm start`     | Serve build de produção  |
+| `npm run lint`  | ESLint via Next.js       |
 
 ---
 
@@ -82,26 +89,26 @@ proxy.ts (Next.js middleware — redirect se não autenticado)
 
 ### Roles
 
-| Role | Permissões |
-|------|------------|
-| `admin` | Tudo + gerenciar usuários + convidar |
+| Role              | Permissões                             |
+| ----------------- | -------------------------------------- |
+| `admin`           | Tudo + gerenciar usuários + convidar   |
 | `superintendente` | Ler/escrever todos os itens + arquivar |
-| `lider` | Ler/escrever + arquivar |
-| `analista` | Ler/escrever |
-| `viewer` | Apenas leitura |
+| `lider`           | Ler/escrever + arquivar                |
+| `analista`        | Ler/escrever                           |
+| `viewer`          | Apenas leitura                         |
 
 ### Views da SPA
 
-| View | Descrição |
-|------|-----------|
-| Dashboard | KPIs, donut de saúde, fila de decisão, narrativa executiva |
-| Carteira | Tabela completa com edição inline em todas as colunas |
-| Board | Kanban por status |
-| Riscos | Matriz de riscos com severidade |
-| Timeline | Gantt visual |
-| Capacidade | Simulador de carga + distribuição por owner |
-| Executivo | Relatório textual gerado automaticamente |
-| Arquivados | Itens arquivados com restauração |
+| View       | Descrição                                                  |
+| ---------- | ---------------------------------------------------------- |
+| Dashboard  | KPIs, donut de saúde, fila de decisão, narrativa executiva |
+| Carteira   | Tabela completa com edição inline em todas as colunas      |
+| Board      | Kanban por status                                          |
+| Riscos     | Matriz de riscos com severidade                            |
+| Timeline   | Gantt visual                                               |
+| Capacidade | Simulador de carga + distribuição por owner                |
+| Executivo  | Relatório textual gerado automaticamente                   |
+| Arquivados | Itens arquivados com restauração                           |
 
 ---
 
@@ -112,6 +119,7 @@ proxy.ts (Next.js middleware — redirect se não autenticado)
 Convida usuários em lote via Supabase Auth. Requer autenticação como `admin`.
 
 **Request body:**
+
 ```json
 {
   "invites": [
@@ -121,6 +129,7 @@ Convida usuários em lote via Supabase Auth. Requer autenticação como `admin`.
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -137,6 +146,7 @@ Convida usuários em lote via Supabase Auth. Requer autenticação como `admin`.
 Health check. Retorna status do app e conectividade com Supabase.
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -158,12 +168,12 @@ Deploy automático via GitHub Actions (`.github/workflows/deploy.yml`):
 
 ### Secrets necessários no GitHub
 
-| Secret | Obrigatório | Para que serve |
-|--------|-------------|----------------|
-| `VERCEL_TOKEN` | Sim | Deploy na Vercel |
-| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow | `/api/admin/invite` |
-| `VERCEL_ORG_ID` | Auto após 1º deploy | ID da org Vercel |
-| `VERCEL_PROJECT_ID` | Auto após 1º deploy | ID do projeto Vercel |
+| Secret                      | Obrigatório         | Para que serve       |
+| --------------------------- | ------------------- | -------------------- |
+| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel     |
+| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow    | `/api/admin/invite`  |
+| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org Vercel     |
+| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto Vercel |
 
 ### Deploy em 1 clique
 
@@ -175,15 +185,15 @@ Deploy automático via GitHub Actions (`.github/workflows/deploy.yml`):
 
 ### Tabelas
 
-| Tabela | Descrição | RLS |
-|--------|-----------|-----|
-| `user_profiles` | Perfis vinculados 1:1 a auth.users | Admin full, own read |
-| `items` | Frentes de trabalho (31 itens base) | Auth read, role-gated write |
-| `item_comments` | Comentários por item | Auth read, role-gated insert |
-| `item_history` | Histórico field-level (audit trail) | Auth read/insert |
-| `invitations` | Convites pendentes | Admin only |
-| `products` | Produtos/clientes (dinâmico) | Public read, admin write |
-| `gains` | Ganhos registrados por item | Public read, role-gated write |
+| Tabela          | Descrição                           | RLS                           |
+| --------------- | ----------------------------------- | ----------------------------- |
+| `user_profiles` | Perfis vinculados 1:1 a auth.users  | Admin full, own read          |
+| `items`         | Frentes de trabalho (31 itens base) | Auth read, role-gated write   |
+| `item_comments` | Comentários por item                | Auth read, role-gated insert  |
+| `item_history`  | Histórico field-level (audit trail) | Auth read/insert              |
+| `invitations`   | Convites pendentes                  | Admin only                    |
+| `products`      | Produtos/clientes (dinâmico)        | Public read, admin write      |
+| `gains`         | Ganhos registrados por item         | Public read, role-gated write |
 
 ### Migrations
 

@@ -16,12 +16,12 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS as DndCSS } from '@dnd-kit/utilities'
 import {
   Item, UserProfile, Filters, Role, Gain, Product, GainType,
-  STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, gainTypeTone,
-  normalizeItem, normalizeStatus, inferProduct,
+  STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, GAIN_TYPE_LABELS, gainTypeTone,
+  normalizeItem,
   filteredItems, sortItems, countsBy,
   riskOf, riskSeverity, riskTone, statusTone, priorityTone, productTone,
-  scoreOf, healthOf, dataGaps, isDone, ownersOf,
-  dateFmt, daysToDue, relativeDateText, monthLabel,
+  scoreOf, dataGaps, isDone, ownersOf,
+  dateFmt, relativeDateText, monthLabel,
   itemEffort, itemRemainingEffort, itemTeamSize, itemStart,
   ownerLoad, capacityTone, urgencyCandidateScore, recommendationType,
   executiveLines, nextId, clamp, isoDate, addDays, parseDate, canEdit, canDelete, isAdmin,
@@ -29,16 +29,8 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function esc(s: unknown) {
-  return String(s ?? '')
-}
-
 function Badge({ label, tone = 'tone-gray' }: { label: string; tone?: string }) {
   return <span className={`badge ${tone}`}>{label}</span>
-}
-
-function ProductBadge({ item }: { item: Item }) {
-  return <Badge label={item.product || 'Sem produto'} tone={productTone(item.product)} />
 }
 
 /* BarChart removed — replaced by Recharts components in ./charts.tsx */
@@ -78,7 +70,6 @@ export default function AppPage() {
   const [urgentSimulated, setUrgentSimulated] = useState(false)
   const [gains, setGains] = useState<Gain[]>([])
   const [products, setProducts] = useState<Product[]>([])
-  const [showArchived, setShowArchived] = useState(false)
   const [focusCommentOnOpen, setFocusCommentOnOpen] = useState(false)
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -121,29 +112,7 @@ export default function AppPage() {
       if (productsRes.data) setProducts(productsRes.data as Product[])
 
       if (itemsRes.data) {
-        const mapped = itemsRes.data.map((row: Record<string, unknown>) => normalizeItem({
-          id: row.id as string,
-          sourceRow: row.source_row as number,
-          dueDate: row.due_date as string,
-          project: row.project as string,
-          demand: row.demand as string,
-          definition: row.definition as string,
-          owner: row.owner as string,
-          status: row.status as string,
-          priority: row.priority as string,
-          progress: row.progress as number,
-          nextAction: row.next_action as string,
-          executiveComment: row.executive_comment as string,
-          lastUpdate: row.last_update as string,
-          tags: row.tags as string[],
-          archived: row.archived as boolean,
-          product: row.product as string,
-          effortHours: row.effort_hours as number,
-          teamSize: row.team_size as number,
-          predecessorId: row.predecessor_id as string,
-          dependencyNote: row.dependency_note as string,
-          startDate: row.start_date as string,
-        }))
+        const mapped = itemsRes.data.map((row: Record<string, unknown>, i: number) => normalizeItem(mapRow(row), i))
         setItems(mapped)
       }
       setLoading(false)
@@ -189,31 +158,70 @@ export default function AppPage() {
 
   // ── Persist to Supabase ───────────────────────────────────────────────────
   async function saveItem(payload: Item) {
+    const { data: { user } } = await supabase.auth.getUser()
     const row = {
       id: payload.id,
-      source_row: payload.sourceRow,
+      source_row: payload.sourceRow ?? null,
       due_date: payload.dueDate || null,
-      project: payload.project,
-      demand: payload.demand,
-      definition: payload.definition,
-      owner: payload.owner,
+      original_date: payload.originalDate || null,
+      project: payload.project || null,
+      demand: payload.demand || null,
+      definition: payload.definition || null,
+      owner: payload.owner || null,
       status: payload.status,
       priority: payload.priority,
       progress: payload.progress,
-      next_action: payload.nextAction,
-      executive_comment: payload.executiveComment,
+      next_action: payload.nextAction || null,
+      executive_comment: payload.executiveComment || null,
       last_update: new Date().toISOString(),
       tags: payload.tags,
       archived: payload.archived,
-      product: payload.product,
+      source_status: payload.sourceStatus || null,
+      product: payload.product || null,
       effort_hours: payload.effortHours || null,
       team_size: payload.teamSize || null,
       predecessor_id: payload.predecessorId || null,
       dependency_note: payload.dependencyNote || null,
       start_date: payload.startDate || null,
+      updated_by: user?.id ?? null,
     }
     const { error } = await supabase.from('items').upsert(row)
-    if (error) { showToast(`Erro ao salvar: ${error.message}`); throw error }
+    if (error) {
+      showToast(`Erro ao salvar: ${error.message}`)
+      // Rollback: reload items from DB to undo optimistic update
+      const { data } = await supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false })
+      if (data) setItems(data.map((r: Record<string, unknown>, i: number) => normalizeItem(mapRow(r), i)))
+      throw error
+    }
+  }
+
+  /** Map snake_case DB row to camelCase Item */
+  function mapRow(r: Record<string, unknown>): Partial<Item> {
+    return {
+      id: r.id as string,
+      sourceRow: r.source_row as number | undefined,
+      dueDate: r.due_date as string | undefined,
+      originalDate: r.original_date as string | undefined,
+      project: r.project as string | undefined,
+      demand: r.demand as string | undefined,
+      definition: r.definition as string | undefined,
+      owner: r.owner as string | undefined,
+      status: r.status as string,
+      priority: r.priority as string,
+      progress: r.progress as number,
+      nextAction: r.next_action as string | undefined,
+      executiveComment: r.executive_comment as string | undefined,
+      lastUpdate: r.last_update as string | undefined,
+      tags: r.tags as string[] | undefined,
+      archived: r.archived as boolean,
+      sourceStatus: r.source_status as string | undefined,
+      product: r.product as string | undefined,
+      effortHours: r.effort_hours as number | undefined,
+      teamSize: r.team_size as number | undefined,
+      predecessorId: r.predecessor_id as string | undefined,
+      dependencyNote: r.dependency_note as string | undefined,
+      startDate: r.start_date as string | undefined,
+    }
   }
 
   async function updateField(id: string, field: keyof Item, value: unknown) {
@@ -537,7 +545,7 @@ export default function AppPage() {
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
-      {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
+      {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
       {view === 'archived' && <ArchivedView items={items} onEdit={openModal} onRestore={restoreItem} canEdit={canEditItems} />}
 
@@ -655,7 +663,7 @@ export default function AppPage() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>Tipo de ganho
                           <select value={gainForm.gain_type} onChange={e => setGainForm(f => ({ ...f, gain_type: e.target.value as GainType }))}>
-                            {GAIN_TYPES.map(t => <option key={t}>{t}</option>)}
+                            {GAIN_TYPES.map(t => <option key={t} value={t}>{GAIN_TYPE_LABELS[t]}</option>)}
                           </select>
                         </label>
                         <label style={{ fontSize: 12, fontWeight: 700, color: '#5f7188' }}>KPI impactado
@@ -1342,7 +1350,7 @@ function TimelineView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: str
   )
 }
 
-function CapacityView({ filtered, weeklyCapacity, setWeeklyCapacity, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast, profile }: {
+function CapacityView({ filtered, weeklyCapacity, setWeeklyCapacity, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast }: {
   filtered: Item[]; weeklyCapacity: number; setWeeklyCapacity: (n: number) => void
   urgentForm: { product: string; title: string; owner: string; effort: number; dueDate: string; reason: string }
   setUrgentForm: (f: typeof urgentForm) => void
@@ -1350,7 +1358,7 @@ function CapacityView({ filtered, weeklyCapacity, setWeeklyCapacity, urgentForm,
   simulated: boolean; setSimulated: (b: boolean) => void
   items: Item[]; onEdit: (id: string) => void; canEdit: boolean
   saveItem: (item: Item) => Promise<void>; setItems: React.Dispatch<React.SetStateAction<Item[]>>
-  showToast: (msg: string) => void; profile: UserProfile | null
+  showToast: (msg: string) => void
 }) {
   const activItems = filtered.filter(i => !isDone(i))
   const load = ownerLoad(activItems)
