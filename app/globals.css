@@ -601,7 +601,7 @@ textarea {
    ---------------------------------------------------------- */
 .grid {
   display: grid;
-  gap: 20px;
+  gap: 22px;
 }
 .grid.two {
   grid-template-columns: 0.92fr 1.08fr;
@@ -690,8 +690,8 @@ textarea {
 .kpi-grid {
   display: grid;
   grid-template-columns: 1.5fr repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 32px;
 }
 .kpi {
   padding: 18px 20px;
@@ -887,6 +887,84 @@ textarea {
   gap: 12px;
   align-items: center;
   padding: 14px 16px;
+}
+
+/* ----------------------------------------------------------
+   Dashboard sections — proper vertical rhythm
+   ---------------------------------------------------------- */
+.dash-section {
+  margin-bottom: 32px;
+}
+.dash-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-h2);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--blue-900);
+  margin: 0;
+}
+.section-title svg {
+  color: var(--blue-500);
+  flex-shrink: 0;
+}
+
+/* Chart container — proper padding and min-height */
+.chart-container {
+  min-height: 160px;
+  padding-top: 4px;
+}
+
+/* Health gauge wrapper */
+.health-gauge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Gain type cards grid */
+.gain-type-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.gain-type-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: center;
+  transition: all 0.18s var(--ease-out);
+}
+.gain-type-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-xs);
+}
+.gain-type-value {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-top: 6px;
+  color: var(--blue-900);
+  letter-spacing: -0.04em;
+}
+
+/* Recharts overrides for consistent styling */
+.recharts-wrapper {
+  font-family: var(--font-body) !important;
+}
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--line);
+}
+.recharts-legend-item-text {
+  font-family: var(--font-body) !important;
 }
 
 /* Badges */
@@ -1148,7 +1226,7 @@ table {
 th,
 td {
   border-bottom: 1px solid var(--line);
-  padding: 10px 10px;
+  padding: 11px 12px;
   vertical-align: top;
   text-align: left;
 }
@@ -1156,23 +1234,28 @@ th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8fbff;
+  background: var(--surface-blue);
   color: var(--muted);
   font-size: var(--text-caption);
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  border-bottom: 2px solid var(--line);
+  border-bottom: 2px solid var(--line-strong);
   cursor: default;
+  padding: 12px 12px;
 }
 td {
-  font-size: 0.75rem;
+  font-size: var(--text-small);
   background: #fff;
   color: var(--ink);
   border-bottom: 1px solid #eef3f9;
+  line-height: 1.45;
 }
 tbody tr:hover td {
-  background: #fbfdff;
+  background: var(--surface-blue);
+}
+tbody tr {
+  transition: background 0.12s var(--ease-out);
 }
 /* Sticky first column */
 th:first-child,
@@ -1403,15 +1486,16 @@ body.table-dense td .mini-textarea {
 /* Section head */
 .section-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 .section-head h2 {
   margin: 0;
   font-size: var(--text-h2);
   letter-spacing: -0.02em;
+  font-weight: 800;
 }
 
 /* ----------------------------------------------------------
