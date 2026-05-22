@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/shared/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,
   LogOut, Users, ArrowUpDown, X,
 } from 'lucide-react'
-import { Badge } from '@/shared/components'
+import { Badge, ConfirmDialog } from '@/shared/components'
 import {
   Item, UserProfile, Filters, Role, Gain, Product, GainType,
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, GAIN_TYPE_LABELS, gainTypeTone,
@@ -72,6 +72,19 @@ export default function AppPage() {
   const [gainForm, setGainForm] = useState<{ gain_type: GainType; kpi: string; gain_value: string; detail: string }>({ gain_type: 'Financeiro', kpi: '', gain_value: '', detail: '' })
   const [modalGains, setModalGains] = useState<Gain[]>([])
   const [modalHistory, setModalHistory] = useState<{ at: string; field: string; old_value: string; new_value: string; changed_by: string }[]>([])
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; variant?: 'default' | 'danger'
+    inputMode?: boolean; inputPlaceholder?: string; inputDefaultValue?: string
+    confirmLabel?: string; onConfirm: (value?: string) => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  function openConfirm(opts: Omit<typeof confirmDialog, 'open'>) {
+    setConfirmDialog({ ...opts, open: true })
+  }
+  function closeConfirm() {
+    setConfirmDialog(prev => ({ ...prev, open: false }))
+  }
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -83,33 +96,44 @@ export default function AppPage() {
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const [profileRes, itemsRes, gainsRes, productsRes] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('id', user.id).single(),
-        supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
-        supabase.from('gains').select('*').order('created_at', { ascending: false }),
-        supabase.from('products').select('*').order('name'),
-      ])
-
-      if (profileRes.data) {
-        const prof = profileRes.data as UserProfile & { password_changed?: boolean }
-        setProfile(prof)
-        // First-login: redirect to password change if not yet changed
-        if (prof.password_changed === false) {
-          window.location.href = '/reset-password?first=1'
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) {
+          setLoadError('Sessão expirada. Faça login novamente.')
+          setLoading(false)
           return
         }
-      }
-      if (gainsRes.data) setGains(gainsRes.data as Gain[])
-      if (productsRes.data) setProducts(productsRes.data as Product[])
 
-      if (itemsRes.data) {
-        const mapped = itemsRes.data.map((row: Record<string, unknown>, i: number) => normalizeItem(mapRow(row), i))
-        setItems(mapped)
+        const [profileRes, itemsRes, gainsRes, productsRes] = await Promise.all([
+          supabase.from('user_profiles').select('*').eq('id', user.id).single(),
+          supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
+          supabase.from('gains').select('*').order('created_at', { ascending: false }),
+          supabase.from('products').select('*').order('name'),
+        ])
+
+        if (profileRes.data) {
+          const prof = profileRes.data as UserProfile & { password_changed?: boolean }
+          setProfile(prof)
+          if (prof.password_changed === false) {
+            window.location.href = '/reset-password?first=1'
+            return
+          }
+        }
+        if (itemsRes.error) {
+          setLoadError(`Erro ao carregar itens: ${itemsRes.error.message}`)
+        }
+        if (gainsRes.data) setGains(gainsRes.data as Gain[])
+        if (productsRes.data) setProducts(productsRes.data as Product[])
+
+        if (itemsRes.data) {
+          const mapped = itemsRes.data.map((row: Record<string, unknown>, i: number) => normalizeItem(mapRow(row), i))
+          setItems(mapped)
+        }
+      } catch (err) {
+        setLoadError(`Erro de conexão: ${err instanceof Error ? err.message : 'Tente novamente.'}`)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     load()
   }, []) // initial load only
@@ -139,16 +163,19 @@ export default function AppPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = sortItems(filteredItems(items, filters), filters.sort)
 
-  const productNames = products.filter(p => p.active).map(p => p.name)
-  function uniqueProducts() {
-    return [...new Set([...productNames, ...PRODUCT_SUGGESTIONS, ...items.filter(i => !i.archived).map(i => i.product).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }
-  function uniqueProjects() {
-    return [...new Set(items.filter(i => !i.archived && (!filters.product || i.product === filters.product)).map(i => i.project).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }
-  function uniqueOwners() {
-    return [...new Set(items.filter(i => !i.archived && (!filters.product || i.product === filters.product)).flatMap(i => ownersOf(i.owner)))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }
+  const productNames = useMemo(() => products.filter(p => p.active).map(p => p.name), [products])
+  const uniqueProductList = useMemo(() =>
+    [...new Set([...productNames, ...PRODUCT_SUGGESTIONS, ...items.filter(i => !i.archived).map(i => i.product).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [productNames, items]
+  )
+  const uniqueProjectList = useMemo(() =>
+    [...new Set(items.filter(i => !i.archived && (!filters.product || i.product === filters.product)).map(i => i.project).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [items, filters.product]
+  )
+  const uniqueOwnerList = useMemo(() =>
+    [...new Set(items.filter(i => !i.archived && (!filters.product || i.product === filters.product)).flatMap(i => ownersOf(i.owner)))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [items, filters.product]
+  )
 
   // ── Persist to Supabase ───────────────────────────────────────────────────
   async function saveItem(payload: Item) {
@@ -279,14 +306,22 @@ export default function AppPage() {
     closeModal()
   }
 
-  async function archiveItem() {
+  function archiveItem() {
     if (!modalId || modalId === 'new') return
-    if (!confirm('Arquivar este item? Ele sairá das visões principais.')) return
-    const id = modalId as string
-    await updateField(id, 'archived', true)
-    setItems(prev => prev.map(i => i.id === id ? { ...i, archived: true } : i))
-    showToast('Item arquivado.')
-    closeModal()
+    openConfirm({
+      title: 'Arquivar item',
+      message: 'Arquivar este item? Ele sairá das visões principais mas poderá ser restaurado.',
+      variant: 'danger',
+      confirmLabel: 'Arquivar',
+      onConfirm: async () => {
+        closeConfirm()
+        const id = modalId as string
+        await updateField(id, 'archived', true)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, archived: true } : i))
+        showToast('Item arquivado.')
+        closeModal()
+      },
+    })
   }
 
   function duplicateItem() {
@@ -335,12 +370,20 @@ export default function AppPage() {
     showToast('Ganho registrado.')
   }
 
-  async function deleteGain(gainId: string) {
-    if (!confirm('Remover este ganho?')) return
-    await supabase.from('gains').delete().eq('id', gainId)
-    setGains(prev => prev.filter(g => g.id !== gainId))
-    setModalGains(prev => prev.filter(g => g.id !== gainId))
-    showToast('Ganho removido.')
+  function deleteGain(gainId: string) {
+    openConfirm({
+      title: 'Remover ganho',
+      message: 'Tem certeza que deseja remover este ganho? A ação não pode ser desfeita.',
+      variant: 'danger',
+      confirmLabel: 'Remover',
+      onConfirm: async () => {
+        closeConfirm()
+        await supabase.from('gains').delete().eq('id', gainId)
+        setGains(prev => prev.filter(g => g.id !== gainId))
+        setModalGains(prev => prev.filter(g => g.id !== gainId))
+        showToast('Ganho removido.')
+      },
+    })
   }
 
   async function restoreItem(id: string) {
@@ -350,16 +393,23 @@ export default function AppPage() {
   }
 
   // ── Bulk product assignment ──────────────────────────────────────────────
-  async function bulkSetProduct() {
-    const productName = prompt('Nome do produto para aplicar a todos os itens filtrados:')
-    if (!productName || !productName.trim()) return
-    const trimmed = productName.trim()
-    const count = filtered.length
-    if (!confirm(`Aplicar produto "${trimmed}" a ${count} item(ns) filtrado(s)?`)) return
-    for (const it of filtered) {
-      await updateField(it.id, 'product', trimmed)
-    }
-    showToast(`Produto "${trimmed}" applied to ${count} item(ns).`)
+  function bulkSetProduct() {
+    openConfirm({
+      title: 'Atribuir produto em lote',
+      message: `Informe o nome do produto para aplicar aos ${filtered.length} item(ns) filtrado(s):`,
+      inputMode: true,
+      inputPlaceholder: 'Nome do produto…',
+      confirmLabel: 'Aplicar',
+      onConfirm: async (value) => {
+        closeConfirm()
+        const trimmed = (value ?? '').trim()
+        if (!trimmed) return
+        for (const it of filtered) {
+          await updateField(it.id, 'product', trimmed)
+        }
+        showToast(`Produto "${trimmed}" aplicado a ${filtered.length} item(ns).`)
+      },
+    })
   }
 
   // ── Export helpers ────────────────────────────────────────────────────────
@@ -417,8 +467,19 @@ export default function AppPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: '#5f7188' }}>
-        <div>Carregando carteira…</div>
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+        <p>Carregando carteira…</p>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="loading-screen">
+        <AlertTriangle size={32} style={{ color: 'var(--red)' }} />
+        <p style={{ color: 'var(--red)', fontWeight: 600 }}>{loadError}</p>
+        <button className="btn primary" onClick={() => window.location.reload()}>Tentar novamente</button>
       </div>
     )
   }
@@ -475,15 +536,15 @@ export default function AppPage() {
         <input className="input" placeholder="Buscar frente, demanda, responsável…" value={filters.query} onChange={e => setFilters(f => ({ ...f, query: e.target.value }))} />
         <select className="select" value={filters.product} onChange={e => setFilters(f => ({ ...f, product: e.target.value, project: '', owner: '' }))}>
           <option value="">Todos os produtos</option>
-          {uniqueProducts().map(p => <option key={p}>{p}</option>)}
+          {uniqueProductList.map(p => <option key={p}>{p}</option>)}
         </select>
         <select className="select" value={filters.project} onChange={e => setFilters(f => ({ ...f, project: e.target.value }))}>
           <option value="">Todos os projetos</option>
-          {uniqueProjects().map(p => <option key={p}>{p}</option>)}
+          {uniqueProjectList.map(p => <option key={p}>{p}</option>)}
         </select>
         <select className="select" value={filters.owner} onChange={e => setFilters(f => ({ ...f, owner: e.target.value }))}>
           <option value="">Todos os responsáveis</option>
-          {uniqueOwners().map(o => <option key={o}>{o}</option>)}
+          {uniqueOwnerList.map(o => <option key={o}>{o}</option>)}
         </select>
         <select className="select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
           <option value="">Todos os status</option>
@@ -533,7 +594,7 @@ export default function AppPage() {
 
       {/* ── Views ────────────────────────────────────────────── */}
       {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} />}
-      {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProducts()} />}
+      {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProductList} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
@@ -557,7 +618,7 @@ export default function AppPage() {
                 <div className="form-grid">
                   <label>Produto/cliente
                     <input list="productOptions" value={form.product ?? ''} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} />
-                    <datalist id="productOptions">{uniqueProducts().map(p => <option key={p} value={p} />)}</datalist>
+                    <datalist id="productOptions">{uniqueProductList.map(p => <option key={p} value={p} />)}</datalist>
                   </label>
                   <label>Projeto
                     <input value={form.project ?? ''} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} />
@@ -728,6 +789,20 @@ export default function AppPage() {
           </div>
         </div>
       )}
+
+      {/* ── Confirm Dialog ──────────────────────────────────── */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        inputMode={confirmDialog.inputMode}
+        inputPlaceholder={confirmDialog.inputPlaceholder}
+        inputDefaultValue={confirmDialog.inputDefaultValue}
+        confirmLabel={confirmDialog.confirmLabel}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
 
       {/* ── Toast ────────────────────────────────────────────── */}
       <div className={`toast ${toast ? 'show' : ''}`}>{toast}</div>
