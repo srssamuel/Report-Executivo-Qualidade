@@ -28,10 +28,12 @@ export default function ResetPasswordPage() {
     const { error: authError } = await supabase.auth.updateUser({ password })
     if (authError) { setError(authError.message); setLoading(false); return }
 
-    // Mark password as changed in profile
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('user_profiles').update({ password_changed: true }).eq('id', user.id)
+    // Mark password as changed via SECURITY DEFINER RPC (users can't UPDATE their own profile via RLS)
+    const { error: rpcError } = await supabase.rpc('mark_password_changed')
+    if (rpcError) {
+      setError('Senha atualizada, mas houve erro ao registrar a troca. Tente fazer login novamente.')
+      setLoading(false)
+      return
     }
 
     setLoading(false)
