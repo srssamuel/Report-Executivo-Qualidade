@@ -3,14 +3,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import {
   TrendingUp, CheckCircle, AlertTriangle, Calendar, Award,
-  FileText, Check, Edit, Plus, Trash2, ShieldAlert,
-  MessageSquare, HelpCircle, Users, Copy, Sparkles, UserCheck,
+  Check, Edit, Plus, Trash2, ShieldAlert,
+  MessageSquare, Users, Copy, Sparkles, UserCheck,
   Settings
 } from 'lucide-react'
 import {
-  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, OKRStatus, Role,
-  okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue,
-  today, dateFmt
+  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role,
+  okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
 
@@ -19,7 +18,7 @@ interface OKRsViewProps {
   measurements: OKRMeasurement[]
   feedbacks: OKRFeedback[]
   role: Role
-  currentUserId: string
+  _currentUserId: string
   currentUserFullName: string
   onSaveMeasurement: (okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) => Promise<void>
   onAuditMeasurement: (measurementId: string, audited: boolean, feedback: string) => Promise<void>
@@ -48,7 +47,7 @@ export function OKRsView({
   measurements,
   feedbacks,
   role,
-  currentUserId,
+  _currentUserId,
   currentUserFullName,
   onSaveMeasurement,
   onAuditMeasurement,
@@ -60,7 +59,6 @@ export function OKRsView({
   isFallback = false
 }: OKRsViewProps) {
   const isSuperOrAdmin = ['admin', 'superintendente'].includes(role)
-  const isManagerProfile = ['lider', 'analista', 'gerente', 'coordenador', 'consultor'].includes(role)
 
   // Find if current user name matches any manager
   const matchedManager = useMemo(() => {

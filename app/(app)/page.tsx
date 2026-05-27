@@ -197,7 +197,7 @@ export default function AppPage() {
         }
 
         if (!okrsLoaded) {
-          console.log("Loading OKR data from local static fallback...")
+          console.warn("Loading OKR data from local static fallback...")
           try {
             const res = await fetch('/okr_mock_data.json')
             if (res.ok) {
@@ -206,7 +206,7 @@ export default function AppPage() {
               if (localData.measurements) setOkrMeasurements(localData.measurements)
               if (localData.feedbacks) setOkrFeedbacks(localData.feedbacks)
               setIsOkrFallback(true)
-              console.log("Successfully loaded local OKR fallback data.")
+              console.warn("Successfully loaded local OKR fallback data.")
             } else {
               console.error("Local OKR fallback response was not OK:", res.status)
             }
@@ -1092,7 +1092,7 @@ export default function AppPage() {
           measurements={okrMeasurements}
           feedbacks={okrFeedbacks}
           role={role}
-          currentUserId={profile?.id || ''}
+          _currentUserId={profile?.id || ''}
           currentUserFullName={profile?.full_name || profile?.email || ''}
           onSaveMeasurement={handleSaveMeasurement}
           onAuditMeasurement={handleAuditMeasurement}

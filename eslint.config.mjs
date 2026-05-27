@@ -12,6 +12,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['.next/**', 'node_modules/**'],
+    ignores: ['.next/**', 'node_modules/**', 'scripts/**', 'supabase/**', 'public/**', '*.js', '*.mjs', '*.config.ts'],
   }
 )
