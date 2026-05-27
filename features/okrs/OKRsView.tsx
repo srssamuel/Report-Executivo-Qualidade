@@ -72,7 +72,7 @@ export function OKRsView({
     if (!isSuperOrAdmin && matchedManager) {
       return matchedManager
     }
-    return 'Pedro Almeida'
+    return isSuperOrAdmin ? 'Todos' : 'Pedro Almeida'
   })
   
   useEffect(() => {
@@ -118,13 +118,17 @@ export function OKRsView({
     improvements: '',
     actionPlan: '',
     generalNotes: '',
-    feedbackType: '1:1 de OKRs'
+    feedbackType: '1:1 de OKRs',
+    responsavel: ''
   })
 
   // ── Derived Data ──────────────────────────────────────────────────────────
   
   // Filtered OKRs for selected manager and period
   const managerTargets = useMemo(() => {
+    if (selectedManager === 'Todos') {
+      return targets.filter(t => t.periodo === selectedPeriod)
+    }
     return targets.filter(t => t.responsavel === selectedManager && t.periodo === selectedPeriod)
   }, [targets, selectedManager, selectedPeriod])
 
@@ -223,6 +227,11 @@ export function OKRsView({
 
   // Filtered feedbacks
   const managerFeedbacks = useMemo(() => {
+    if (selectedManager === 'Todos') {
+      return feedbacks
+        .filter(f => f.trimestre === selectedPeriod)
+        .sort((a, b) => b.created_at?.localeCompare(a.created_at ?? '') ?? 0)
+    }
     return feedbacks
       .filter(f => f.responsavel === selectedManager && f.trimestre === selectedPeriod)
       .sort((a, b) => b.created_at?.localeCompare(a.created_at ?? '') ?? 0)
@@ -237,7 +246,7 @@ export function OKRsView({
     try {
       const payload = {
         ...targetData,
-        responsavel: selectedManager,
+        responsavel: targetData.responsavel || (selectedManager === 'Todos' ? 'Pedro Almeida' : selectedManager),
         periodo: selectedPeriod,
         meta_numerica: Number(targetData.meta_numerica) || 0,
         peso: Number(targetData.peso) || 1
@@ -252,6 +261,10 @@ export function OKRsView({
 
   // Action: Clone to next quarter
   const handleCloneQ3 = async () => {
+    if (selectedManager === 'Todos') {
+      alert('Por favor, selecione um gerente específico no filtro superior para realizar a recontratação.')
+      return
+    }
     const prev = selectedPeriod === 'Q3' ? 'Q2' : 'Q1'
     if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o ${selectedPeriod}? A estrutura de KRs do trimestre anterior (${prev}) será clonada.`)) return
     try {
@@ -289,7 +302,7 @@ export function OKRsView({
     e.preventDefault()
     try {
       await onAddFeedback({
-        responsavel: selectedManager,
+        responsavel: selectedManager === 'Todos' ? (feedbackForm.responsavel || 'Pedro Almeida') : selectedManager,
         trimestre: selectedPeriod,
         feedback_type: feedbackForm.feedbackType,
         author_name: currentUserFullName || 'Superintendente',
@@ -298,7 +311,7 @@ export function OKRsView({
         action_plan: feedbackForm.actionPlan,
         general_notes: feedbackForm.generalNotes
       })
-      setFeedbackForm({ strengths: '', improvements: '', actionPlan: '', generalNotes: '', feedbackType: '1:1 de OKRs' })
+      setFeedbackForm({ strengths: '', improvements: '', actionPlan: '', generalNotes: '', feedbackType: '1:1 de OKRs', responsavel: '' })
     } catch (err) {
       console.error(err)
     }
@@ -355,6 +368,7 @@ export function OKRsView({
               onChange={e => setSelectedManager(e.target.value)}
               disabled={!isSuperOrAdmin}
             >
+              {isSuperOrAdmin && <option value="Todos">Todos os Gerentes</option>}
               {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
@@ -497,18 +511,33 @@ export function OKRsView({
       {activeTab === 'measurements' && (
         <div className="okr-measurements-tab">
           {isSuperOrAdmin ? (
-            <div style={{
-              padding: '10px 14px',
-              background: 'rgba(99, 102, 241, 0.05)',
-              borderLeft: '3px solid #6366f1',
-              borderRadius: 4,
-              fontSize: 12,
-              lineHeight: '1.4em',
-              marginBottom: 15,
-              color: 'var(--text-title)'
-            }}>
-              <strong>Visão de Auditoria / Superintendência:</strong> Selecione qualquer gerente no filtro superior para auditar ou ajustar seus lançamentos. Clique em qualquer badge de mês na coluna <strong>Resultados Periódicos</strong> para validar as evidências ou homologar as metas.
-            </div>
+            selectedManager === 'Todos' ? (
+              <div style={{
+                padding: '10px 14px',
+                background: 'rgba(99, 102, 241, 0.05)',
+                borderLeft: '3px solid #6366f1',
+                borderRadius: 4,
+                fontSize: 12,
+                lineHeight: '1.4em',
+                marginBottom: 15,
+                color: 'var(--text-title)'
+              }}>
+                <strong>Visão Consolidada de Auditoria (Todos os Gerentes):</strong> Analise e homologue os lançamentos de toda a equipe. Clique em qualquer badge de mês na coluna <strong>Resultados Periódicos</strong> para validar as evidências individuais.
+              </div>
+            ) : (
+              <div style={{
+                padding: '10px 14px',
+                background: 'rgba(99, 102, 241, 0.05)',
+                borderLeft: '3px solid #6366f1',
+                borderRadius: 4,
+                fontSize: 12,
+                lineHeight: '1.4em',
+                marginBottom: 15,
+                color: 'var(--text-title)'
+              }}>
+                <strong>Visão de Auditoria / Superintendência:</strong> Selecione qualquer gerente no filtro superior para auditar ou ajustar seus lançamentos. Clique em qualquer badge de mês na coluna <strong>Resultados Periódicos</strong> para validar as evidências ou homologar as metas.
+              </div>
+            )
           ) : (
             <div style={{
               padding: '10px 14px',
@@ -552,7 +581,7 @@ export function OKRsView({
                 {managerTargets.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
-                      <div className="empty">Nenhum OKR cadastrado para {selectedManager} em {selectedPeriod}. Vá para a aba "Contratação" para cadastrar ou recontratar OKRs.</div>
+                      <div className="empty">Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} em {selectedPeriod}. Vá para a aba "Contratação" para cadastrar ou recontratar OKRs.</div>
                     </td>
                   </tr>
                 ) : (
@@ -570,6 +599,11 @@ export function OKRsView({
                             <td style={{ fontWeight: 700 }}>{t.id_okr}</td>
                             <td>
                               <Badge label={t.perspectiva} tone={okrPerspectiveTone(t.perspectiva)} />
+                              {selectedManager === 'Todos' && (
+                                <div style={{ marginTop: 4 }}>
+                                  <Badge label={t.responsavel} tone="tone-blue" />
+                                </div>
+                              )}
                             </td>
                             <td>
                               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-title)' }}>{t.objetivo}</div>
@@ -823,19 +857,21 @@ export function OKRsView({
               <Copy size={36} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.7 }} />
               <h3>Contrato de OKRs Vazio</h3>
               <p style={{ maxWidth: 460, margin: '6px auto 20px auto', fontSize: 12, color: 'var(--text-muted)' }}>
-                Nenhum OKR cadastrado para {selectedManager} no período <strong>{selectedPeriod}</strong>. 
-                Você pode clonar a estrutura de KRs do trimestre anterior para iniciar as apurações rapidamente e economizar tempo.
+                Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período <strong>{selectedPeriod}</strong>. 
+                {selectedManager !== 'Todos' && 'Você pode clonar a estrutura de KRs do trimestre anterior para iniciar as apurações rapidamente e economizar tempo.'}
               </p>
               
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                {(selectedPeriod === 'Q2' || selectedPeriod === 'Q3') && (
+                {selectedManager !== 'Todos' && (selectedPeriod === 'Q2' || selectedPeriod === 'Q3') && (
                   <button className="btn primary" onClick={handleCloneQ3}>
                     🔄 Recontratar OKRs do {selectedPeriod === 'Q3' ? '2º Trimestre (Q2)' : '1º Trimestre (Q1)'} para o {selectedPeriod}
                   </button>
                 )}
-                <button className="btn" onClick={() => setIsCreatingTarget(true)}>
-                  <Plus size={14} /> Cadastrar Nova KR do Zero
-                </button>
+                {selectedManager !== 'Todos' && (
+                  <button className="btn" onClick={() => setIsCreatingTarget(true)}>
+                    <Plus size={14} /> Cadastrar Nova KR do Zero
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -849,7 +885,8 @@ export function OKRsView({
                       direcao: 'Maior é melhor',
                       peso: 1,
                       periodo: selectedPeriod,
-                      periodicidade: 'Mensal'
+                      periodicidade: 'Mensal',
+                      responsavel: selectedManager === 'Todos' ? 'Pedro Almeida' : selectedManager
                     })
                     setIsCreatingTarget(true)
                     setEditOkrForm(null)
@@ -876,7 +913,14 @@ export function OKRsView({
                     {managerTargets.map(t => (
                       <tr key={t.id}>
                         <td style={{ fontWeight: 700 }}>{t.id_okr}</td>
-                        <td><Badge label={t.perspectiva} tone={okrPerspectiveTone(t.perspectiva)} /></td>
+                        <td>
+                          <Badge label={t.perspectiva} tone={okrPerspectiveTone(t.perspectiva)} />
+                          {selectedManager === 'Todos' && (
+                            <div style={{ marginTop: 4 }}>
+                              <Badge label={t.responsavel} tone="tone-blue" />
+                            </div>
+                          )}
+                        </td>
                         <td style={{ fontWeight: 600 }}>{t.objetivo}</td>
                         <td>{t.key_result}</td>
                         <td><strong>{t.meta_exibida}</strong> ({t.unidade})</td>
@@ -917,6 +961,22 @@ export function OKRsView({
                 <div className="modal-body">
                   <form onSubmit={handleSaveTargetSubmit}>
                     <div className="form-grid">
+                      {isSuperOrAdmin && (
+                        <label>Gerente Responsável
+                          <select
+                            className="select"
+                            value={isCreatingTarget ? (newTarget.responsavel || (selectedManager === 'Todos' ? 'Pedro Almeida' : selectedManager)) : (editOkrForm?.responsavel || '')}
+                            onChange={e => {
+                              const val = e.target.value
+                              if (isCreatingTarget) setNewTarget(f => ({ ...f, responsavel: val }))
+                              else setEditOkrForm(f => f ? ({ ...f, responsavel: val }) : null)
+                            }}
+                          >
+                            {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                        </label>
+                      )}
+
                       <label>ID OKR
                         <input
                           className="input"
@@ -1138,7 +1198,7 @@ export function OKRsView({
               </div>
               <div className="card-body">
                 {managerFeedbacks.length === 0 ? (
-                  <div className="empty">Nenhum feedback registrado para {selectedManager} no período {selectedPeriod}.</div>
+                  <div className="empty">Nenhum feedback registrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período {selectedPeriod}.</div>
                 ) : (
                   <div className="okr-feedback-timeline" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
                     {managerFeedbacks.map(f => (
@@ -1154,8 +1214,13 @@ export function OKRsView({
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                           <div>
-                            <strong>{f.feedback_type}</strong>
-                            <div style={{ fontSize: 11, color: '#5f7188', marginTop: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <strong>{f.feedback_type}</strong>
+                              {selectedManager === 'Todos' && (
+                                <Badge label={f.responsavel} tone="tone-blue" />
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#5f7188', marginTop: 4 }}>
                               Por <strong>{f.author_name}</strong> em {new Date(f.date).toLocaleDateString('pt-BR')}
                             </div>
                           </div>
@@ -1214,6 +1279,18 @@ export function OKRsView({
                 {isSuperOrAdmin ? (
                   <form onSubmit={handleAddFeedbackSubmit}>
                     <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 12 }}>
+                      {selectedManager === 'Todos' && (
+                        <label>Gerente Avaliado
+                          <select
+                            className="select"
+                            value={feedbackForm.responsavel || 'Pedro Almeida'}
+                            onChange={e => setFeedbackForm(f => ({ ...f, responsavel: e.target.value }))}
+                          >
+                            {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                        </label>
+                      )}
+
                       <label>Tipo de Alinhamento
                         <select
                           className="select"
