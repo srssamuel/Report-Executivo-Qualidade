@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   TrendingUp, CheckCircle, AlertTriangle, Calendar, Award,
   FileText, Check, Edit, Plus, Trash2, ShieldAlert,
@@ -58,10 +58,33 @@ export function OKRsView({
   onCloneToQ3,
   isFallback = false
 }: OKRsViewProps) {
+  const isSuperOrAdmin = ['admin', 'superintendente'].includes(role)
+  const isManagerProfile = ['lider', 'analista', 'gerente', 'coordenador', 'consultor'].includes(role)
+
+  // Find if current user name matches any manager
+  const matchedManager = useMemo(() => {
+    if (!currentUserFullName) return null
+    const name = currentUserFullName.toLowerCase()
+    return MANAGERS.find(m => name.includes(m.toLowerCase()) || m.toLowerCase().includes(name)) || null
+  }, [currentUserFullName])
+
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
-  const [selectedManager, setSelectedManager] = useState<string>('Pedro Almeida')
+  const [selectedManager, setSelectedManager] = useState<string>(() => {
+    if (!isSuperOrAdmin && matchedManager) {
+      return matchedManager
+    }
+    return 'Pedro Almeida'
+  })
+  
+  useEffect(() => {
+    if (!isSuperOrAdmin && matchedManager && selectedManager !== matchedManager) {
+      setSelectedManager(matchedManager)
+    }
+  }, [matchedManager, isSuperOrAdmin, selectedManager])
+
   const [selectedPeriod, setSelectedPeriod] = useState<string>('Q3')
   const [selectedPerspective, setSelectedPerspective] = useState<string>('')
+
   
   // Lançamento state
   const [expandedOkrId, setExpandedOkrId] = useState<string | null>(null)
@@ -287,6 +310,16 @@ export function OKRsView({
 
   return (
     <div className="okr-workspace animate-fade-up">
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes okrPulse {
+          0% { transform: scale(0.85); opacity: 0.5; }
+          50% { transform: scale(1.25); opacity: 1; }
+          100% { transform: scale(0.85); opacity: 0.5; }
+        }
+        .pulse-dot {
+          animation: okrPulse 1.6s infinite ease-in-out;
+        }
+      `}} />
       {isFallback && (
         <div style={{
           padding: '12px 20px',
@@ -324,6 +357,7 @@ export function OKRsView({
               className="select small"
               value={selectedManager}
               onChange={e => setSelectedManager(e.target.value)}
+              disabled={!isSuperOrAdmin}
             >
               {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -466,6 +500,34 @@ export function OKRsView({
       {/* Aba 2: Lançamento & Auditoria */}
       {activeTab === 'measurements' && (
         <div className="okr-measurements-tab">
+          {isSuperOrAdmin ? (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(99, 102, 241, 0.05)',
+              borderLeft: '3px solid #6366f1',
+              borderRadius: 4,
+              fontSize: 12,
+              lineHeight: '1.4em',
+              marginBottom: 15,
+              color: 'var(--text-title)'
+            }}>
+              <strong>Visão de Auditoria / Superintendência:</strong> Selecione qualquer gerente no filtro superior para auditar ou ajustar seus lançamentos. Clique em qualquer badge de mês na coluna <strong>Resultados Periódicos</strong> para validar as evidências ou homologar as metas.
+            </div>
+          ) : (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(16, 185, 129, 0.05)',
+              borderLeft: '3px solid #10b981',
+              borderRadius: 4,
+              fontSize: 12,
+              lineHeight: '1.4em',
+              marginBottom: 15,
+              color: 'var(--text-title)'
+            }}>
+              <strong>Olá, {currentUserFullName || selectedManager}!</strong> Suas metas do período estão listadas abaixo. Clique em qualquer badge marcado como <strong>Pendente</strong> (com a bolinha laranja) ou nos meses que já preencheu na coluna <strong>Resultados Periódicos</strong> para digitar o seu resultado apurado e colar a evidência de entrega.
+            </div>
+          )}
+
           <div className="toolbar" style={{ padding: 10, background: 'rgba(0,0,0,0.02)', borderRadius: 6, marginBottom: 15, display: 'flex', gap: 10 }}>
             <span style={{ alignSelf: 'center', fontWeight: 600, fontSize: 12 }}>Filtrar por Perspectiva:</span>
             <select
@@ -526,7 +588,8 @@ export function OKRsView({
                                 {okrMeasures.map(m => {
                                   const rating = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
                                   const status = resolveOkrStatus(rating)
-                                  const displayVal = m.resultado_apurado !== null ? formatOkrValue(m.resultado_apurado, t.unidade) : 'Pendente'
+                                  const isPending = m.resultado_apurado === null
+                                  const displayVal = !isPending ? formatOkrValue(m.resultado_apurado, t.unidade) : 'Pendente'
                                   
                                   return (
                                     <div
@@ -538,10 +601,12 @@ export function OKRsView({
                                         alignItems: 'center',
                                         padding: '4px 8px',
                                         borderRadius: 4,
-                                        border: '1px solid rgba(0,0,0,0.05)',
+                                        border: isPending ? '1px dashed #f59e0b' : '1px solid rgba(0,0,0,0.05)',
                                         minWidth: 54,
                                         cursor: 'pointer',
-                                        background: m.audited ? 'rgba(16, 185, 129, 0.08)' : 'rgba(0,0,0,0.02)'
+                                        background: m.audited ? 'rgba(16, 185, 129, 0.08)' : (isPending ? 'rgba(245, 158, 11, 0.04)' : 'rgba(0,0,0,0.02)'),
+                                        position: 'relative',
+                                        transition: 'all 0.2s ease'
                                       }}
                                       onClick={() => {
                                         setExpandedOkrId(expandedOkrId === m.id ? null : m.id)
@@ -557,12 +622,19 @@ export function OKRsView({
                                           feedback: m.audit_feedback || ''
                                         })
                                       }}
-                                      title={m.audited ? "Auditado pela Superintendência" : "Clique para atualizar ou auditar"}
+                                      title={m.audited ? "Auditado pela Superintendência" : "Clique para registrar seu resultado apurado"}
                                     >
-                                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', opacity: 0.7 }}>
-                                        {m.mes} {m.audited && <Check size={8} style={{ color: '#10b981', display: 'inline' }} />}
+                                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', opacity: 0.7, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        {m.mes}
+                                        {m.audited ? (
+                                          <Check size={8} style={{ color: '#10b981', display: 'inline' }} />
+                                        ) : (
+                                          isPending && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} className="pulse-dot" />
+                                        )}
                                       </span>
-                                      <strong style={{ fontSize: 11, marginTop: 1 }}>{displayVal}</strong>
+                                      <strong style={{ fontSize: 11, marginTop: 1, color: isPending ? '#d97706' : 'inherit' }}>
+                                        {displayVal}
+                                      </strong>
                                     </div>
                                   )
                                 })}
