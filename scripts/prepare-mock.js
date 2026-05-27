@@ -18,17 +18,20 @@ const data = JSON.parse(fs.readFileSync(srcPath, 'utf8'));
 const baseOKRs = data.Base_OKRs;
 const apuracaoOKRs = data.Apuracao_OKRs;
 
-console.log("Preparing mock data...");
+console.log("Preparing quarterly mock data...");
 
 const targets = [];
 const measurements = [];
-const targetIdMap = {}; // Maps 'OKR-001' -> client-side UUID
+const targetIdMapQ1 = {}; // Maps 'OKR-001' -> Q1 client UUID
+const targetIdMapQ2 = {}; // Maps 'OKR-001' -> Q2 client UUID
 
-// Create targets with client-side UUIDs
+// Create Q1 and Q2 targets from baseOKRs
 baseOKRs.forEach((t, i) => {
-  // Generate a predictable client UUID based on index for stability
-  const uuid = `mock-okr-uuid-${i + 1}`;
-  targetIdMap[t.ID_OKR] = uuid;
+  const uuidQ1 = `mock-okr-uuid-q1-${i + 1}`;
+  const uuidQ2 = `mock-okr-uuid-q2-${i + 1}`;
+  
+  targetIdMapQ1[t.ID_OKR] = uuidQ1;
+  targetIdMapQ2[t.ID_OKR] = uuidQ2;
 
   const peso = typeof t.Peso === 'number' ? t.Peso : 1.0;
   const metaNumerica = typeof t['Meta numerica'] === 'number' ? t['Meta numerica'] : 0.0;
@@ -37,13 +40,39 @@ baseOKRs.forEach((t, i) => {
     perspectiva = 'Performance';
   }
 
+  // Add Q1 Target
   targets.push({
-    id: uuid,
-    id_okr: t.ID_OKR,
+    id: uuidQ1,
+    id_okr: `${t.ID_OKR}-Q1`,
     responsavel: t.Responsavel,
     conta_diretoria: t['Conta/Diretoria'] || null,
     papel: t.Papel || null,
-    periodo: t.Periodo || 'Jan-Jun',
+    periodo: 'Q1',
+    perspectiva: perspectiva,
+    objetivo: t.Objetivo || 'Objetivo Geral',
+    key_result: t['Key Result'] || 'Resultado Chave',
+    periodicidade: t.Periodicidade || 'Mensal',
+    unidade: t.Unidade || '%',
+    tipo_apuracao: t['Tipo de apuracao'] || 'Contagem',
+    direcao: t.Direcao === 'Menor é melhor' ? 'Menor é melhor' : (t.Direcao === 'Igual/meta exata' ? 'Igual/meta exata' : 'Maior é melhor'),
+    meta_numerica: metaNumerica,
+    meta_exibida: t['Meta exibida'] || String(metaNumerica),
+    peso: peso,
+    baseline_referencia: t['Baseline referencia'] || null,
+    como_apurar: t['Como apurar'] || null,
+    observacoes: t.Observacoes || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+
+  // Add Q2 Target (identical structure to Q1)
+  targets.push({
+    id: uuidQ2,
+    id_okr: `${t.ID_OKR}-Q2`,
+    responsavel: t.Responsavel,
+    conta_diretoria: t['Conta/Diretoria'] || null,
+    papel: t.Papel || null,
+    periodo: 'Q2',
     perspectiva: perspectiva,
     objetivo: t.Objetivo || 'Objetivo Geral',
     key_result: t['Key Result'] || 'Resultado Chave',
@@ -62,9 +91,11 @@ baseOKRs.forEach((t, i) => {
   });
 });
 
-// Map measurements
+// Map measurements to their respective Q1 or Q2 target
 apuracaoOKRs.forEach((m, i) => {
-  const targetUuid = targetIdMap[m.ID_OKR];
+  const isQ1Month = ['Jan', 'Fev', 'Mar'].includes(m.Mes);
+  const targetUuid = isQ1Month ? targetIdMapQ1[m.ID_OKR] : targetIdMapQ2[m.ID_OKR];
+  
   if (!targetUuid) return;
 
   const uuid = `mock-measure-uuid-${i + 1}`;
@@ -80,7 +111,7 @@ apuracaoOKRs.forEach((m, i) => {
     id: uuid,
     okr_id: targetUuid,
     mes: m.Mes,
-    trimestre: m.Trimestre,
+    trimestre: isQ1Month ? 'Q1' : 'Q2',
     resultado_apurado: resultadoApurado,
     atingimento: atingimento,
     status: status,
@@ -88,41 +119,41 @@ apuracaoOKRs.forEach((m, i) => {
     acao_sugerida: m['Acao sugerida'] || null,
     audited: true, // Default loaded measurements to audited for completeness
     audited_by: 'mock-admin-uuid',
-    audit_feedback: 'Homologado na apuração final de semestre.',
+    audit_feedback: 'Homologado na apuração trimestral.',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
 });
 
-// Add some sample feedbacks
+// Add sample feedbacks mapped to Q1 or Q2
 const feedbacks = [
   {
     id: 'mock-feedback-1',
     responsavel: 'Pedro Almeida',
-    trimestre: 'Jan-Jun',
-    date: '2026-05-15',
+    trimestre: 'Q1',
+    date: '2026-03-25',
     feedback_type: '1:1 de OKRs',
     author_name: 'Samuel Rosa',
-    strengths: 'Excelente liderança no pilar de Performance. Superou as expectativas de recuperação financeira de Vivo Diretoria Dutra.',
-    improvements: 'Evoluir o refinamento na descrição de baselines das novas metas de Q3.',
-    action_plan: 'Dedicar 1 hora na primeira semana de Junho para revisão tática de OKRs com a equipe.',
+    strengths: 'Excelente liderança no pilar de Performance. Superou as expectativas de recuperação financeira de Vivo Diretoria Dutra no trimestre.',
+    improvements: 'Evoluir o refinamento na descrição de baselines para o próximo ciclo.',
+    action_plan: 'Dedicar 1 hora semanal para revisão tática de OKRs com a equipe.',
     general_notes: 'Pedro continua demonstrando alta maturidade técnica e gerencial.',
     created_at: new Date().toISOString()
   },
   {
     id: 'mock-feedback-2',
     responsavel: 'Kathellen',
-    trimestre: 'Jan-Jun',
-    date: '2026-05-18',
+    trimestre: 'Q1',
+    date: '2026-03-28',
     feedback_type: '1:1 de OKRs',
     author_name: 'Samuel Rosa',
-    strengths: 'Alta qualidade operacional e entregas de governança sem drift de prazos.',
+    strengths: 'Alta qualidade operacional e entregas de governança sem drift de prazos no Q1.',
     improvements: 'Fortalecer a aproximação de resultados do pilar de Projetos.',
-    action_plan: 'Alinhar com a consultoria os KPIs de projetos para Q3.',
+    action_plan: 'Alinhar com a consultoria os KPIs de projetos para Q2.',
     general_notes: 'Kathellen manteve a consistência de entregas mesmo com alta carga tática.',
     created_at: new Date().toISOString()
   }
 ];
 
 fs.writeFileSync(destPath, JSON.stringify({ targets, measurements, feedbacks }, null, 2));
-console.log(`Successfully generated public mock data at ${destPath} with ${targets.length} targets, ${measurements.length} measurements, and ${feedbacks.length} feedbacks.`);
+console.log(`Successfully generated public quarterly mock data at ${destPath} with ${targets.length} targets, ${measurements.length} measurements, and ${feedbacks.length} feedbacks.`);

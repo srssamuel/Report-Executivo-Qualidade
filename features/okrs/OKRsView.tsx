@@ -27,14 +27,15 @@ interface OKRsViewProps {
   onDeleteTarget: (id: string) => Promise<void>
   onAddFeedback: (feedback: Omit<OKRFeedback, 'id' | 'created_at' | 'date'>) => Promise<void>
   onDeleteFeedback: (id: string) => Promise<void>
-  onCloneToQ3: (managerName: string) => Promise<void>
+  onCloneToQ3: (managerName: string, sourcePeriod: string, targetPeriod: string) => Promise<void>
   isFallback?: boolean
 }
 
 type TabId = 'dashboard' | 'measurements' | 'recontracting' | 'feedbacks'
 
 const PERIODS = [
-  { id: 'Jan-Jun', label: '1º Semestre (Jan-Jun)' },
+  { id: 'Q1', label: '1º Trimestre (Jan-Mar)' },
+  { id: 'Q2', label: '2º Trimestre (Abr-Jun)' },
   { id: 'Q3', label: '3º Trimestre (Jul-Set)' }
 ]
 
@@ -82,7 +83,7 @@ export function OKRsView({
     }
   }, [matchedManager, isSuperOrAdmin, selectedManager])
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('Q3')
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('Q1')
   const [selectedPerspective, setSelectedPerspective] = useState<string>('')
 
   
@@ -121,9 +122,6 @@ export function OKRsView({
     generalNotes: '',
     feedbackType: '1:1 de OKRs'
   })
-
-  const isSuperOrAdmin = ['admin', 'superintendente'].includes(role)
-  const isManagerProfile = ['lider', 'analista', 'gerente', 'coordenador', 'consultor'].includes(role)
 
   // ── Derived Data ──────────────────────────────────────────────────────────
   
@@ -254,12 +252,12 @@ export function OKRsView({
     }
   }
 
-  // Action: Clone to Q3
+  // Action: Clone to next quarter
   const handleCloneQ3 = async () => {
-    if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o 3º Trimestre? A estrutura de KRs do primeiro semestre será clonada.`)) return
+    const prev = selectedPeriod === 'Q3' ? 'Q2' : 'Q1'
+    if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o ${selectedPeriod}? A estrutura de KRs do trimestre anterior (${prev}) será clonada.`)) return
     try {
-      await onCloneToQ3(selectedManager)
-      setSelectedPeriod('Q3')
+      await onCloneToQ3(selectedManager, prev, selectedPeriod)
     } catch (err) {
       console.error(err)
     }
@@ -828,13 +826,13 @@ export function OKRsView({
               <h3>Contrato de OKRs Vazio</h3>
               <p style={{ maxWidth: 460, margin: '6px auto 20px auto', fontSize: 12, color: 'var(--text-muted)' }}>
                 Nenhum OKR cadastrado para {selectedManager} no período <strong>{selectedPeriod}</strong>. 
-                Se você está recontratando as metas para o 3º Trimestre (Jul-Set), você pode clonar toda a estrutura do 1º Semestre para economizar tempo.
+                Você pode clonar a estrutura de KRs do trimestre anterior para iniciar as apurações rapidamente e economizar tempo.
               </p>
               
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                {selectedPeriod === 'Q3' && (
+                {(selectedPeriod === 'Q2' || selectedPeriod === 'Q3') && (
                   <button className="btn primary" onClick={handleCloneQ3}>
-                    🔄 Recontratar Legado do 1º Semestre para o Q3
+                    🔄 Recontratar OKRs do {selectedPeriod === 'Q3' ? '2º Trimestre (Q2)' : '1º Trimestre (Q1)'} para o {selectedPeriod}
                   </button>
                 )}
                 <button className="btn" onClick={() => setIsCreatingTarget(true)}>

@@ -750,21 +750,29 @@ export default function AppPage() {
     showToast('KR removido.')
   }
 
-  async function handleCloneToQ3(managerName: string) {
-    const firstHalfOKRs = okrTargets.filter(t => t.responsavel === managerName && t.periodo === 'Jan-Jun')
-    if (firstHalfOKRs.length === 0) {
-      showToast('Nenhum OKR encontrado no 1º semestre para clonar.')
+  async function handleCloneToQ3(managerName: string, sourcePeriod: string = 'Q1', targetPeriod: string = 'Q2') {
+    const sourceOKRs = okrTargets.filter(t => t.responsavel === managerName && t.periodo === sourcePeriod)
+    if (sourceOKRs.length === 0) {
+      showToast(`Nenhum OKR encontrado no período ${sourcePeriod} para clonar.`)
       return
     }
 
+    // Map target period to months
+    let months: string[] = []
+    if (targetPeriod === 'Q2') months = ['Abr', 'Mai', 'Jun']
+    else if (targetPeriod === 'Q3') months = ['Jul', 'Ago', 'Set']
+    else if (targetPeriod === 'Q4') months = ['Out', 'Nov', 'Dez']
+    else if (targetPeriod === 'Q1') months = ['Jan', 'Fev', 'Mar']
+
     if (isOkrFallback) {
-      const newTargets = firstHalfOKRs.map((t, idx) => {
-        const newId = `mock-okr-uuid-q3-${Date.now()}-${idx}`
+      const newTargets = sourceOKRs.map((t, idx) => {
+        const newId = `mock-okr-uuid-${targetPeriod.toLowerCase()}-${Date.now()}-${idx}`
+        const baseId = t.id_okr.replace(/-Q[1-4]$/, '')
         return {
           ...t,
           id: newId,
-          id_okr: `${t.id_okr}-Q3`,
-          periodo: 'Q3',
+          id_okr: `${baseId}-${targetPeriod}`,
+          periodo: targetPeriod,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -773,12 +781,12 @@ export default function AppPage() {
 
       const newMeasures: OKRMeasurement[] = []
       newTargets.forEach(t => {
-        ['Jul', 'Ago', 'Set'].forEach((m, idx) => {
+        months.forEach((m, idx) => {
           newMeasures.push({
-            id: `mock-measure-uuid-q3-${Date.now()}-${t.id_okr}-${idx}`,
+            id: `mock-measure-uuid-${targetPeriod.toLowerCase()}-${Date.now()}-${t.id_okr}-${idx}`,
             okr_id: t.id,
             mes: m,
-            trimestre: 'Q3',
+            trimestre: targetPeriod,
             resultado_apurado: null,
             atingimento: null,
             status: 'Pendente',
@@ -791,31 +799,34 @@ export default function AppPage() {
         })
       })
       setOkrMeasurements(prev => [...prev, ...newMeasures])
-      showToast(`OKRs de ${managerName} recontratados para o Q3 localmente (Modo Demo).`)
+      showToast(`OKRs de ${managerName} recontratados para o ${targetPeriod} localmente (Modo Demo).`)
       return
     }
 
-    // Clone targets to Q3
-    const newTargetsPayload = firstHalfOKRs.map(t => ({
-      id_okr: `${t.id_okr}-Q3`,
-      responsavel: t.responsavel,
-      conta_diretoria: t.conta_diretoria,
-      papel: t.papel,
-      periodo: 'Q3',
-      perspectiva: t.perspectiva,
-      objetivo: t.objetivo,
-      key_result: t.key_result,
-      periodicidade: t.periodicidade,
-      unidade: t.unidade,
-      tipo_apuracao: t.tipo_apuracao,
-      direcao: t.direcao,
-      meta_numerica: t.meta_numerica,
-      meta_exibida: t.meta_exibida,
-      peso: t.peso,
-      baseline_referencia: t.baseline_referencia,
-      como_apurar: t.como_apurar,
-      observacoes: t.observacoes
-    }))
+    // Clone targets to DB
+    const newTargetsPayload = sourceOKRs.map(t => {
+      const baseId = t.id_okr.replace(/-Q[1-4]$/, '')
+      return {
+        id_okr: `${baseId}-${targetPeriod}`,
+        responsavel: t.responsavel,
+        conta_diretoria: t.conta_diretoria,
+        papel: t.papel,
+        periodo: targetPeriod,
+        perspectiva: t.perspectiva,
+        objetivo: t.objetivo,
+        key_result: t.key_result,
+        periodicidade: t.periodicidade,
+        unidade: t.unidade,
+        tipo_apuracao: t.tipo_apuracao,
+        direcao: t.direcao,
+        meta_numerica: t.meta_numerica,
+        meta_exibida: t.meta_exibida,
+        peso: t.peso,
+        baseline_referencia: t.baseline_referencia,
+        como_apurar: t.como_apurar,
+        observacoes: t.observacoes
+      }
+    })
 
     const { data: insertedTargets, error: errTargets } = await supabase
       .from('okr_targets')
@@ -829,14 +840,14 @@ export default function AppPage() {
 
     setOkrTargets(prev => [...prev, ...(insertedTargets as OKRTarget[])])
 
-    // Generate Q3 measurements (Jul, Ago, Set)
+    // Generate target measurements (Jul, Ago, Set / Abr, Mai, Jun)
     const newMeasuresPayload: Omit<OKRMeasurement, 'id'>[] = []
     insertedTargets.forEach(t => {
-      ['Jul', 'Ago', 'Set'].forEach(m => {
+      months.forEach(m => {
         newMeasuresPayload.push({
           okr_id: t.id,
           mes: m,
-          trimestre: 'Q3',
+          trimestre: targetPeriod,
           status: 'Pendente',
           audited: false
         })
@@ -852,7 +863,7 @@ export default function AppPage() {
       setOkrMeasurements(prev => [...prev, ...(insertedMeasures as OKRMeasurement[])])
     }
 
-    showToast(`OKRs de ${managerName} recontratados para o Q3!`)
+    showToast(`OKRs de ${managerName} recontratados para o ${targetPeriod}!`)
   }
 
   async function handleAddFeedback(fb: Omit<OKRFeedback, 'id' | 'created_at' | 'date'>) {
