@@ -5,7 +5,7 @@ import { createClient } from '@/shared/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,
-  LogOut, Users, ArrowUpDown, X, Sun, Moon, Award,
+  LogOut, Users, ArrowUpDown, X, Sun, Moon, Award, TrendingUp,
 } from 'lucide-react'
 import { Badge, ConfirmDialog } from '@/shared/components'
 import {
@@ -19,7 +19,8 @@ import {
   itemEffort, itemRemainingEffort, itemStart,
   urgencyCandidateScore, recommendationType,
   nextId, clamp, canEdit, canDelete, isAdmin,
-  OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus
+  OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus,
+  UserPDI, ProfileEvaluation
 } from '@/shared/domain'
 
 // Import feature components
@@ -32,8 +33,9 @@ import { CapacityView } from '@/features/capacity'
 import { ExecutiveView } from '@/features/executive'
 import { ArchivedView } from '@/features/archived'
 import { OKRsView } from '@/features/okrs'
+import { DevelopmentView } from '@/features/development'
 
-type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'okrs' | 'archived'
+type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'okrs' | 'development' | 'archived'
 
 const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
@@ -44,6 +46,7 @@ const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   { id: 'capacity', label: 'Capacidade', icon: <Zap size={16} /> },
   { id: 'executive', label: 'Executivo', icon: <FileText size={16} /> },
   { id: 'okrs', label: 'OKRs Gerentes', icon: <Award size={16} /> },
+  { id: 'development', label: 'Desenvolvimento', icon: <TrendingUp size={16} /> },
   { id: 'archived', label: 'Arquivados', icon: <Archive size={16} /> },
 ]
 
@@ -75,6 +78,12 @@ export default function AppPage() {
   const [okrMeasurements, setOkrMeasurements] = useState<OKRMeasurement[]>([])
   const [okrFeedbacks, setOkrFeedbacks] = useState<OKRFeedback[]>([])
   const [isOkrFallback, setIsOkrFallback] = useState(false)
+
+  // ── Development State (PDI & Profiles) ────────────────────────────────────
+  const [pdis, setPdis] = useState<UserPDI[]>([])
+  const [profileEvaluations, setProfileEvaluations] = useState<ProfileEvaluation[]>([])
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([])
+  const [isDevelopmentFallback, setIsDevelopmentFallback] = useState(false)
 
   // ── Form state (modal) ────────────────────────────────────────────────────
   const [form, setForm] = useState<Partial<Item> & { tagsRaw?: string; commentText?: string; commentAuthor?: string; commentType?: string }>({})
@@ -213,6 +222,43 @@ export default function AppPage() {
           } catch (fallbackErr) {
             console.error("Failed to load local OKR fallback:", fallbackErr)
           }
+        }
+
+        // ── Load all user profiles for Development View ──
+        try {
+          const allProfilesRes = await supabase.from('user_profiles').select('*').order('full_name')
+          if (allProfilesRes.data) {
+            setUserProfiles(allProfilesRes.data as UserProfile[])
+          }
+        } catch (profErr) {
+          console.warn("Failed to load user profiles:", profErr)
+        }
+
+        // ── Graceful Development tables load with local fallback ──
+        let devLoaded = false
+        try {
+          const [pdisRes, evalsRes] = await Promise.all([
+            supabase.from('user_pdis').select('*'),
+            supabase.from('profile_evaluations').select('*')
+          ])
+
+          if (pdisRes.data && !pdisRes.error && evalsRes.data && !evalsRes.error) {
+            setPdis(pdisRes.data as UserPDI[])
+            setProfileEvaluations(evalsRes.data as ProfileEvaluation[])
+            devLoaded = true
+          } else if (pdisRes.error || evalsRes.error) {
+            console.warn("Development tables fetch returned error:", pdisRes.error?.message || evalsRes.error?.message)
+          }
+        } catch (devErr) {
+          console.warn("Development tables not active or failed to load:", devErr)
+        }
+
+        if (!devLoaded) {
+          setIsDevelopmentFallback(true)
+          const cachedPdis = localStorage.getItem('mock_pdis')
+          const cachedEvals = localStorage.getItem('mock_evaluations')
+          if (cachedPdis) setPdis(JSON.parse(cachedPdis))
+          if (cachedEvals) setProfileEvaluations(JSON.parse(cachedEvals))
         }
       } catch (err) {
         setLoadError(`Erro de conexão: ${err instanceof Error ? err.message : 'Tente novamente.'}`)
@@ -926,6 +972,125 @@ export default function AppPage() {
     showToast('Feedback excluído.')
   }
 
+  // ── Development Event Handlers ─────────────────────────────────────────────
+  async function handleSavePDI(pdi: Partial<UserPDI>) {
+    const payload = {
+      user_id: pdi.user_id || profile?.id || '',
+      collaborator_name: pdi.collaborator_name || '',
+      trimestre: pdi.trimestre || 'Q2',
+      objetivo_carreira: pdi.objetivo_carreira || '',
+      competencias_foco: pdi.competencias_foco || [],
+      plano_acao: pdi.plano_acao || '',
+      status: pdi.status || 'Ativo'
+    }
+
+    if (isDevelopmentFallback) {
+      const mockId = pdi.id || `mock-pdi-uuid-${Date.now()}`
+      const mockPdi = { id: mockId, updated_at: new Date().toISOString(), ...payload } as UserPDI
+      setPdis(prev => {
+        const next = prev.some(p => p.id === mockId)
+          ? prev.map(p => p.id === mockId ? mockPdi : p)
+          : [mockPdi, ...prev]
+        localStorage.setItem('mock_pdis', JSON.stringify(next))
+        return next
+      })
+      showToast('PDI salvo localmente (Modo Demo).')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('user_pdis')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert((pdi.id ? { id: pdi.id, ...payload } : payload) as any)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao salvar PDI: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      setPdis(prev => {
+        const exists = prev.some(p => p.id === data.id)
+        return exists ? prev.map(p => p.id === data.id ? (data as UserPDI) : p) : [data as UserPDI, ...prev]
+      })
+      showToast('PDI salvo com sucesso.')
+    }
+  }
+
+  async function handleDeletePDI(id: string) {
+    if (isDevelopmentFallback) {
+      setPdis(prev => {
+        const next = prev.filter(p => p.id !== id)
+        localStorage.setItem('mock_pdis', JSON.stringify(next))
+        return next
+      })
+      showToast('PDI removido localmente (Modo Demo).')
+      return
+    }
+
+    const { error } = await supabase.from('user_pdis').delete().eq('id', id)
+    if (error) {
+      showToast(`Erro ao excluir PDI: ${error.message}`)
+      throw error
+    }
+
+    setPdis(prev => prev.filter(p => p.id !== id))
+    showToast('PDI excluído.')
+  }
+
+  async function handleSaveEvaluation(evaluation: Omit<ProfileEvaluation, 'id' | 'created_at' | 'updated_at'>) {
+    if (isDevelopmentFallback) {
+      const mockId = `mock-eval-uuid-${Date.now()}`
+      const mockEval = { id: mockId, updated_at: new Date().toISOString(), ...evaluation } as ProfileEvaluation
+      setProfileEvaluations(prev => {
+        const next = [mockEval, ...prev.filter(e => e.collaborator_name !== evaluation.collaborator_name)]
+        localStorage.setItem('mock_evaluations', JSON.stringify(next))
+        return next
+      })
+      showToast('Avaliação de Perfil salva localmente (Modo Demo).')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('profile_evaluations')
+      .upsert(evaluation)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao salvar avaliação: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      setProfileEvaluations(prev => [data as ProfileEvaluation, ...prev.filter(e => e.id !== data.id)])
+      showToast('Avaliação de Perfil salva com sucesso.')
+    }
+  }
+
+  async function handleDeleteEvaluation(id: string) {
+    if (isDevelopmentFallback) {
+      setProfileEvaluations(prev => {
+        const next = prev.filter(e => e.id !== id)
+        localStorage.setItem('mock_evaluations', JSON.stringify(next))
+        return next
+      })
+      showToast('Avaliação removida localmente (Modo Demo).')
+      return
+    }
+
+    const { error } = await supabase.from('profile_evaluations').delete().eq('id', id)
+    if (error) {
+      showToast(`Erro ao redefinir avaliação: ${error.message}`)
+      throw error
+    }
+
+    setProfileEvaluations(prev => prev.filter(e => e.id !== id))
+    showToast('Avaliação redefinida.')
+  }
+
   // ── Dashboard helpers ─────────────────────────────────────────────────────
   const total = filtered.length
   const done = filtered.filter(isDone).length
@@ -1102,6 +1267,25 @@ export default function AppPage() {
           onDeleteFeedback={handleDeleteFeedback}
           onCloneToQ3={handleCloneToQ3}
           isFallback={isOkrFallback}
+        />
+      )}
+      {view === 'development' && (
+        <DevelopmentView
+          items={items}
+          pdis={pdis}
+          evaluations={profileEvaluations}
+          feedbacks={okrFeedbacks}
+          userProfiles={userProfiles}
+          role={role}
+          currentUserId={profile?.id || ''}
+          currentUserFullName={profile?.full_name || profile?.email || ''}
+          onSavePDI={handleSavePDI}
+          onDeletePDI={handleDeletePDI}
+          onSaveEvaluation={handleSaveEvaluation}
+          onDeleteEvaluation={handleDeleteEvaluation}
+          onAddFeedback={handleAddFeedback}
+          onDeleteFeedback={handleDeleteFeedback}
+          isFallback={isDevelopmentFallback}
         />
       )}
       {view === 'archived' && <ArchivedView items={items} onEdit={openModal} onRestore={restoreItem} canEdit={canEditItems} />}

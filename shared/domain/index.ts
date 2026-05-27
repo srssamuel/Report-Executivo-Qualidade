@@ -632,3 +632,34 @@ export function formatOkrValue(val: number | null | undefined, unidade: string):
   return val.toLocaleString('pt-BR')
 }
 
+export interface UserPDI {
+  id: string
+  user_id: string
+  collaborator_name: string
+  trimestre: string
+  objetivo_carreira: string
+  competencias_foco: string[]
+  plano_acao: string
+  status: 'Ativo' | 'Concluído' | 'Suspenso'
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ProfileEvaluation {
+  id: string
+  user_id: string
+  collaborator_name: string
+  status: 'completed' | 'in_progress'
+  answers: Record<string, string | number>
+  open_answers?: Record<string, string>
+  domain_scores: Record<string, number>
+  competency_scores: Record<string, number>
+  subcompetency_scores?: Record<string, number>
+  consistency_index?: number | null
+  consistency_label?: string | null
+  laudo_narrativo?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+

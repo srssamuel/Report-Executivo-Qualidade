@@ -3,8 +3,8 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import {
   TrendingUp, CheckCircle, AlertTriangle, Calendar, Award,
-  Check, Edit, Plus, Trash2, ShieldAlert,
-  MessageSquare, Users, Copy, Sparkles, UserCheck,
+  Check, Edit, Plus, Trash2,
+  Users, Copy, Sparkles, UserCheck,
   Settings
 } from 'lucide-react'
 import {
@@ -30,7 +30,7 @@ interface OKRsViewProps {
   isFallback?: boolean
 }
 
-type TabId = 'dashboard' | 'measurements' | 'recontracting' | 'feedbacks'
+type TabId = 'dashboard' | 'measurements' | 'recontracting'
 
 const PERIODS = [
   { id: 'Q1', label: '1º Trimestre (Jan-Mar)' },
@@ -45,7 +45,7 @@ const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson',
 export function OKRsView({
   targets,
   measurements,
-  feedbacks,
+  feedbacks: _feedbacks,
   role,
   _currentUserId,
   currentUserFullName,
@@ -53,8 +53,8 @@ export function OKRsView({
   onAuditMeasurement,
   onSaveTarget,
   onDeleteTarget,
-  onAddFeedback,
-  onDeleteFeedback,
+  onAddFeedback: _onAddFeedback,
+  onDeleteFeedback: _onDeleteFeedback,
   onCloneToQ3,
   isFallback = false
 }: OKRsViewProps) {
@@ -112,15 +112,6 @@ export function OKRsView({
     feedback: string
   }>({ id: '', audited: false, feedback: '' })
 
-  // Feedback form state
-  const [feedbackForm, setFeedbackForm] = useState({
-    strengths: '',
-    improvements: '',
-    actionPlan: '',
-    generalNotes: '',
-    feedbackType: '1:1 de OKRs',
-    responsavel: ''
-  })
 
   // ── Derived Data ──────────────────────────────────────────────────────────
   
@@ -225,17 +216,6 @@ export function OKRsView({
     }
   }, [managerTargets, okrMeasurementsMap])
 
-  // Filtered feedbacks
-  const managerFeedbacks = useMemo(() => {
-    if (selectedManager === 'Todos') {
-      return feedbacks
-        .filter(f => f.trimestre === selectedPeriod)
-        .sort((a, b) => b.created_at?.localeCompare(a.created_at ?? '') ?? 0)
-    }
-    return feedbacks
-      .filter(f => f.responsavel === selectedManager && f.trimestre === selectedPeriod)
-      .sort((a, b) => b.created_at?.localeCompare(a.created_at ?? '') ?? 0)
-  }, [feedbacks, selectedManager, selectedPeriod])
 
   // Action: Save a target
   const handleSaveTargetSubmit = async (e: React.FormEvent) => {
@@ -297,25 +277,6 @@ export function OKRsView({
     }
   }
 
-  // Action: Save feedback
-  const handleAddFeedbackSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      await onAddFeedback({
-        responsavel: selectedManager === 'Todos' ? (feedbackForm.responsavel || 'Pedro Almeida') : selectedManager,
-        trimestre: selectedPeriod,
-        feedback_type: feedbackForm.feedbackType,
-        author_name: currentUserFullName || 'Superintendente',
-        strengths: feedbackForm.strengths,
-        improvements: feedbackForm.improvements,
-        action_plan: feedbackForm.actionPlan,
-        general_notes: feedbackForm.generalNotes
-      })
-      setFeedbackForm({ strengths: '', improvements: '', actionPlan: '', generalNotes: '', feedbackType: '1:1 de OKRs', responsavel: '' })
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   return (
     <div className="okr-workspace animate-fade-up">
@@ -409,12 +370,6 @@ export function OKRsView({
           }}
         >
           <Settings size={15} /> Contratação &amp; Q3
-        </button>
-        <button
-          className={`tab ${activeTab === 'feedbacks' ? 'active' : ''}`}
-          onClick={() => setActiveTab('feedbacks')}
-        >
-          <MessageSquare size={15} /> Feedbacks &amp; 1:1 Hub
         </button>
       </div>
 
@@ -1187,182 +1142,6 @@ export function OKRsView({
         </div>
       )}
 
-      {/* Aba 4: Hub de Feedbacks & Atas de 1:1 */}
-      {activeTab === 'feedbacks' && (
-        <div className="okr-feedbacks-tab">
-          <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 20 }}>
-            {/* Timeline */}
-            <div className="card">
-              <div className="card-head">
-                <h3>Memória de Acompanhamento (Feedbacks de OKRs)</h3>
-              </div>
-              <div className="card-body">
-                {managerFeedbacks.length === 0 ? (
-                  <div className="empty">Nenhum feedback registrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período {selectedPeriod}.</div>
-                ) : (
-                  <div className="okr-feedback-timeline" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-                    {managerFeedbacks.map(f => (
-                      <div 
-                        key={f.id} 
-                        style={{ 
-                          padding: 15, 
-                          background: 'var(--card-bg-hover)', 
-                          borderRadius: 6, 
-                          borderLeft: '4px solid #6366f1',
-                          position: 'relative'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <strong>{f.feedback_type}</strong>
-                              {selectedManager === 'Todos' && (
-                                <Badge label={f.responsavel} tone="tone-blue" />
-                              )}
-                            </div>
-                            <div style={{ fontSize: 11, color: '#5f7188', marginTop: 4 }}>
-                              Por <strong>{f.author_name}</strong> em {new Date(f.date).toLocaleDateString('pt-BR')}
-                            </div>
-                          </div>
-                          {isSuperOrAdmin && (
-                            <button 
-                              className="btn small danger square ghost"
-                              onClick={() => {
-                                if (confirm("Deseja mesmo remover esta ata de feedback?")) onDeleteFeedback(f.id)
-                              }}
-                              style={{ height: 24, width: 24 }}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                          {f.strengths && (
-                            <div>
-                              <strong style={{ color: '#10b981' }}>📈 Pontos Fortes:</strong>
-                              <p style={{ margin: '2px 0 0 0', color: 'var(--text-muted)' }}>{f.strengths}</p>
-                            </div>
-                          )}
-                          {f.improvements && (
-                            <div>
-                              <strong style={{ color: '#f59e0b' }}>⚠️ Oportunidades de Melhoria:</strong>
-                              <p style={{ margin: '2px 0 0 0', color: 'var(--text-muted)' }}>{f.improvements}</p>
-                            </div>
-                          )}
-                          {f.action_plan && (
-                            <div style={{ padding: 8, background: 'rgba(99, 102, 241, 0.04)', borderRadius: 4, border: '1px dashed rgba(99, 102, 241, 0.15)' }}>
-                              <strong style={{ color: '#6366f1' }}>🎯 Plano de Ação Acordado:</strong>
-                              <p style={{ margin: '2px 0 0 0', color: 'var(--text-title)' }}>{f.action_plan}</p>
-                            </div>
-                          )}
-                          {f.general_notes && (
-                            <div>
-                              <strong>📝 Notas Adicionais:</strong>
-                              <p style={{ margin: '2px 0 0 0', color: 'var(--text-muted)' }}>{f.general_notes}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Registrar Feedback (Admin/Super) */}
-            <div className="card">
-              <div className="card-head">
-                <h3>Lançar Ata de Alinhamento / 1:1</h3>
-              </div>
-              <div className="card-body">
-                {isSuperOrAdmin ? (
-                  <form onSubmit={handleAddFeedbackSubmit}>
-                    <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 12 }}>
-                      {selectedManager === 'Todos' && (
-                        <label>Gerente Avaliado
-                          <select
-                            className="select"
-                            value={feedbackForm.responsavel || 'Pedro Almeida'}
-                            onChange={e => setFeedbackForm(f => ({ ...f, responsavel: e.target.value }))}
-                          >
-                            {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                        </label>
-                      )}
-
-                      <label>Tipo de Alinhamento
-                        <select
-                          className="select"
-                          value={feedbackForm.feedbackType}
-                          onChange={e => setFeedbackForm(f => ({ ...f, feedbackType: e.target.value }))}
-                        >
-                          <option>1:1 de OKRs</option>
-                          <option>Acompanhamento Mensal</option>
-                          <option>Recontratação Trimestral</option>
-                          <option>Feedback de Fechamento</option>
-                        </select>
-                      </label>
-
-                      <label>Pontos Fortes (Destaques positivos)
-                        <textarea
-                          className="textarea"
-                          rows={2}
-                          placeholder="Quais metas foram superadas? O que deu certo?"
-                          value={feedbackForm.strengths}
-                          onChange={e => setFeedbackForm(f => ({ ...f, strengths: e.target.value }))}
-                        />
-                      </label>
-
-                      <label>Oportunidades de Melhoria (Gaps)
-                        <textarea
-                          className="textarea"
-                          rows={2}
-                          placeholder="Onde o gerente ficou abaixo da meta? Quais os pontos de atenção?"
-                          value={feedbackForm.improvements}
-                          onChange={e => setFeedbackForm(f => ({ ...f, improvements: e.target.value }))}
-                        />
-                      </label>
-
-                      <label>Plano de Ação Acordado (Compromissos)
-                        <textarea
-                          className="textarea"
-                          rows={2}
-                          placeholder="Quais as ações concretas e prazos pactuados com o gerente?"
-                          value={feedbackForm.actionPlan}
-                          onChange={e => setFeedbackForm(f => ({ ...f, actionPlan: e.target.value }))}
-                        />
-                      </label>
-
-                      <label>Notas Gerais / Atas
-                        <textarea
-                          className="textarea"
-                          rows={2}
-                          placeholder="Outras observações importantes da conversa..."
-                          value={feedbackForm.generalNotes}
-                          onChange={e => setFeedbackForm(f => ({ ...f, generalNotes: e.target.value }))}
-                        />
-                      </label>
-
-                      <div style={{ marginTop: 5 }}>
-                        <button type="submit" className="btn primary full">
-                          Registrar Alinhamento
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                ) : (
-                  <div style={{ padding: 15, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 12, textAlign: 'center' }}>
-                    <ShieldAlert size={24} style={{ color: '#f59e0b', marginBottom: 8 }} />
-                    <p style={{ margin: 0, fontWeight: 600 }}>Somente Superintendentes</p>
-                    <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>O registro de feedbacks e planos de ação das reuniões 1:1 é reservado para a Superintendência e Administradores.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
