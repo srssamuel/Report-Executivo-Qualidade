@@ -5,7 +5,7 @@ import { createClient } from '@/shared/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,
-  LogOut, Users, ArrowUpDown, X, Sun, Moon,
+  LogOut, Users, ArrowUpDown, X, Sun, Moon, Award,
 } from 'lucide-react'
 import { Badge, ConfirmDialog } from '@/shared/components'
 import {
@@ -19,6 +19,7 @@ import {
   itemEffort, itemRemainingEffort, itemStart,
   urgencyCandidateScore, recommendationType,
   nextId, clamp, canEdit, canDelete, isAdmin,
+  OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus
 } from '@/shared/domain'
 
 // Import feature components
@@ -30,8 +31,9 @@ import { TimelineView } from '@/features/timeline'
 import { CapacityView } from '@/features/capacity'
 import { ExecutiveView } from '@/features/executive'
 import { ArchivedView } from '@/features/archived'
+import { OKRsView } from '@/features/okrs'
 
-type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'archived'
+type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'okrs' | 'archived'
 
 const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
@@ -41,6 +43,7 @@ const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   { id: 'timeline', label: 'Timeline', icon: <Calendar size={16} /> },
   { id: 'capacity', label: 'Capacidade', icon: <Zap size={16} /> },
   { id: 'executive', label: 'Executivo', icon: <FileText size={16} /> },
+  { id: 'okrs', label: 'OKRs Gerentes', icon: <Award size={16} /> },
   { id: 'archived', label: 'Arquivados', icon: <Archive size={16} /> },
 ]
 
@@ -66,6 +69,12 @@ export default function AppPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [focusCommentOnOpen, setFocusCommentOnOpen] = useState(false)
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // ── OKR State ─────────────────────────────────────────────────────────────
+  const [okrTargets, setOkrTargets] = useState<OKRTarget[]>([])
+  const [okrMeasurements, setOkrMeasurements] = useState<OKRMeasurement[]>([])
+  const [okrFeedbacks, setOkrFeedbacks] = useState<OKRFeedback[]>([])
+  const [isOkrFallback, setIsOkrFallback] = useState(false)
 
   // ── Form state (modal) ────────────────────────────────────────────────────
   const [form, setForm] = useState<Partial<Item> & { tagsRaw?: string; commentText?: string; commentAuthor?: string; commentType?: string }>({})
@@ -164,6 +173,46 @@ export default function AppPage() {
         if (itemsRes.data) {
           const mapped = itemsRes.data.map((row: Record<string, unknown>, i: number) => normalizeItem(mapRow(row), i))
           setItems(mapped)
+        }
+
+        // Graceful OKR tables load with static fallback to prevent portfolio crashing if tables are missing
+        let okrsLoaded = false
+        try {
+          const [targetsRes, measurementsRes, feedbacksRes] = await Promise.all([
+            supabase.from('okr_targets').select('*').order('id_okr'),
+            supabase.from('okr_measurements').select('*'),
+            supabase.from('okr_feedbacks').select('*').order('created_at', { ascending: false })
+          ])
+
+          if (targetsRes.data && !targetsRes.error && targetsRes.data.length > 0) {
+            setOkrTargets(targetsRes.data as OKRTarget[])
+            if (measurementsRes.data) setOkrMeasurements(measurementsRes.data as OKRMeasurement[])
+            if (feedbacksRes.data) setOkrFeedbacks(feedbacksRes.data as OKRFeedback[])
+            okrsLoaded = true
+          } else if (targetsRes.error) {
+            console.warn("OKR targets fetch returned error:", targetsRes.error.message)
+          }
+        } catch (okrErr) {
+          console.warn("OKR tables not yet active or failed to load:", okrErr)
+        }
+
+        if (!okrsLoaded) {
+          console.log("Loading OKR data from local static fallback...")
+          try {
+            const res = await fetch('/okr_mock_data.json')
+            if (res.ok) {
+              const localData = await res.json()
+              if (localData.targets) setOkrTargets(localData.targets)
+              if (localData.measurements) setOkrMeasurements(localData.measurements)
+              if (localData.feedbacks) setOkrFeedbacks(localData.feedbacks)
+              setIsOkrFallback(true)
+              console.log("Successfully loaded local OKR fallback data.")
+            } else {
+              console.error("Local OKR fallback response was not OK:", res.status)
+            }
+          } catch (fallbackErr) {
+            console.error("Failed to load local OKR fallback:", fallbackErr)
+          }
         }
       } catch (err) {
         setLoadError(`Erro de conexão: ${err instanceof Error ? err.message : 'Tente novamente.'}`)
@@ -479,6 +528,393 @@ export default function AppPage() {
     window.location.href = '/login'
   }
 
+  // ── OKR Event Handlers ─────────────────────────────────────────────────────
+
+  async function handleSaveMeasurement(okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) {
+    const target = okrTargets.find(t => t.id === okrId)
+    if (!target) return
+
+    // Calculate atingimento and status
+    const atingimento = calculateOkrAtingimento(resultado, target.meta_numerica, target.direcao)
+    const status = resolveOkrStatus(atingimento)
+
+    // Check if measurement exists
+    const existing = okrMeasurements.find(m => m.okr_id === okrId && m.mes === mes)
+
+    const payload = {
+      okr_id: okrId,
+      mes,
+      trimestre: ['Jan', 'Fev', 'Mar'].includes(mes) ? 'Q1' : (['Abr', 'Mai', 'Jun'].includes(mes) ? 'Q2' : 'Q3'),
+      resultado_apurado: resultado,
+      atingimento,
+      status,
+      evidencia_comentario: comentario || null,
+      acao_sugerida: acaoSugerida || null,
+      audited: false
+    }
+
+    if (isOkrFallback) {
+      const mockId = existing?.id || `mock-measure-uuid-${Date.now()}`
+      const mockData = {
+        id: mockId,
+        ...payload
+      }
+      setOkrMeasurements(prev => {
+        const exists = prev.some(m => m.id === mockId)
+        if (exists) return prev.map(m => m.id === mockId ? (mockData as OKRMeasurement) : m)
+        return [...prev, mockData as OKRMeasurement]
+      })
+      showToast('Apuração salva localmente (Modo Demo).')
+      return
+    }
+
+    const upsertPayload = {
+      ...(existing ? { id: existing.id } : {}),
+      ...payload
+    }
+
+    const { data, error } = await supabase
+      .from('okr_measurements')
+      .upsert(upsertPayload)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao salvar apuração: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      setOkrMeasurements(prev => {
+        const exists = prev.some(m => m.id === data.id)
+        if (exists) return prev.map(m => m.id === data.id ? (data as OKRMeasurement) : m)
+        return [...prev, data as OKRMeasurement]
+      })
+      showToast('Apuração salva.')
+    }
+  }
+
+  async function handleAuditMeasurement(measurementId: string, audited: boolean, feedback: string) {
+    if (isOkrFallback) {
+      setOkrMeasurements(prev => prev.map(m => m.id === measurementId ? { ...m, audited, audited_by: 'mock-admin-uuid', audit_feedback: feedback || null } : m))
+      showToast(audited ? 'Lançamento homologado localmente (Modo Demo).' : 'Auditoria atualizada localmente.')
+      return
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { data, error } = await supabase
+      .from('okr_measurements')
+      .update({
+        audited,
+        audited_by: user?.id || null,
+        audit_feedback: feedback || null
+      })
+      .eq('id', measurementId)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao registrar auditoria: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      setOkrMeasurements(prev => prev.map(m => m.id === measurementId ? (data as OKRMeasurement) : m))
+      showToast(audited ? 'Lançamento homologado.' : 'Auditoria atualizada.')
+    }
+  }
+
+  async function handleSaveTarget(target: Partial<OKRTarget>) {
+    const isNew = !target.id
+
+    if (isOkrFallback) {
+      const mockId = target.id || `mock-okr-uuid-${Date.now()}`
+      const newTarget = {
+        id: mockId,
+        id_okr: target.id_okr || `OKR-NEW-${Date.now()}`,
+        responsavel: target.responsavel || 'Pedro Almeida',
+        conta_diretoria: target.conta_diretoria || null,
+        papel: target.papel || null,
+        periodo: target.periodo || 'Q3',
+        perspectiva: target.perspectiva || 'Performance',
+        objetivo: target.objetivo || 'Objetivo Geral',
+        key_result: target.key_result || 'Resultado Chave',
+        periodicidade: target.periodicidade || 'Mensal',
+        unidade: target.unidade || '%',
+        tipo_apuracao: target.tipo_apuracao || 'Contagem',
+        direcao: target.direcao || 'Maior é melhor',
+        meta_numerica: Number(target.meta_numerica) || 0,
+        meta_exibida: target.meta_exibida || String(target.meta_numerica),
+        peso: Number(target.peso) || 1.0,
+        baseline_referencia: target.baseline_referencia || null,
+        como_apurar: target.como_apurar || null,
+        observacoes: target.observacoes || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      setOkrTargets(prev => {
+        const exists = prev.some(t => t.id === mockId)
+        if (exists) return prev.map(t => t.id === mockId ? (newTarget as OKRTarget) : t)
+        return [...prev, newTarget as OKRTarget]
+      })
+
+      // Generate pending measurements automatically
+      if (isNew) {
+        const months = newTarget.periodo === 'Q3' ? ['Jul', 'Ago', 'Set'] : (newTarget.periodo === 'Jan-Jun' ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'] : [])
+        const newMeasures = months.map((m, idx) => ({
+          id: `mock-measure-uuid-new-${Date.now()}-${idx}`,
+          okr_id: mockId,
+          mes: m,
+          trimestre: newTarget.periodo === 'Q3' ? 'Q3' : (['Jan', 'Fev', 'Mar'].includes(m) ? 'Q1' : 'Q2'),
+          resultado_apurado: null,
+          atingimento: null,
+          status: 'Pendente' as OKRStatus,
+          evidencia_comentario: null,
+          acao_sugerida: null,
+          audited: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }))
+        setOkrMeasurements(prev => [...prev, ...newMeasures])
+      }
+
+      showToast('OKR salvo localmente (Modo Demo).')
+      return
+    }
+
+    const payload = {
+      ...target,
+      updated_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('okr_targets')
+      .upsert(isNew ? payload : { id: target.id, ...payload })
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao salvar KR: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      const newTarget = data as OKRTarget
+      setOkrTargets(prev => {
+        if (isNew) return [...prev, newTarget]
+        return prev.map(t => t.id === newTarget.id ? newTarget : t)
+      })
+
+      // Generate pending measurements automatically
+      if (isNew) {
+        const months = newTarget.periodo === 'Q3' ? ['Jul', 'Ago', 'Set'] : (newTarget.periodo === 'Jan-Jun' ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'] : [])
+        const newMeasures = months.map(m => ({
+          okr_id: newTarget.id,
+          mes: m,
+          trimestre: newTarget.periodo === 'Q3' ? 'Q3' : (['Jan', 'Fev', 'Mar'].includes(m) ? 'Q1' : 'Q2'),
+          status: 'Pendente' as OKRStatus,
+          audited: false
+        }))
+
+        const { data: insertedMeasures, error: errMeasures } = await supabase
+          .from('okr_measurements')
+          .insert(newMeasures)
+          .select()
+
+        if (!errMeasures && insertedMeasures) {
+          setOkrMeasurements(prev => [...prev, ...(insertedMeasures as OKRMeasurement[])])
+        }
+      }
+
+      showToast('OKR salvo com sucesso.')
+    }
+  }
+
+  async function handleDeleteTarget(id: string) {
+    if (isOkrFallback) {
+      setOkrTargets(prev => prev.filter(t => t.id !== id))
+      setOkrMeasurements(prev => prev.filter(m => m.okr_id !== id))
+      showToast('KR removido localmente.')
+      return
+    }
+
+    const { error } = await supabase.from('okr_targets').delete().eq('id', id)
+    if (error) {
+      showToast(`Erro ao deletar: ${error.message}`)
+      throw error
+    }
+    setOkrTargets(prev => prev.filter(t => t.id !== id))
+    setOkrMeasurements(prev => prev.filter(m => m.okr_id !== id))
+    showToast('KR removido.')
+  }
+
+  async function handleCloneToQ3(managerName: string) {
+    const firstHalfOKRs = okrTargets.filter(t => t.responsavel === managerName && t.periodo === 'Jan-Jun')
+    if (firstHalfOKRs.length === 0) {
+      showToast('Nenhum OKR encontrado no 1º semestre para clonar.')
+      return
+    }
+
+    if (isOkrFallback) {
+      const newTargets = firstHalfOKRs.map((t, idx) => {
+        const newId = `mock-okr-uuid-q3-${Date.now()}-${idx}`
+        return {
+          ...t,
+          id: newId,
+          id_okr: `${t.id_okr}-Q3`,
+          periodo: 'Q3',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      })
+      setOkrTargets(prev => [...prev, ...newTargets])
+
+      const newMeasures: OKRMeasurement[] = []
+      newTargets.forEach(t => {
+        ['Jul', 'Ago', 'Set'].forEach((m, idx) => {
+          newMeasures.push({
+            id: `mock-measure-uuid-q3-${Date.now()}-${t.id_okr}-${idx}`,
+            okr_id: t.id,
+            mes: m,
+            trimestre: 'Q3',
+            resultado_apurado: null,
+            atingimento: null,
+            status: 'Pendente',
+            evidencia_comentario: null,
+            acao_sugerida: null,
+            audited: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+        })
+      })
+      setOkrMeasurements(prev => [...prev, ...newMeasures])
+      showToast(`OKRs de ${managerName} recontratados para o Q3 localmente (Modo Demo).`)
+      return
+    }
+
+    // Clone targets to Q3
+    const newTargetsPayload = firstHalfOKRs.map(t => ({
+      id_okr: `${t.id_okr}-Q3`,
+      responsavel: t.responsavel,
+      conta_diretoria: t.conta_diretoria,
+      papel: t.papel,
+      periodo: 'Q3',
+      perspectiva: t.perspectiva,
+      objetivo: t.objetivo,
+      key_result: t.key_result,
+      periodicidade: t.periodicidade,
+      unidade: t.unidade,
+      tipo_apuracao: t.tipo_apuracao,
+      direcao: t.direcao,
+      meta_numerica: t.meta_numerica,
+      meta_exibida: t.meta_exibida,
+      peso: t.peso,
+      baseline_referencia: t.baseline_referencia,
+      como_apurar: t.como_apurar,
+      observacoes: t.observacoes
+    }))
+
+    const { data: insertedTargets, error: errTargets } = await supabase
+      .from('okr_targets')
+      .insert(newTargetsPayload)
+      .select()
+
+    if (errTargets || !insertedTargets) {
+      showToast(`Erro ao recontratar: ${errTargets?.message || 'Tente novamente.'}`)
+      throw errTargets || new Error()
+    }
+
+    setOkrTargets(prev => [...prev, ...(insertedTargets as OKRTarget[])])
+
+    // Generate Q3 measurements (Jul, Ago, Set)
+    const newMeasuresPayload: Omit<OKRMeasurement, 'id'>[] = []
+    insertedTargets.forEach(t => {
+      ['Jul', 'Ago', 'Set'].forEach(m => {
+        newMeasuresPayload.push({
+          okr_id: t.id,
+          mes: m,
+          trimestre: 'Q3',
+          status: 'Pendente',
+          audited: false
+        })
+      })
+    })
+
+    const { data: insertedMeasures, error: errMeasures } = await supabase
+      .from('okr_measurements')
+      .insert(newMeasuresPayload)
+      .select()
+
+    if (!errMeasures && insertedMeasures) {
+      setOkrMeasurements(prev => [...prev, ...(insertedMeasures as OKRMeasurement[])])
+    }
+
+    showToast(`OKRs de ${managerName} recontratados para o Q3!`)
+  }
+
+  async function handleAddFeedback(fb: Omit<OKRFeedback, 'id' | 'created_at' | 'date'>) {
+    if (isOkrFallback) {
+      const mockFeedback = {
+        id: `mock-feedback-${Date.now()}`,
+        responsavel: fb.responsavel,
+        trimestre: fb.trimestre,
+        feedback_type: fb.feedback_type,
+        author_name: fb.author_name,
+        strengths: fb.strengths,
+        improvements: fb.improvements,
+        action_plan: fb.action_plan,
+        general_notes: fb.general_notes,
+        date: new Date().toISOString().slice(0, 10),
+        created_at: new Date().toISOString()
+      }
+      setOkrFeedbacks(prev => [mockFeedback, ...prev])
+      showToast('Feedback registrado localmente.')
+      return
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const payload = {
+      ...fb,
+      author_id: user?.id || null,
+      date: new Date().toISOString().slice(0, 10)
+    }
+
+    const { data, error } = await supabase
+      .from('okr_feedbacks')
+      .insert(payload)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Erro ao registrar feedback: ${error.message}`)
+      throw error
+    }
+
+    if (data) {
+      setOkrFeedbacks(prev => [data as OKRFeedback, ...prev])
+      showToast('Feedback registrado.')
+    }
+  }
+
+  async function handleDeleteFeedback(id: string) {
+    if (isOkrFallback) {
+      setOkrFeedbacks(prev => prev.filter(f => f.id !== id))
+      showToast('Feedback excluído localmente.')
+      return
+    }
+
+    const { error } = await supabase.from('okr_feedbacks').delete().eq('id', id)
+    if (error) {
+      showToast(`Erro ao deletar: ${error.message}`)
+      throw error
+    }
+    setOkrFeedbacks(prev => prev.filter(f => f.id !== id))
+    showToast('Feedback excluído.')
+  }
+
   // ── Dashboard helpers ─────────────────────────────────────────────────────
   const total = filtered.length
   const done = filtered.filter(isDone).length
@@ -639,6 +1075,24 @@ export default function AppPage() {
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
+      {view === 'okrs' && (
+        <OKRsView
+          targets={okrTargets}
+          measurements={okrMeasurements}
+          feedbacks={okrFeedbacks}
+          role={role}
+          currentUserId={profile?.id || ''}
+          currentUserFullName={profile?.full_name || profile?.email || ''}
+          onSaveMeasurement={handleSaveMeasurement}
+          onAuditMeasurement={handleAuditMeasurement}
+          onSaveTarget={handleSaveTarget}
+          onDeleteTarget={handleDeleteTarget}
+          onAddFeedback={handleAddFeedback}
+          onDeleteFeedback={handleDeleteFeedback}
+          onCloneToQ3={handleCloneToQ3}
+          isFallback={isOkrFallback}
+        />
+      )}
       {view === 'archived' && <ArchivedView items={items} onEdit={openModal} onRestore={restoreItem} canEdit={canEditItems} />}
 
       {/* ── Modal ────────────────────────────────────────────── */}

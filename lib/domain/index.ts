@@ -504,3 +504,131 @@ export function addDays(date: Date, days: number): Date {
   d.setDate(d.getDate() + days)
   return d
 }
+
+// ── OKR Module Types & Helpers ──────────────────────────────────────────────
+
+export type Perspective = 'Performance' | 'Governança' | 'Valor' | 'Projetos'
+export type Direcao = 'Maior é melhor' | 'Menor é melhor' | 'Igual/meta exata'
+export type OKRStatus = 'Pendente' | 'Atingido' | 'Parcial' | 'Crítico'
+
+export interface OKRTarget {
+  id: string
+  id_okr: string
+  responsavel: string
+  conta_diretoria?: string
+  papel?: string
+  periodo: string // 'Jan-Jun', 'Q3', etc.
+  perspectiva: Perspective
+  objetivo: string
+  key_result: string
+  periodicidade: string
+  unidade: string
+  tipo_apuracao: string
+  direcao: Direcao
+  meta_numerica: number
+  meta_exibida: string
+  peso: number
+  baseline_referencia?: string
+  como_apurar?: string
+  observacoes?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface OKRMeasurement {
+  id: string
+  okr_id: string
+  mes: string // 'Jan', 'Fev', etc.
+  trimestre: string // 'Q1', 'Q2', etc.
+  resultado_apurado?: number | null
+  atingimento?: number | null
+  status: OKRStatus
+  evidencia_comentario?: string | null
+  acao_sugerida?: string | null
+  audited: boolean
+  audited_by?: string | null
+  audit_feedback?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface OKRFeedback {
+  id: string
+  responsavel: string
+  trimestre: string
+  date: string // ISO date
+  feedback_type: string
+  author_id?: string
+  author_name: string
+  strengths?: string
+  improvements?: string
+  action_plan?: string
+  general_notes?: string
+  created_at?: string
+}
+
+export function okrStatusTone(status: OKRStatus): string {
+  if (status === 'Atingido') return 'tone-green'
+  if (status === 'Parcial') return 'tone-amber'
+  if (status === 'Crítico') return 'tone-red'
+  return 'tone-gray'
+}
+
+export function okrPerspectiveTone(perspectiva: Perspective): string {
+  if (perspectiva === 'Performance') return 'tone-blue'
+  if (perspectiva === 'Governança') return 'tone-purple'
+  if (perspectiva === 'Valor') return 'tone-green'
+  if (perspectiva === 'Projetos') return 'tone-amber'
+  return 'tone-gray'
+}
+
+/**
+ * Calculates OKR achievement percentage based on direction
+ */
+export function calculateOkrAtingimento(resultado: number | null | undefined, meta: number, direcao: Direcao): number | null {
+  if (resultado === null || resultado === undefined || isNaN(resultado)) return null
+  
+  let val = 0
+  if (direcao === 'Maior é melhor') {
+    val = meta > 0 ? resultado / meta : 0
+  } else if (direcao === 'Menor é melhor') {
+    val = resultado > 0 ? meta / resultado : 0
+  } else if (direcao === 'Igual/meta exata') {
+    val = resultado === meta ? 1.0 : 0.0
+  }
+  
+  // Cap at 1.2 (120%) for metrics score, but can keep raw
+  return Math.min(1.2, Math.max(0, val))
+}
+
+/**
+ * Resolves the OKR measurement status
+ */
+export function resolveOkrStatus(atingimento: number | null | undefined): OKRStatus {
+  if (atingimento === null || atingimento === undefined) return 'Pendente'
+  if (atingimento >= 1.0) return 'Atingido'
+  if (atingimento >= 0.7) return 'Parcial'
+  return 'Crítico'
+}
+
+/**
+ * Formats a measurement numerical value into its display string based on unit
+ */
+export function formatOkrValue(val: number | null | undefined, unidade: string): string {
+  if (val === null || val === undefined) return '-'
+  
+  const unit = String(unidade).trim().toLowerCase()
+  if (unit === 'r$' || unit.includes('dinheiro') || unit.includes('reais')) {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+  }
+  if (unit === '%' || unit.includes('porcentagem') || unit.includes('evolução') || unit.includes('aderência')) {
+    // If value is greater than 1, it might be already in percentage format (e.g. 90 instead of 0.90)
+    // But standard is 0.90 = 90%. Let's check:
+    if (Math.abs(val) > 1.2) {
+      return `${val.toFixed(0)}%`
+    }
+    return `${(val * 100).toFixed(0)}%`
+  }
+  return val.toLocaleString('pt-BR')
+}
+
