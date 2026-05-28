@@ -5,7 +5,7 @@ import {
   TrendingUp, CheckCircle, AlertTriangle, Calendar, Award,
   Check, Edit, Plus, Trash2,
   Users, Copy, Sparkles, UserCheck,
-  Settings
+  Settings, ShieldAlert
 } from 'lucide-react'
 import {
   OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role,
