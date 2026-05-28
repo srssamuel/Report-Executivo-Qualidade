@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   TrendingUp, Zap, Users, AlertTriangle, ChevronLeft,
   ChevronRight, RotateCcw, FileText, CheckCircle2, Trash2, Edit3,
-  Plus, Target, Heart, ArrowRight, User, Award as Star, Play
+  Plus, Target, Heart, ArrowRight, User, Award as Star, Play,
+  Sparkles, X, Clock, BookOpen, MessageSquare
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -93,6 +94,12 @@ export function DevelopmentView({
     plano_acao: '',
     status: 'Ativo' as 'Ativo' | 'Concluído' | 'Suspenso'
   })
+
+  // AI analysis state
+  const [isAiAnalysisLoading, setIsAiAnalysisLoading] = useState<boolean>(false)
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
+  const [aiProvider, setAiProvider] = useState<string | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const isSuperOrAdmin = role === 'admin' || role === 'superintendente'
 
@@ -444,6 +451,39 @@ export function DevelopmentView({
     setIsPdiModalOpen(true)
   }
 
+  const handleGenerateAiAnalysis = async () => {
+    if (!currentEvaluation) return
+    setIsAiAnalysisLoading(true)
+    setAiError(null)
+    setAiAnalysis(null)
+    setAiProvider(null)
+    try {
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collaborator_name: selectedCollaborator,
+          domain_scores: currentEvaluation.domain_scores,
+          competency_scores: currentEvaluation.competency_scores,
+          open_answers: currentEvaluation.open_answers ?? {},
+          consistency_index: currentEvaluation.consistency_index ?? 0,
+          consistency_label: currentEvaluation.consistency_label ?? 'Não calculado'
+        })
+      })
+      const data = (await res.json()) as { analysis?: string; provider?: string; error?: string }
+      if (!res.ok) {
+        setAiError(data.error ?? 'Erro ao gerar análise')
+      } else {
+        setAiAnalysis(data.analysis ?? '')
+        setAiProvider(data.provider ?? null)
+      }
+    } catch {
+      setAiError('Falha de conexão com o serviço de IA. Verifique se o Ollama está rodando.')
+    } finally {
+      setIsAiAnalysisLoading(false)
+    }
+  }
+
   // Prep Radar Data
   const radarData = useMemo(() => {
     if (!currentEvaluation) return []
@@ -455,6 +495,12 @@ export function DevelopmentView({
 
   return (
     <div className="features-container">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      ` }} />
       {isFallback && (
         <div style={{
           backgroundColor: '#fffbeb',
@@ -795,6 +841,85 @@ export function DevelopmentView({
                     </div>
                   </div>
 
+                  {/* AI Analysis Card */}
+                  <div className="card" style={{ padding: 24 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: 14, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Sparkles size={18} style={{ color: 'var(--color-primary)' }} />
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Análise Aprofundada com IA</h3>
+                          <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>
+                            {aiProvider === 'openai' ? 'Gerado via OpenAI GPT-4o-mini' : aiProvider === 'ollama' ? 'Gerado via Ollama (deepseek-coder-v2 — local)' : 'Powered by IA local ou OpenAI'}
+                          </p>
+                        </div>
+                      </div>
+                      {!aiAnalysis ? (
+                        <button
+                          onClick={handleGenerateAiAnalysis}
+                          disabled={isAiAnalysisLoading}
+                          className="btn btn-primary small"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 170 }}
+                        >
+                          {isAiAnalysisLoading ? (
+                            <>
+                              <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                              Analisando...
+                            </>
+                          ) : (
+                            <><Sparkles size={12} /> Gerar Análise com IA</>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setAiAnalysis(null); setAiProvider(null); setAiError(null); }}
+                          className="btn btn-secondary small"
+                          style={{ fontSize: 11 }}
+                        >
+                          Gerar Novamente
+                        </button>
+                      )}
+                    </div>
+
+                    {!aiAnalysis && !aiError && !isAiAnalysisLoading && (
+                      <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
+                        <Sparkles size={28} style={{ marginBottom: 10, opacity: 0.4 }} />
+                        <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: '1.5em' }}>
+                          Clique em <strong>Gerar Análise com IA</strong> para receber um diagnóstico personalizado com insights executivos, ações práticas e trilha de PDI recomendada.
+                        </p>
+                        <p style={{ margin: '8px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
+                          Usa Ollama local (deepseek-coder-v2) em dev ou OpenAI se a chave estiver configurada.
+                        </p>
+                      </div>
+                    )}
+
+                    {isAiAnalysisLoading && (
+                      <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                          <span style={{ width: 16, height: 16, border: '2px solid #e2e8f0', borderTopColor: 'var(--color-primary)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                          Analisando perfil Vértice via IA — pode levar até 60 segundos...
+                        </div>
+                      </div>
+                    )}
+
+                    {aiError && (
+                      <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
+                        <strong>Erro:</strong> {aiError}
+                      </div>
+                    )}
+
+                    {aiAnalysis && (
+                      <div style={{ fontSize: 13, lineHeight: '1.7em', color: '#334155' }} className="markdown-content">
+                        {aiAnalysis.split('\n').map((line, idx) => {
+                          if (line.startsWith('###')) return <h3 key={idx} style={{ fontSize: 14, fontWeight: 700, marginTop: 18, marginBottom: 8, color: '#0f172a' }}>{line.replace(/^###\s*/, '')}</h3>
+                          if (line.startsWith('**') && line.endsWith('**')) return <p key={idx} style={{ fontWeight: 700, margin: '10px 0 4px 0', color: '#1e293b' }}>{line.replace(/\*\*/g, '')}</p>
+                          if (line.startsWith('•') || line.startsWith('-')) return <li key={idx} style={{ marginLeft: 16, marginBottom: 4 }}>{line.replace(/^[•-]\s*/, '')}</li>
+                          if (line.trim() === '') return <div key={idx} style={{ height: 8 }} />
+                          return <p key={idx} style={{ margin: '0 0 8px 0' }}>{line}</p>
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
                 {/* Right Side: Quick Stats and Domain Breakdown */}
@@ -876,43 +1001,119 @@ export function DevelopmentView({
               </div>
             </div>
           ) : (
-            /* Landing view encouraging user to start evaluation */
-            <div className="card" style={{ padding: 40, textAlign: 'center', maxWidth: 650, margin: '20px auto', boxShadow: 'var(--shadow-soft)' }}>
-              <div style={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                backgroundColor: 'var(--color-primary-light, #f0f7ff)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px auto'
-              }}>
-                <Heart size={30} style={{ color: 'var(--color-primary)' }} />
-              </div>
-              
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>
-                Avaliação de Perfil Científico Vértice
-              </h2>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: '1.6em', marginBottom: 30 }}>
-                {selectedCollaborator === currentUserFullName ? (
-                  "Descubra as suas principais forças executivas e oportunidades de carreira através de uma avaliação situacional rica com 108 perguntas mapeando 5 domínios fundamentais. O processo leva em média 20 minutos e conta com salvamento automático."
-                ) : (
-                  `O colaborador ${selectedCollaborator} ainda não realizou a Avaliação de Perfil Científico. Incentive-o(a) a completar a avaliação para liberar a geração do laudo e estruturar o Plano de Desenvolvimento Individual.`
-                )}
-              </p>
-
+            /* Landing view — onboarding instructions + start button */
+            <div style={{ maxWidth: 680, margin: '20px auto' }}>
               {selectedCollaborator === currentUserFullName ? (
-                <button
-                  onClick={() => setIsSurveyActive(true)}
-                  className="btn btn-primary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 24px', fontSize: 13, fontWeight: 600 }}
-                >
-                  <Play size={14} fill="#fff" /> Iniciar Avaliação de Perfil
-                </button>
+                <div className="card" style={{ padding: 0, overflow: 'hidden', boxShadow: 'var(--shadow-soft)' }}>
+
+                  {/* Header */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, var(--color-primary, #2563eb) 0%, #1d4ed8 100%)',
+                    padding: '32px 36px',
+                    textAlign: 'center',
+                    color: '#fff'
+                  }}>
+                    <div style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(255,255,255,0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto'
+                    }}>
+                      <BookOpen size={28} />
+                    </div>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                      Avaliação de Perfil Científico Vértice
+                    </h2>
+                    <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: '1.5em' }}>
+                      108 questões situacionais + 5 questões discursivas mapeando 5 domínios executivos
+                    </p>
+                  </div>
+
+                  {/* Instructions */}
+                  <div style={{ padding: '28px 36px' }}>
+
+                    <h3 style={{ margin: '0 0 16px 0', fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Antes de Iniciar — Leia com Atenção
+                    </h3>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+                      {[
+                        { icon: <Clock size={16} />, text: 'Reserve de 20 a 30 minutos sem interrupções. Avaliações feitas com pressa ou pausas longas podem comprometer a precisão do diagnóstico.' },
+                        { icon: <Heart size={16} />, text: 'Escolha um ambiente calmo e silencioso. Concentração plena garante que suas respostas reflitam com fidelidade o seu estilo de atuação real.' },
+                        { icon: <CheckCircle2 size={16} />, text: 'Responda com base no que você realmente faz — não no que acha que seria o ideal. O instrumento detecta inconsistências e padrões reais de comportamento.' },
+                        { icon: <Star size={16} />, text: 'Não existe resposta certa ou errada. Cada alternativa reflete um perfil legítimo de competência. Não há ganho em "agradar" — o laudo só é útil quando honesto.' },
+                      ].map((item, i) => (
+                        <div key={i} style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 12,
+                          padding: '12px 16px',
+                          backgroundColor: '#f8fafc',
+                          borderRadius: 8,
+                          border: '1px solid #f1f5f9'
+                        }}>
+                          <span style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
+                          <span style={{ fontSize: 13, color: '#334155', lineHeight: '1.5em' }}>{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* What you'll get */}
+                    <div style={{
+                      backgroundColor: 'var(--color-primary-light, #eff6ff)',
+                      border: '1px solid var(--color-primary-border, #bfdbfe)',
+                      borderRadius: 8,
+                      padding: '14px 18px',
+                      marginBottom: 24
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 8 }}>
+                        O que você vai receber ao final:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {[
+                          'Radar de 5 domínios executivos',
+                          'Score por competência (100+)',
+                          'Laudo científico narrativo',
+                          'Base para o seu PDI trimestral',
+                        ].map((item, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1e40af' }}>
+                            <ArrowRight size={11} />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsSurveyActive(true)}
+                      className="btn btn-primary"
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 24px', fontSize: 14, fontWeight: 600 }}
+                    >
+                      <Play size={14} fill="#fff" /> Iniciar Avaliação de Perfil
+                    </button>
+                    <p style={{ textAlign: 'center', margin: '10px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
+                      Progresso salvo automaticamente no navegador — você pode pausar e retomar.
+                    </p>
+                  </div>
+
+                </div>
               ) : (
-                <div style={{ padding: '10px 15px', backgroundColor: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#475569', display: 'inline-block' }}>
-                  Apenas o próprio colaborador pode realizar o questionário no seu painel logado.
+                <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+                  <User size={32} style={{ color: '#94a3b8', marginBottom: 12 }} />
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: '#334155' }}>
+                    Avaliação não realizada
+                  </h4>
+                  <p style={{ margin: '0 auto', fontSize: 13, color: '#64748b', lineHeight: '1.6em', maxWidth: 400 }}>
+                    {selectedCollaborator} ainda não completou a Avaliação de Perfil Científico.
+                    Incentive-o(a) a acessar o painel e realizar a avaliação para liberar o laudo e estruturar o PDI.
+                  </p>
+                  <div style={{ marginTop: 16, padding: '10px 15px', backgroundColor: '#f8fafc', borderRadius: 8, fontSize: 11, color: '#475569', display: 'inline-block' }}>
+                    Apenas o próprio colaborador pode responder o questionário pelo seu painel logado.
+                  </div>
                 </div>
               )}
             </div>
@@ -1185,154 +1386,200 @@ export function DevelopmentView({
 
       {/* 1. Novo Feedback One-on-One Modal */}
       {isFeedbackModalOpen && (
-        <div className="modal-backdrop" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: '20px'
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setIsFeedbackModalOpen(false) }}
+        >
           <div className="card modal-content" style={{
-            width: '100%',
-            maxWidth: 750,
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: 25,
-            boxShadow: 'var(--shadow-lg)'
+            width: '100%', maxWidth: 760, maxHeight: '92vh',
+            overflowY: 'auto', padding: 0, boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+            borderRadius: 12
           }}>
-            <h3 style={{ margin: '0 0 15px 0', fontSize: 16, fontWeight: 700, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
-              Registrar Reunião de One-on-One
-            </h3>
 
-            <form onSubmit={handleSaveFeedback}>
-              
-              {/* Auto-capture Active activities status card */}
-              <div style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                padding: 15,
-                borderRadius: 8,
-                marginBottom: 20,
-                fontSize: 12
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-primary)', fontWeight: 700, marginBottom: 8 }}>
-                  <Zap size={14} /> Captura Automática de Status Operacional ({selectedCollaborator})
-                </div>
-                <div style={{ color: '#475569', lineHeight: '1.4em', fontSize: 11 }}>
-                  O sistema analisou a carteira de projetos atual do colaborador e gerou o sumário abaixo que será anexado às Notas Gerais da ata:
-                </div>
-                
-                {/* Visual statistics */}
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              padding: '20px 24px', borderRadius: '12px 12px 0 0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  whiteSpace: 'pre-wrap',
-                  backgroundColor: '#fff',
-                  border: '1px solid #e2e8f0',
-                  padding: 10,
-                  borderRadius: 6,
-                  marginTop: 10,
-                  color: '#334155'
+                  width: 38, height: 38, borderRadius: 10,
+                  backgroundColor: 'rgba(99,102,241,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1px solid rgba(99,102,241,0.4)'
                 }}>
-                  {autoStatusSummary}
+                  <Users size={18} style={{ color: '#a5b4fc' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>
+                    Registrar Reunião de One-on-One
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
+                    Ata de desenvolvimento · {selectedCollaborator}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFeedbackModalOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8,
+                  color: '#94a3b8', cursor: 'pointer', padding: '6px 8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background 0.15s'
+                }}
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFeedback} style={{ padding: '24px' }}>
+
+              {/* Section 1 — Contexto */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Clock size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Contexto da Reunião
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }} className="responsive-grid">
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label">Trimestre</span>
+                    <select
+                      className="select small"
+                      value={feedbackForm.trimestre}
+                      onChange={e => setFeedbackForm({ ...feedbackForm, trimestre: e.target.value })}
+                    >
+                      <option value="Q1">Q1 (Jan-Mar)</option>
+                      <option value="Q2">Q2 (Abr-Jun)</option>
+                      <option value="Q3">Q3 (Jul-Set)</option>
+                    </select>
+                  </div>
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label">Tipo de Registro</span>
+                    <select
+                      className="select small"
+                      value={feedbackForm.feedback_type}
+                      onChange={e => setFeedbackForm({ ...feedbackForm, feedback_type: e.target.value })}
+                    >
+                      <option value="1:1 Tático Semanal">1:1 Tático Semanal</option>
+                      <option value="Feedback Formal de Perfil">Feedback Formal de Perfil</option>
+                      <option value="Alinhamento e PDI">Alinhamento e PDI</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }} className="responsive-grid">
-                <div className="control-group">
-                  <span className="control-label">Trimestre</span>
-                  <select
-                    className="select small"
-                    value={feedbackForm.trimestre}
-                    onChange={e => setFeedbackForm({ ...feedbackForm, trimestre: e.target.value })}
-                  >
-                    <option value="Q1">Q1 (Jan-Mar)</option>
-                    <option value="Q2">Q2 (Abr-Jun)</option>
-                    <option value="Q3">Q3 (Jul-Set)</option>
-                  </select>
+              {/* Section 2 — Status da Carteira (auto-capture) */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Zap size={14} style={{ color: '#f59e0b' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Status da Carteira
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'nowrap' }}>captura automática</span>
                 </div>
-
-                <div className="control-group">
-                  <span className="control-label">Tipo de Registro</span>
-                  <select
-                    className="select small"
-                    value={feedbackForm.feedback_type}
-                    onChange={e => setFeedbackForm({ ...feedbackForm, feedback_type: e.target.value })}
-                  >
-                    <option value="1:1 Tático Semanal">1:1 Tático Semanal</option>
-                    <option value="Feedback Formal de Perfil">Feedback Formal de Perfil</option>
-                    <option value="Alinhamento e PDI">Alinhamento e PDI</option>
-                  </select>
+                <div style={{
+                  backgroundColor: '#fffbeb', border: '1px solid #fde68a',
+                  padding: 14, borderRadius: 8, fontSize: 12
+                }}>
+                  <div style={{ fontSize: 11, color: '#92400e', marginBottom: 8, lineHeight: '1.4em' }}>
+                    Sumário da carteira de projetos de <strong>{selectedCollaborator}</strong> gerado pelo sistema. Editável antes de salvar.
+                  </div>
+                  <textarea
+                    rows={5}
+                    className="textarea"
+                    value={feedbackForm.general_notes}
+                    onChange={e => setFeedbackForm({ ...feedbackForm, general_notes: e.target.value })}
+                    placeholder="Status da carteira..."
+                    style={{ fontFamily: 'monospace', fontSize: 11, backgroundColor: '#fff' }}
+                  />
                 </div>
               </div>
 
-              <div className="control-group" style={{ marginBottom: 15 }}>
-                <span className="control-label">Pontos Fortes Mapeados na Semana</span>
-                <textarea
-                  rows={3}
-                  className="textarea"
-                  placeholder="Quais comportamentos, entregas ou atitudes de destaque o colaborador apresentou?"
-                  value={feedbackForm.strengths}
-                  onChange={e => setFeedbackForm({ ...feedbackForm, strengths: e.target.value })}
-                  required
-                />
+              {/* Section 3 — Análise de Desempenho */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <TrendingUp size={14} style={{ color: '#10b981' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Análise de Desempenho
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <CheckCircle2 size={11} style={{ color: '#10b981' }} /> Pontos Fortes Mapeados
+                    </span>
+                    <textarea
+                      rows={3}
+                      className="textarea"
+                      placeholder="Quais comportamentos, entregas ou atitudes de destaque o colaborador apresentou neste período?"
+                      value={feedbackForm.strengths}
+                      onChange={e => setFeedbackForm({ ...feedbackForm, strengths: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <AlertTriangle size={11} style={{ color: '#f59e0b' }} /> Oportunidades de Melhoria
+                    </span>
+                    <textarea
+                      rows={3}
+                      className="textarea"
+                      placeholder="Onde o colaborador ficou abaixo do esperado? Quais atitudes ou entregas precisam mudar?"
+                      value={feedbackForm.improvements}
+                      onChange={e => setFeedbackForm({ ...feedbackForm, improvements: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="control-group" style={{ marginBottom: 15 }}>
-                <span className="control-label">Oportunidades de Melhoria / Gap de Atitude</span>
-                <textarea
-                  rows={3}
-                  className="textarea"
-                  placeholder="Onde o colaborador ficou abaixo do esperado? Quais atitudes ou entregas precisam mudar?"
-                  value={feedbackForm.improvements}
-                  onChange={e => setFeedbackForm({ ...feedbackForm, improvements: e.target.value })}
-                  required
-                />
+              {/* Section 4 — Pactuações */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <FileText size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Pactuações
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div className="control-group" style={{ margin: 0 }}>
+                  <span className="control-label">Plano de Ações Acordadas</span>
+                  <textarea
+                    rows={3}
+                    className="textarea"
+                    placeholder="Quais as tarefas de foco e prazos pactuados com o colaborador para o próximo período?"
+                    value={feedbackForm.action_plan}
+                    onChange={e => setFeedbackForm({ ...feedbackForm, action_plan: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="control-group" style={{ marginBottom: 15 }}>
-                <span className="control-label">Plano de Ações Acordadas</span>
-                <textarea
-                  rows={3}
-                  className="textarea"
-                  placeholder="Quais as tarefas de foco e prazos pactuados com o colaborador para a próxima semana?"
-                  value={feedbackForm.action_plan}
-                  onChange={e => setFeedbackForm({ ...feedbackForm, action_plan: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="control-group" style={{ marginBottom: 20 }}>
-                <span className="control-label">Status de Atividades (Anexado Automaticamente)</span>
-                <textarea
-                  rows={5}
-                  className="textarea"
-                  value={feedbackForm.general_notes}
-                  onChange={e => setFeedbackForm({ ...feedbackForm, general_notes: e.target.value })}
-                  placeholder="Notas gerais sobre a carteira..."
-                  style={{ fontFamily: 'monospace', fontSize: 11 }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid #f1f5f9', paddingTop: 15 }}>
-                <button
-                  type="button"
-                  onClick={() => setIsFeedbackModalOpen(false)}
-                  className="btn btn-secondary"
-                >
+              {/* Footer */}
+              <div style={{
+                display: 'flex', justifyContent: 'flex-end', gap: 10,
+                borderTop: '1px solid #f1f5f9', paddingTop: 18, marginTop: 20
+              }}>
+                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="btn btn-secondary">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                >
-                  Salvar Ata 1:1
+                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle2 size={14} /> Salvar Ata 1:1
                 </button>
               </div>
 
@@ -1343,88 +1590,146 @@ export function DevelopmentView({
 
       {/* 2. Create/Edit PDI Modal */}
       {isPdiModalOpen && (
-        <div className="modal-backdrop" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: '20px'
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setIsPdiModalOpen(false) }}
+        >
           <div className="card modal-content" style={{
-            width: '100%',
-            maxWidth: 650,
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: 25,
-            boxShadow: 'var(--shadow-lg)'
+            width: '100%', maxWidth: 660, maxHeight: '92vh',
+            overflowY: 'auto', padding: 0, boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+            borderRadius: 12
           }}>
-            <h3 style={{ margin: '0 0 15px 0', fontSize: 16, fontWeight: 700, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
-              {editingPdiId ? 'Editar PDI Corporativo' : 'Estruturar Novo PDI'}
-            </h3>
 
-            <form onSubmit={handleSavePdiSubmit}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }} className="responsive-grid">
-                <div className="control-group">
-                  <span className="control-label">Trimestre</span>
-                  <select
-                    className="select small"
-                    value={pdiForm.trimestre}
-                    onChange={e => setPdiForm({ ...pdiForm, trimestre: e.target.value })}
-                  >
-                    <option value="Q1">Q1 (Jan-Mar)</option>
-                    <option value="Q2">Q2 (Abr-Jun)</option>
-                    <option value="Q3">Q3 (Jul-Set)</option>
-                  </select>
-                </div>
-
-                <div className="control-group">
-                  <span className="control-label">Status</span>
-                  <select
-                    className="select small"
-                    value={pdiForm.status}
-                    onChange={e => setPdiForm({ ...pdiForm, status: e.target.value as 'Ativo' | 'Concluído' | 'Suspenso' })}
-                  >
-                    <option value="Ativo">Ativo</option>
-                    <option value="Concluído">Concluído</option>
-                    <option value="Suspenso">Suspenso</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="control-group" style={{ marginBottom: 15 }}>
-                <span className="control-label">Objetivo de Carreira / Meta Principal</span>
-                <textarea
-                  rows={2}
-                  className="textarea"
-                  placeholder="Qual o objetivo de evolução profissional deste colaborador? (ex: Assumir liderança da frente Vivo)"
-                  value={pdiForm.objetivo_carreira}
-                  onChange={e => setPdiForm({ ...pdiForm, objetivo_carreira: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="control-group" style={{ marginBottom: 15 }}>
-                <span className="control-label">Competências em Foco do Protocolo Vértice</span>
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, var(--color-primary) 0%, #1e40af 100%)',
+              padding: '20px 24px', borderRadius: '12px 12px 0 0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  maxHeight: 180,
-                  overflowY: 'auto',
-                  border: '1px solid #e2e8f0',
-                  padding: 10,
-                  borderRadius: 6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                  backgroundColor: '#fff'
+                  width: 38, height: 38, borderRadius: 10,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1px solid rgba(255,255,255,0.3)'
+                }}>
+                  <Target size={18} style={{ color: '#fff' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                    {editingPdiId ? 'Editar PDI Corporativo' : 'Estruturar Novo PDI'}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
+                    Plano de Desenvolvimento Individual · {selectedCollaborator}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPdiModalOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+                  color: '#fff', cursor: 'pointer', padding: '6px 8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePdiSubmit} style={{ padding: '24px' }}>
+
+              {/* Section 1 — Período e Status */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Clock size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Período e Status
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }} className="responsive-grid">
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label">Trimestre</span>
+                    <select
+                      className="select small"
+                      value={pdiForm.trimestre}
+                      onChange={e => setPdiForm({ ...pdiForm, trimestre: e.target.value })}
+                    >
+                      <option value="Q1">Q1 (Jan-Mar)</option>
+                      <option value="Q2">Q2 (Abr-Jun)</option>
+                      <option value="Q3">Q3 (Jul-Set)</option>
+                    </select>
+                  </div>
+                  <div className="control-group" style={{ margin: 0 }}>
+                    <span className="control-label">Status do PDI</span>
+                    <select
+                      className="select small"
+                      value={pdiForm.status}
+                      onChange={e => setPdiForm({ ...pdiForm, status: e.target.value as 'Ativo' | 'Concluído' | 'Suspenso' })}
+                    >
+                      <option value="Ativo">Ativo</option>
+                      <option value="Concluído">Concluído</option>
+                      <option value="Suspenso">Suspenso</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2 — Objetivo de Carreira */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <TrendingUp size={14} style={{ color: '#10b981' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Objetivo de Carreira
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div className="control-group" style={{ margin: 0 }}>
+                  <span className="control-label">Meta Principal de Evolução Profissional</span>
+                  <textarea
+                    rows={2}
+                    className="textarea"
+                    placeholder="Qual o objetivo de evolução profissional deste colaborador? (ex: Assumir liderança da frente Vivo)"
+                    value={pdiForm.objetivo_carreira}
+                    onChange={e => setPdiForm({ ...pdiForm, objetivo_carreira: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Section 3 — Competências Vértice */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Star size={14} style={{ color: '#f59e0b' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Competências Vértice em Foco
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div style={{
+                  maxHeight: 180, overflowY: 'auto',
+                  border: '1px solid #e2e8f0', padding: 12, borderRadius: 8,
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                  backgroundColor: '#fafbfc'
                 }}>
                   {COMPETENCIES.map(comp => (
-                    <label key={comp.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                    <label key={comp.slug} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: 12, cursor: 'pointer',
+                      padding: '5px 8px', borderRadius: 6,
+                      backgroundColor: pdiForm.competencias_foco.includes(comp.slug) ? '#eff6ff' : 'transparent',
+                      border: `1px solid ${pdiForm.competencias_foco.includes(comp.slug) ? '#bfdbfe' : 'transparent'}`,
+                      transition: 'all 0.1s'
+                    }}>
                       <input
                         type="checkbox"
                         checked={pdiForm.competencias_foco.includes(comp.slug)}
@@ -1432,47 +1737,60 @@ export function DevelopmentView({
                           const checked = e.target.checked
                           setPdiForm(prev => {
                             const current = prev.competencias_foco
-                            const next = checked 
+                            const next = checked
                               ? [...current, comp.slug]
                               : current.filter(s => s !== comp.slug)
                             return { ...prev, competencias_foco: next }
                           })
                         }}
                       />
-                      <span>{comp.name} <span style={{ color: '#94a3b8', fontSize: 10 }}>({DOMAINS.find(d => d.slug === comp.domain)?.name})</span></span>
+                      <span style={{ fontWeight: pdiForm.competencias_foco.includes(comp.slug) ? 600 : 400, color: '#1e293b' }}>
+                        {comp.name}
+                      </span>
+                      <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 'auto' }}>
+                        {DOMAINS.find(d => d.slug === comp.domain)?.name}
+                      </span>
                     </label>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
-                  Selecione as competências do Protocolo Vértice que serão prioritárias no trimestre.
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Star size={9} style={{ color: '#f59e0b' }} />
+                  Selecione as competências prioritárias para o desenvolvimento deste trimestre.
                 </div>
               </div>
 
-              <div className="control-group" style={{ marginBottom: 20 }}>
-                <span className="control-label">Plano de Ações Pactuadas</span>
-                <textarea
-                  rows={4}
-                  className="textarea"
-                  placeholder="Quais as tarefas de foco, cursos, mentorias ou metas específicas acordadas para o desenvolvimento destas competências?"
-                  value={pdiForm.plano_acao}
-                  onChange={e => setPdiForm({ ...pdiForm, plano_acao: e.target.value })}
-                  required
-                />
+              {/* Section 4 — Plano de Ações */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <CheckCircle2 size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Plano de Ações
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                </div>
+                <div className="control-group" style={{ margin: 0 }}>
+                  <span className="control-label">Ações Pactuadas, Cursos e Mentorias</span>
+                  <textarea
+                    rows={4}
+                    className="textarea"
+                    placeholder="Quais as tarefas de foco, cursos, mentorias ou metas específicas acordadas para o desenvolvimento das competências selecionadas?"
+                    value={pdiForm.plano_acao}
+                    onChange={e => setPdiForm({ ...pdiForm, plano_acao: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid #f1f5f9', paddingTop: 15 }}>
-                <button
-                  type="button"
-                  onClick={() => setIsPdiModalOpen(false)}
-                  className="btn btn-secondary"
-                >
+              {/* Footer */}
+              <div style={{
+                display: 'flex', justifyContent: 'flex-end', gap: 10,
+                borderTop: '1px solid #f1f5f9', paddingTop: 18, marginTop: 20
+              }}>
+                <button type="button" onClick={() => setIsPdiModalOpen(false)} className="btn btn-secondary">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                >
-                  Salvar PDI
+                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Target size={14} /> Salvar PDI
                 </button>
               </div>
 

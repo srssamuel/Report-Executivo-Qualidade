@@ -308,7 +308,7 @@ export function OKRsView({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={18} style={{ flexShrink: 0 }} />
             <span>
-              <strong>Modo Demonstração (Dados Locais Ativos):</strong> A estrutura de tabelas remotas do Supabase ainda não foi criada na nuvem. Você pode testar e interagir normalmente com o painel! Para salvar permanentemente na nuvem, execute a migração SQL (arquivo <code>009_okrs.sql</code>) no SQL Editor do Supabase.
+              <strong>Modo Demonstração (Dados Locais):</strong> Não foi possível estabelecer conexão com o banco de dados remoto. Os dados exibidos são apenas para visualização — nenhuma alteração será persistida. Verifique a conectividade com o Supabase ou entre em contato com o administrador.
             </span>
           </div>
         </div>

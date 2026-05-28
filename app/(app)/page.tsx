@@ -193,7 +193,7 @@ export default function AppPage() {
             supabase.from('okr_feedbacks').select('*').order('created_at', { ascending: false })
           ])
 
-          if (targetsRes.data && !targetsRes.error && targetsRes.data.length > 0) {
+          if (targetsRes.data && !targetsRes.error) {
             setOkrTargets(targetsRes.data as OKRTarget[])
             if (measurementsRes.data) setOkrMeasurements(measurementsRes.data as OKRMeasurement[])
             if (feedbacksRes.data) setOkrFeedbacks(feedbacksRes.data as OKRFeedback[])
