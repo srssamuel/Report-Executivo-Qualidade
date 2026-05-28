@@ -17,7 +17,7 @@
 - **Region:** sa-east-1
 - **URL:** `https://rirkdpsyuvhumuhejofv.supabase.co`
 - **Anon key (publishable):** `sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC`
-- **Migrations aplicadas:** 001_schema, 002_rls, 003_security_hardening, 004_gains_products, 005_password_changed
+- **Migrations aplicadas (Supabase remoto):** 001_schema, 002_rls, 003_security_hardening, 004_gains_products, 005_password_changed, 006_fix_password_changed_rpc, 007_fix_items_insert_policy_and_security, 008_expand_gain_types, 009_okrs (2026-05-27), 010_development_pdi (2026-05-27), 011_revoke_trigger_rpc_exposure (2026-05-27 — hardening defensivo, REVOKE EXECUTE em protect_okr_audit_fields e update_updated_at de PUBLIC/anon/authenticated)
 - **Admin pré-cadastrado:** `srssamuel@hotmail.com` (via tabela `invitations` — trigger promove no signup)
 - **14 usuários** cadastrados com roles definidos
 - **31 itens** importados (G6-001 a G6-031)
