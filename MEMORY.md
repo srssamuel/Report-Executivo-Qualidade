@@ -15,6 +15,31 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-28 — Onboarding avaliação, análise IA Vértice e upgrade UX modais 1:1 + PDI
+
+- **Objetivo:** 4 melhorias solicitadas: (A) corrigir banner OKR falso positivo, (B) onboarding da avaliação, (C) análise IA do perfil Vértice, (D) redesign UX dos modais 1:1 e PDI.
+- **Alterações Efetuadas:**
+  - `[MODIFY]` `app/(app)/page.tsx` — OKR fallback: removida condição `.length > 0` que disparava modo demonstração mesmo com tabela `okr_targets` acessível mas vazia. Agora só entra em fallback em erro real de conectividade.
+  - `[MODIFY]` `features/okrs/OKRsView.tsx` — Texto do banner `isFallback` atualizado para descrever corretamente um problema de conectividade, sem mencionar "execute a migração SQL".
+  - `[NEW]` `app/api/ai/validate/route.ts` — GET endpoint que detecta provider IA disponível (OpenAI se `OPENAI_API_KEY` presente → Ollama se `OLLAMA_BASE_URL` presente → `available: false`). Rota pública, sem autenticação (read-only).
+  - `[NEW]` `app/api/ai/analyze/route.ts` — POST endpoint com schema Zod (collaborator_name, domain_scores, competency_scores, open_answers, consistency_index, consistency_label). Monta prompt PT-BR estruturado do Protocolo Vértice. Tenta OpenAI (`gpt-4o-mini`, timeout 30s) → fallback Ollama (timeout 120s) → 503 gracioso se nenhum provider.
+  - `[MODIFY]` `features/development/DevelopmentView.tsx` — múltiplas melhorias:
+    - Corrigido: propriedade `margin` duplicada no card "avaliação não realizada" (TS error).
+    - Adicionado: `<style>` com `@keyframes spin` para animação do spinner de IA.
+    - Landing card de avaliação: substituído texto simples por onboarding completo (4 cards de instrução: tempo/foco/honestidade/sem errada, caixa "o que você vai obter", botão full-width).
+    - Card de análise IA: adicionado após o laudo narrativo na coluna esquerda. Mostra provider ativo, botão "Gerar Análise", spinner, erro e texto markdown renderizado.
+    - Modal 1:1 redesenhado: header dark gradient com ícone Users, X button, click-outside-to-close, 4 seções com ícone+divisor (Contexto / Status da Carteira / Análise de Desempenho / Pactuações).
+    - Modal PDI redesenhado: header com cor primária gradient, ícone Target, X button, 4 seções (Período e Status / Objetivo de Carreira / Competências Vértice / Plano de Ações). Checkboxes com destaque visual quando selecionados.
+- **Smoke Tests (produção `report-executivo-qualidade.vercel.app`):**
+  - `/api/health` → `{status:"ok", supabase:"connected", latencyMs:1152}` ✅
+  - `/api/ai/validate` → `{available:false, provider:null}` ✅ (esperado — sem OPENAI_API_KEY em prod)
+  - `/api/ai/analyze` (POST) → HTTP 503 com `{error:"Nenhum provedor..."}` ✅ (gracioso)
+  - Ollama local `http://localhost:11434/api/tags` → 14 modelos incluindo `deepseek-coder-v2:16b` ✅
+- **Build & QG:** `npx tsc --noEmit` → zero erros · `npm run build` → compile 30s, 9/9 páginas ✅ · CI/Deploy GitHub Actions → `completed success` ✅
+- **Commit:** `3914a4c feat(dev): onboarding avaliação, análise IA Vértice e upgrade UX modais`
+- **Working tree:** limpo (nenhum uncommitted change exceto `.env.local` que não vai ao git)
+- **Gap pendente:** Para habilitar análise IA em produção, adicionar `OPENAI_API_KEY` nas env vars da Vercel (painel DataCX-AGI → Report-Executivo-Qualidade → Settings → Environment Variables). O Ollama só funciona em dev local.
+
 ### 2026-05-27 — Deploy Supabase 009 + 010 + 011 + correções de build (sessão deploy/QA)
 
 - **Objetivo:** Aplicar migrações pendentes na nuvem (Supabase) e homologar bloco Desenvolvimento + Perfil Vértice + Ata 1:1 + PDI.
