@@ -110,6 +110,13 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
     setUserList(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
   }
 
+  async function changeManager(userId: string, managerId: string) {
+    const value = managerId || null
+    const { error } = await supabase.from('user_profiles').update({ manager_id: value }).eq('id', userId)
+    if (error) { alert(error.message); return }
+    setUserList(prev => prev.map(u => u.id === userId ? { ...u, manager_id: value } : u))
+  }
+
   async function revokeInvite(id: string) {
     if (!confirm('Revogar este convite?')) return
     await supabase.from('invitations').delete().eq('id', id)
@@ -238,7 +245,7 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>E-mail</th><th>Nome</th><th>Papel</th><th>Desde</th><th>Ações</th>
+                  <th>E-mail</th><th>Nome</th><th>Papel</th><th>Gestor imediato</th><th>Desde</th><th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,6 +262,12 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
                           </select>
                         )
                       }
+                    </td>
+                    <td>
+                      <select value={u.manager_id ?? ''} onChange={e => changeManager(u.id, e.target.value)} style={{ minWidth: 180 }}>
+                        <option value="">— Sem gestor —</option>
+                        {userList.filter(m => m.id !== u.id).map(m => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+                      </select>
                     </td>
                     <td style={{ color: '#5f7188', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
                     <td>

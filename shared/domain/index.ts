@@ -48,6 +48,7 @@ export interface UserProfile {
   email: string
   full_name?: string
   role: Role
+  manager_id?: string | null
   created_at: string
 }
 
