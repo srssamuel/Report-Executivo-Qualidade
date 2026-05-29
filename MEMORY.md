@@ -15,6 +15,14 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Console de produção ZERADO (0 erros / 0 warnings) — verificado ao vivo
+
+- Cadeia de correção dos erros de console (descobertos no gate visual ao vivo):
+  1. `favicon.ico` 404 → `app/icon.svg` (ícone on-brand declarado pelo Next).
+  2. O matcher do `proxy.ts` não excluía `icon.svg` nem `_vercel/` → o auth middleware **redirecionava esses assets para /login (307)** → MIME error + Speed Insights/Analytics quebrados. Corrigido (matcher agora exclui `_next/static|_next/image|_vercel|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|api`). Speed Insights voltou a 200.
+  3. Vercel **Web Analytics nunca foi habilitada** no projeto → `/_vercel/insights/script.js` 404. **Decisão sênior:** removido o `<Analytics/>` quebrado do `app/layout.tsx` (nunca coletou dado; ferramenta interna de ~14 usuários), mantido `<SpeedInsights/>` (perf, habilitado + relevante). Reativar = habilitar Web Analytics no dashboard Vercel + re-add do componente.
+- **Verificado em produção via Playwright: console 0 erros, 0 warnings.** tsc/build exit 0 em cada passo. Commits `ad11d6b`→`1a9b1a6`.
+
 ### 2026-05-29 — Gate visual ao vivo + favicon + decisões sênior de escopo
 
 - **Gate visual RODADO ao vivo** no dashboard de produção: criado usuário QA admin efêmero (service_role + Playwright login), capturas em 1440px e 390px, **usuário apagado** (verificado: só `m.samuel.rosa` + `srssamuel` como admins).
