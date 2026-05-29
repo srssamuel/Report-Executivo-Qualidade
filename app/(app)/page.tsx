@@ -1276,6 +1276,8 @@ export default function AppPage() {
           evaluations={profileEvaluations}
           feedbacks={okrFeedbacks}
           userProfiles={userProfiles}
+          okrTargets={okrTargets}
+          okrMeasurements={okrMeasurements}
           role={role}
           currentUserId={profile?.id || ''}
           currentUserFullName={profile?.full_name || profile?.email || ''}

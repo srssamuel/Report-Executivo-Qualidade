@@ -25,7 +25,7 @@ import {
 import {
   computePerfilCientificoScores
 } from '@/lib/assessment/perfilCientificoScoring'
-import { Item, Role, OKRFeedback, UserPDI, ProfileEvaluation, UserProfile } from '@/shared/domain'
+import { Item, Role, OKRFeedback, OKRTarget, OKRMeasurement, UserPDI, ProfileEvaluation, UserProfile } from '@/shared/domain'
 
 interface DevelopmentViewProps {
   items: Item[]
@@ -33,6 +33,8 @@ interface DevelopmentViewProps {
   evaluations: ProfileEvaluation[]
   feedbacks: OKRFeedback[]
   userProfiles: UserProfile[]
+  okrTargets: OKRTarget[]
+  okrMeasurements: OKRMeasurement[]
   role: Role
   currentUserId: string
   currentUserFullName: string
@@ -53,6 +55,8 @@ export function DevelopmentView({
   evaluations,
   feedbacks,
   userProfiles,
+  okrTargets,
+  okrMeasurements,
   role,
   currentUserId,
   currentUserFullName,
@@ -100,6 +104,9 @@ export function DevelopmentView({
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
   const [aiProvider, setAiProvider] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // PDI history expanded cards
+  const [expandedPdis, setExpandedPdis] = useState<Set<string>>(new Set())
 
   const isSuperOrAdmin = role === 'admin' || role === 'superintendente'
 
@@ -153,12 +160,39 @@ export function DevelopmentView({
 
   // Filter feedbacks for the selected collaborator
   const collaboratorFeedbacks = useMemo(() => {
-    return feedbacks.filter(f => 
+    return feedbacks.filter(f =>
       f.responsavel.toLowerCase() === selectedCollaborator.toLowerCase() ||
       selectedCollaborator.toLowerCase().includes(f.responsavel.toLowerCase()) ||
       f.responsavel.toLowerCase().includes(selectedCollaborator.toLowerCase())
     )
   }, [feedbacks, selectedCollaborator])
+
+  // All PDIs for selected collaborator, sorted by updated_at desc (newest first)
+  const collaboratorPdis = useMemo(() => {
+    return pdis
+      .filter(p =>
+        p.collaborator_name.toLowerCase() === selectedCollaborator.toLowerCase() ||
+        selectedCollaborator.toLowerCase().includes(p.collaborator_name.toLowerCase()) ||
+        p.collaborator_name.toLowerCase().includes(selectedCollaborator.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.updated_at || '').getTime() - new Date(a.updated_at || '').getTime())
+  }, [pdis, selectedCollaborator])
+
+  // OKR targets for the selected collaborator (flexible name matching)
+  const collaboratorOkrTargets = useMemo(() => {
+    const nameParts = selectedCollaborator.toLowerCase().split(' ').filter(p => p.length > 2)
+    return okrTargets.filter(t => {
+      const resp = t.responsavel.toLowerCase()
+      return resp === selectedCollaborator.toLowerCase() ||
+        nameParts.some(part => resp.includes(part))
+    })
+  }, [okrTargets, selectedCollaborator])
+
+  // OKR measurements for the collaborator's targets
+  const collaboratorOkrMeasurements = useMemo(() => {
+    const ids = new Set(collaboratorOkrTargets.map(t => t.id))
+    return okrMeasurements.filter(m => ids.has(m.okr_id))
+  }, [okrMeasurements, collaboratorOkrTargets])
 
   // LocalStorage draft functionality for scientific questionnaire
   const draftKey = `vertice_draft_${selectedCollaborator}`
@@ -402,17 +436,16 @@ export function DevelopmentView({
     }
   }
 
-  const handleEditPdi = () => {
-    if (currentPdi) {
-      setEditingPdiId(currentPdi.id)
+  const handleEditPdi = (pdi?: UserPDI) => {
+    if (pdi) {
+      setEditingPdiId(pdi.id)
       setPdiForm({
-        trimestre: currentPdi.trimestre,
-        objetivo_carreira: currentPdi.objetivo_carreira,
-        competencias_foco: currentPdi.competencias_foco,
-        plano_acao: currentPdi.plano_acao,
-        status: currentPdi.status
+        trimestre: pdi.trimestre,
+        objetivo_carreira: pdi.objetivo_carreira,
+        competencias_foco: pdi.competencias_foco,
+        plano_acao: pdi.plano_acao,
+        status: pdi.status
       })
-      setIsPdiModalOpen(true)
     } else {
       setEditingPdiId(null)
       setPdiForm({
@@ -422,8 +455,8 @@ export function DevelopmentView({
         plano_acao: '',
         status: 'Ativo'
       })
-      setIsPdiModalOpen(true)
     }
+    setIsPdiModalOpen(true)
   }
 
   const handleStructurePdiFromEvaluation = () => {
@@ -1129,7 +1162,7 @@ export function DevelopmentView({
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Histórico de One-on-Ones</h3>
               <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>Registro semanal e pactuações táticas de desenvolvimento de {selectedCollaborator}</p>
             </div>
-            
+
             {isSuperOrAdmin && (
               <button
                 onClick={handleOpenFeedbackModal}
@@ -1151,100 +1184,150 @@ export function DevelopmentView({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-              {collaboratorFeedbacks.map(f => (
-                <div key={f.id} className="card" style={{ padding: 20, position: 'relative' }}>
-                  
-                  {/* Delete button for Admin */}
-                  {isSuperOrAdmin && (
-                    <button
-                      onClick={() => { if (confirm('Excluir este feedback permanentemente?')) onDeleteFeedback(f.id); }}
-                      style={{
-                        position: 'absolute',
-                        top: 15,
-                        right: 15,
-                        background: 'none',
-                        border: 'none',
-                        color: '#ef4444',
-                        cursor: 'pointer',
-                        padding: 4
-                      }}
-                      title="Excluir ata"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+              {collaboratorFeedbacks.map(f => {
+                // OKRs active during this feedback's quarter
+                const periodOkrs = collaboratorOkrTargets.filter(t => {
+                  if (f.trimestre === 'Q3') return t.periodo === 'Q3'
+                  return t.periodo === 'Jan-Jun'
+                })
 
-                  {/* Header info */}
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 15, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      backgroundColor: '#f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#475569'
-                    }}>
-                      <User size={16} />
-                    </div>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                        {f.feedback_type}
-                      </h4>
-                      <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>
-                        Trimestre: {f.trimestre} | Registrado por: {f.author_name} em {new Date(f.date).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
+                return (
+                  <div key={f.id} className="card" style={{ padding: 20, position: 'relative' }}>
 
-                  {/* Form fields review */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }} className="responsive-grid">
-                    <div>
-                      <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Pontos Fortes Mapeados</h5>
-                      <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #22c55e', minHeight: 40, whiteSpace: 'pre-wrap' }}>
-                        {f.strengths || 'Sem pontos cadastrados.'}
-                      </p>
-                    </div>
+                    {/* Delete button for Admin */}
+                    {isSuperOrAdmin && (
+                      <button
+                        onClick={() => { if (confirm('Excluir este feedback permanentemente?')) onDeleteFeedback(f.id); }}
+                        style={{
+                          position: 'absolute',
+                          top: 15,
+                          right: 15,
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          padding: 4
+                        }}
+                        title="Excluir ata"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
 
-                    <div>
-                      <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Oportunidades de Melhoria</h5>
-                      <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #f59e0b', minHeight: 40, whiteSpace: 'pre-wrap' }}>
-                        {f.improvements || 'Sem oportunidades cadastradas.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginTop: 15 }} className="responsive-grid">
-                    <div>
-                      <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Plano de Ação Acordado</h5>
-                      <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid var(--color-primary)', minHeight: 40, whiteSpace: 'pre-wrap' }}>
-                        {f.action_plan || 'Sem ações pactuadas.'}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Status de Atividades & Notas</h5>
-                      <div style={{ margin: 0, fontSize: 11, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #64748b', minHeight: 40 }} className="markdown-content">
-                        {f.general_notes ? (
-                          f.general_notes.split('\n').map((line, idx) => {
-                            if (line.startsWith('###')) return <h5 key={idx} style={{ fontSize: 11, fontWeight: 700, margin: '8px 0 4px 0', color: '#0f172a' }}>{line.replace('###', '').trim()}</h5>
-                            if (line.startsWith('####')) return <h6 key={idx} style={{ fontSize: 10, fontWeight: 700, margin: '6px 0 2px 0', color: '#1e293b' }}>{line.replace('####', '').trim()}</h6>
-                            if (line.startsWith('*')) return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 6 }}>• {line.replace('*', '').trim()}</p>
-                            if (line.startsWith('-')) return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 12, color: '#b91c1c' }}>- {line.replace('-', '').trim()}</p>
-                            return <p key={idx} style={{ margin: '0 0 3px 0' }}>{line}</p>
-                          })
-                        ) : (
-                          'Nenhuma nota adicional registrada.'
-                        )}
+                    {/* Header info */}
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 15, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%',
+                        backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#475569'
+                      }}>
+                        <User size={16} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                          {f.feedback_type}
+                        </h4>
+                        <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>
+                          Trimestre: {f.trimestre} | Registrado por: {f.author_name} em {new Date(f.date).toLocaleDateString('pt-BR')}
+                        </p>
                       </div>
                     </div>
-                  </div>
 
-                </div>
-              ))}
+                    {/* OKR Context Strip — OKRs ativos no período */}
+                    {periodOkrs.length > 0 && (
+                      <div style={{
+                        backgroundColor: '#fffbeb', border: '1px solid #fde68a',
+                        borderRadius: 6, padding: '8px 12px', marginBottom: 14
+                      }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#92400e', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <Target size={9} style={{ flexShrink: 0 }} />
+                          OKRs ativos em {f.trimestre}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {periodOkrs.slice(0, 3).map(t => {
+                            const measForTarget = collaboratorOkrMeasurements.filter(m => m.okr_id === t.id)
+                            const lastWithResult = measForTarget.filter(m => m.resultado_apurado !== null).slice(-1)[0]
+                            const pct = lastWithResult?.atingimento ?? null
+                            return (
+                              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: 10, color: '#78350f', lineHeight: '1.3em', display: 'block' }}>
+                                    {t.key_result.length > 70 ? `${t.key_result.slice(0, 70)}…` : t.key_result}
+                                  </span>
+                                  <span style={{ fontSize: 9, color: '#a16207' }}>
+                                    {t.perspectiva} · Meta: {t.meta_exibida}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                  <div style={{ width: 50, height: 4, backgroundColor: '#fde68a', borderRadius: 2, overflow: 'hidden' }}>
+                                    <div style={{
+                                      height: '100%', borderRadius: 2,
+                                      width: `${Math.min(pct ?? 0, 100)}%`,
+                                      backgroundColor: pct !== null ? (pct >= 100 ? '#16a34a' : pct >= 70 ? '#2563eb' : '#d97706') : '#d97706'
+                                    }} />
+                                  </div>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : '#94a3b8' }}>
+                                    {pct !== null ? `${pct}%` : 'S/M'}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {periodOkrs.length > 3 && (
+                            <span style={{ fontSize: 9, color: '#a16207', marginTop: 2 }}>
+                              +{periodOkrs.length - 3} OKRs adicionais no período
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Form fields review */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }} className="responsive-grid">
+                      <div>
+                        <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Pontos Fortes Mapeados</h5>
+                        <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #22c55e', minHeight: 40, whiteSpace: 'pre-wrap' }}>
+                          {f.strengths || 'Sem pontos cadastrados.'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Oportunidades de Melhoria</h5>
+                        <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #f59e0b', minHeight: 40, whiteSpace: 'pre-wrap' }}>
+                          {f.improvements || 'Sem oportunidades cadastradas.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginTop: 15 }} className="responsive-grid">
+                      <div>
+                        <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Plano de Ação Acordado</h5>
+                        <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid var(--color-primary)', minHeight: 40, whiteSpace: 'pre-wrap' }}>
+                          {f.action_plan || 'Sem ações pactuadas.'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h5 style={{ margin: '0 0 5px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Status de Atividades & Notas</h5>
+                        <div style={{ margin: 0, fontSize: 11, color: '#334155', backgroundColor: '#f8fafc', padding: 10, borderRadius: 6, borderLeft: '3px solid #64748b', minHeight: 40 }} className="markdown-content">
+                          {f.general_notes ? (
+                            f.general_notes.split('\n').map((line, idx) => {
+                              if (line.startsWith('###')) return <h5 key={idx} style={{ fontSize: 11, fontWeight: 700, margin: '8px 0 4px 0', color: '#0f172a' }}>{line.replace('###', '').trim()}</h5>
+                              if (line.startsWith('####')) return <h6 key={idx} style={{ fontSize: 10, fontWeight: 700, margin: '6px 0 2px 0', color: '#1e293b' }}>{line.replace('####', '').trim()}</h6>
+                              if (line.startsWith('*')) return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 6 }}>• {line.replace('*', '').trim()}</p>
+                              if (line.startsWith('-')) return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 12, color: '#b91c1c' }}>- {line.replace('-', '').trim()}</p>
+                              return <p key={idx} style={{ margin: '0 0 3px 0' }}>{line}</p>
+                            })
+                          ) : (
+                            'Nenhuma nota adicional registrada.'
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -1253,132 +1336,388 @@ export function DevelopmentView({
       {/* 3. PLANO DE DESENVOLVIMENTO INDIVIDUAL (PDI) */}
       {activeTab === 'pdi' && (
         <div className="tab-pane">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Plano de Desenvolvimento Individual (PDI)</h3>
-              <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>Metas de carreira, competências de foco e plano de ação estruturado de {selectedCollaborator}</p>
-            </div>
-            
-            {isSuperOrAdmin && (
-              <button
-                onClick={handleEditPdi}
-                className="btn btn-primary small"
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {currentPdi ? <Edit3 size={14} /> : <Plus size={14} />}
-                {currentPdi ? 'Editar PDI Ativo' : 'Estruturar Novo PDI'}
-              </button>
-            )}
-          </div>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
 
-          {!currentPdi ? (
-            <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px dashed #e2e8f0', backgroundColor: '#fafbfc' }}>
-              <Target size={24} style={{ color: '#94a3b8', marginBottom: 10 }} />
-              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#475569' }}>Nenhum PDI ativo estruturado</h4>
-              <p style={{ margin: '5px 0 0 0', fontSize: 11, color: '#64748b' }}>
-                {isSuperOrAdmin ? (
-                  "Mapeie competências de foco e objetivos de desenvolvimento para apoiar este colaborador taticamente."
-                ) : (
-                  "Seu PDI corporativo ainda não foi estruturado. Solicite uma agenda com seu gestor nos rituais de One-on-One."
-                )}
-              </p>
-            </div>
-          ) : (
-            <div className="card" style={{ padding: 25, borderTop: '4px solid var(--color-primary)' }}>
-              
-              {/* Delete button for Admin */}
-              {isSuperOrAdmin && (
-                <button
-                  onClick={() => { if (confirm('Excluir este PDI permanentemente?')) onDeletePDI(currentPdi.id); }}
-                  style={{
-                    position: 'absolute',
-                    top: 15,
-                    right: 15,
-                    background: 'none',
-                    border: 'none',
-                    color: '#ef4444',
-                    cursor: 'pointer',
-                    padding: 4
-                  }}
-                  title="Excluir PDI"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
+            {/* ── LEFT CONTEXT PANEL ──────────────────────────────── */}
+            <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f9', paddingBottom: 15, marginBottom: 20 }}>
-                <div>
-                  <span style={{
-                    backgroundColor: currentPdi.status === 'Ativo' ? '#e0f2fe' : (currentPdi.status === 'Concluído' ? '#dcfce7' : '#f1f5f9'),
-                    color: currentPdi.status === 'Ativo' ? '#0369a1' : (currentPdi.status === 'Concluído' ? '#15803d' : '#475569'),
-                    padding: '3px 10px',
-                    borderRadius: 12,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    display: 'inline-block',
-                    marginBottom: 5
-                  }}>
-                    PDI {currentPdi.status}
+              {/* Context Card 1 — Perfil Vértice */}
+              <div className="card" style={{ padding: 16, borderTop: '3px solid #8b5cf6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+                  <Star size={13} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Perfil Vértice
                   </span>
-                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
-                    Plano de Desenvolvimento para {currentPdi.trimestre}
-                  </h4>
                 </div>
-                
-                <span style={{ fontSize: 11, color: '#64748b' }}>
-                  Última atualização: {new Date(currentPdi.updated_at || '').toLocaleDateString('pt-BR')}
-                </span>
+
+                {currentEvaluation ? (
+                  <>
+                    {/* Domain scores as mini progress bars */}
+                    {DOMAINS.map(d => {
+                      const score = (currentEvaluation.domain_scores as Record<string, number>)[d.slug] ?? 0
+                      return (
+                        <div key={d.slug} style={{ marginBottom: 7 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                            <span style={{ fontSize: 10, color: '#475569', fontWeight: 600, lineHeight: 1 }}>{d.name}</span>
+                            <span style={{ fontSize: 10, color: '#334155', fontWeight: 700 }}>{score}</span>
+                          </div>
+                          <div style={{ height: 5, backgroundColor: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 3,
+                              width: `${score}%`,
+                              backgroundColor: score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : '#f59e0b',
+                              transition: 'width 0.4s ease'
+                            }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Top strengths */}
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#15803d', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ▲ Top Fortalezas
+                      </div>
+                      {Object.entries(currentEvaluation.competency_scores as Record<string, number>)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 3)
+                        .map(([slug, score]) => {
+                          const comp = COMPETENCIES.find(c => c.slug === slug)
+                          return (
+                            <div key={slug} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#166534', marginBottom: 2 }}>
+                              <span>• {comp?.name ?? slug}</span>
+                              <span style={{ fontWeight: 700, marginLeft: 6 }}>{score}</span>
+                            </div>
+                          )
+                        })}
+                    </div>
+
+                    {/* Dev areas */}
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#b45309', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ▼ Áreas de Foco
+                      </div>
+                      {Object.entries(currentEvaluation.competency_scores as Record<string, number>)
+                        .sort((a, b) => a[1] - b[1])
+                        .slice(0, 3)
+                        .map(([slug, score]) => {
+                          const comp = COMPETENCIES.find(c => c.slug === slug)
+                          return (
+                            <div key={slug} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#92400e', marginBottom: 2 }}>
+                              <span>• {comp?.name ?? slug}</span>
+                              <span style={{ fontWeight: 700, marginLeft: 6 }}>{score}</span>
+                            </div>
+                          )
+                        })}
+                    </div>
+
+                    <button
+                      onClick={() => setActiveTab('perfil')}
+                      style={{ marginTop: 10, fontSize: 10, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      Ver avaliação completa <ArrowRight size={10} />
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                    <User size={20} style={{ color: '#cbd5e1', marginBottom: 6 }} />
+                    <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Avaliação não realizada</p>
+                    <button
+                      onClick={() => setActiveTab('perfil')}
+                      style={{ marginTop: 8, fontSize: 10, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4, margin: '8px auto 0' }}
+                    >
+                      Ir para avaliação <ArrowRight size={10} />
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Career Goal */}
-              <div style={{ marginBottom: 20 }}>
-                <h5 style={{ margin: '0 0 5px 0', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Objetivo de Carreira / Meta Principal</h5>
-                <p style={{ margin: 0, fontSize: 13, color: '#1e293b', backgroundColor: '#f8fafc', padding: 14, borderRadius: 8, fontWeight: 500, borderLeft: '3px solid var(--color-primary)' }}>
-                  "{currentPdi.objetivo_carreira}"
-                </p>
-              </div>
+              {/* Context Card 2 — Últimas 1:1s */}
+              <div className="card" style={{ padding: 16, borderTop: '3px solid #10b981' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <MessageSquare size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Últimas 1:1s
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 9, color: '#94a3b8' }}>{collaboratorFeedbacks.length} reg.</span>
+                </div>
 
-              {/* Competencies chips */}
-              <div style={{ marginBottom: 25 }}>
-                <h5 style={{ margin: '0 0 8px 0', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Competências de Foco Vértice</h5>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {currentPdi.competencias_foco.map(slug => {
-                    const comp = COMPETENCIES.find(c => c.slug === slug)
-                    return (
-                      <span
-                        key={slug}
+                {collaboratorFeedbacks.length === 0 ? (
+                  <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>Nenhuma ata registrada</p>
+                ) : (
+                  <>
+                    {collaboratorFeedbacks.slice(0, 3).map((f, i) => (
+                      <div
+                        key={f.id}
                         style={{
-                          backgroundColor: '#f1f5f9',
-                          border: '1px solid #cbd5e1',
-                          padding: '6px 12px',
-                          borderRadius: 20,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#334155',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6
+                          marginBottom: i < Math.min(collaboratorFeedbacks.length, 3) - 1 ? 10 : 0,
+                          paddingBottom: i < Math.min(collaboratorFeedbacks.length, 3) - 1 ? 10 : 0,
+                          borderBottom: i < Math.min(collaboratorFeedbacks.length, 3) - 1 ? '1px solid #f1f5f9' : 'none'
                         }}
                       >
-                        <Star size={10} style={{ color: 'var(--color-primary)' }} />
-                        {comp ? comp.name : slug}
-                      </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>{f.feedback_type}</span>
+                          <span style={{ fontSize: 9, color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: 4 }}>
+                            {f.trimestre}
+                          </span>
+                        </div>
+                        {f.strengths && (
+                          <p style={{ margin: '0 0 2px 0', fontSize: 10, color: '#166534', borderLeft: '2px solid #22c55e', paddingLeft: 5, lineHeight: '1.3em' }}>
+                            {f.strengths.length > 75 ? `${f.strengths.slice(0, 75)}…` : f.strengths}
+                          </p>
+                        )}
+                        {f.action_plan && (
+                          <p style={{ margin: 0, fontSize: 10, color: '#1e40af', borderLeft: '2px solid var(--color-primary)', paddingLeft: 5, lineHeight: '1.3em' }}>
+                            {f.action_plan.length > 75 ? `${f.action_plan.slice(0, 75)}…` : f.action_plan}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                    {collaboratorFeedbacks.length > 3 && (
+                      <button
+                        onClick={() => setActiveTab('feedbacks')}
+                        style={{ marginTop: 8, fontSize: 10, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        Ver todos ({collaboratorFeedbacks.length}) <ArrowRight size={10} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Context Card 3 — OKRs Ativos */}
+              {collaboratorOkrTargets.length > 0 && (
+                <div className="card" style={{ padding: 16, borderTop: '3px solid #f59e0b' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+                    <Target size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      OKRs Ativos
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: 9, color: '#94a3b8' }}>{collaboratorOkrTargets.length} KRs</span>
+                  </div>
+                  {collaboratorOkrTargets.slice(0, 5).map(t => {
+                    const measForTarget = collaboratorOkrMeasurements.filter(m => m.okr_id === t.id)
+                    const lastWithResult = measForTarget.filter(m => m.resultado_apurado !== null).slice(-1)[0]
+                    const pct = lastWithResult?.atingimento ?? null
+                    return (
+                      <div key={t.id} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', marginBottom: 3, lineHeight: '1.3em' }}>
+                          {t.key_result.length > 65 ? `${t.key_result.slice(0, 65)}…` : t.key_result}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <div style={{ flex: 1, height: 4, backgroundColor: '#f1f5f9', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 2,
+                              width: `${Math.min(pct ?? 0, 100)}%`,
+                              backgroundColor: pct !== null ? (pct >= 100 ? '#10b981' : pct >= 70 ? '#3b82f6' : '#f59e0b') : '#e2e8f0',
+                              transition: 'width 0.4s ease'
+                            }} />
+                          </div>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : '#94a3b8', whiteSpace: 'nowrap' }}>
+                            {pct !== null ? `${pct}%` : 'S/M'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+                          {t.perspectiva} · {t.periodo} · Meta: {t.meta_exibida}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
-              </div>
-
-              {/* Actions agreed */}
-              <div>
-                <h5 style={{ margin: '0 0 5px 0', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Plano de Ações Pactuadas</h5>
-                <p style={{ margin: 0, fontSize: 13, color: '#334155', backgroundColor: '#f8fafc', padding: 14, borderRadius: 8, whiteSpace: 'pre-wrap', lineHeight: '1.5em' }}>
-                  {currentPdi.plano_acao}
-                </p>
-              </div>
+              )}
 
             </div>
-          )}
+
+            {/* ── RIGHT: PDI HISTORY ───────────────────────────────── */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Plano de Desenvolvimento Individual (PDI)</h3>
+                  <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>
+                    Histórico de planos de {selectedCollaborator}
+                    {collaboratorPdis.length > 0 && ` · ${collaboratorPdis.length} plano${collaboratorPdis.length > 1 ? 's' : ''}`}
+                  </p>
+                </div>
+                {isSuperOrAdmin && (
+                  <button
+                    onClick={() => handleEditPdi()}
+                    className="btn btn-primary small"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+                  >
+                    <Plus size={14} /> Novo PDI
+                  </button>
+                )}
+              </div>
+
+              {/* PDI list / empty state */}
+              {collaboratorPdis.length === 0 ? (
+                <div className="card" style={{ padding: 48, textAlign: 'center', border: '1px dashed #e2e8f0', backgroundColor: '#fafbfc' }}>
+                  <Target size={28} style={{ color: '#cbd5e1', marginBottom: 12 }} />
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: 13, fontWeight: 600, color: '#475569' }}>Nenhum PDI estruturado</h4>
+                  <p style={{ margin: '0 auto', fontSize: 11, color: '#64748b', maxWidth: 360, lineHeight: '1.5em' }}>
+                    {isSuperOrAdmin
+                      ? 'Mapeie competências de foco e objetivos de desenvolvimento para apoiar este colaborador taticamente. Use o contexto do painel ao lado como referência.'
+                      : 'Seu PDI corporativo ainda não foi estruturado. Solicite uma agenda com seu gestor nos rituais de One-on-One.'}
+                  </p>
+                  {isSuperOrAdmin && currentEvaluation && (
+                    <button
+                      onClick={handleStructurePdiFromEvaluation}
+                      className="btn btn-primary small"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 16 }}
+                    >
+                      <Sparkles size={13} /> Estruturar PDI do Perfil Vértice
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {collaboratorPdis.map((pdi, idx) => {
+                    const isExpanded = expandedPdis.has(pdi.id) || idx === 0
+                    const isActive = pdi.status === 'Ativo'
+                    const statusColor = isActive ? 'var(--color-primary)' : pdi.status === 'Concluído' ? '#10b981' : '#94a3b8'
+                    const statusBg = isActive ? '#eff6ff' : pdi.status === 'Concluído' ? '#dcfce7' : '#f1f5f9'
+                    const statusText = isActive ? '#1d4ed8' : pdi.status === 'Concluído' ? '#15803d' : '#475569'
+
+                    return (
+                      <div
+                        key={pdi.id}
+                        className="card"
+                        style={{ overflow: 'hidden', borderTop: `3px solid ${statusColor}` }}
+                      >
+                        {/* Collapsible header */}
+                        <div
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px',
+                            cursor: 'pointer',
+                            backgroundColor: isExpanded ? 'transparent' : '#fafbfc'
+                          }}
+                          onClick={() => setExpandedPdis(prev => {
+                            const next = new Set(prev)
+                            if (next.has(pdi.id)) next.delete(pdi.id)
+                            else next.add(pdi.id)
+                            return next
+                          })}
+                        >
+                          <span style={{
+                            backgroundColor: statusBg, color: statusText,
+                            padding: '2px 9px', borderRadius: 10, fontSize: 9, fontWeight: 700,
+                            textTransform: 'uppercase', whiteSpace: 'nowrap', letterSpacing: '0.04em'
+                          }}>
+                            {pdi.status}
+                          </span>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {pdi.objetivo_carreira || `Plano ${pdi.trimestre}`}
+                            </p>
+                            <p style={{ margin: 0, fontSize: 10, color: '#64748b' }}>
+                              {pdi.trimestre} · Atualizado: {new Date(pdi.updated_at || '').toLocaleDateString('pt-BR')}
+                              {pdi.competencias_foco.length > 0 && ` · ${pdi.competencias_foco.length} competência${pdi.competencias_foco.length > 1 ? 's' : ''}`}
+                            </p>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            {isSuperOrAdmin && (
+                              <>
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleEditPdi(pdi) }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px 5px', borderRadius: 6 }}
+                                  title="Editar PDI"
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); if (confirm('Excluir este PDI permanentemente?')) onDeletePDI(pdi.id) }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px 5px', borderRadius: 6 }}
+                                  title="Excluir PDI"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
+                            <ChevronRight
+                              size={14}
+                              style={{
+                                color: '#94a3b8',
+                                transform: isExpanded ? 'rotate(90deg)' : 'none',
+                                transition: 'transform 0.15s ease'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Expanded content */}
+                        {isExpanded && (
+                          <div style={{ padding: '0 18px 20px 18px', borderTop: '1px solid #f1f5f9' }}>
+
+                            {/* Career goal */}
+                            <div style={{ marginTop: 16, marginBottom: 16 }}>
+                              <h5 style={{ margin: '0 0 6px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                                Objetivo de Carreira / Meta Principal
+                              </h5>
+                              <p style={{ margin: 0, fontSize: 13, color: '#1e293b', backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, fontWeight: 500, borderLeft: '3px solid var(--color-primary)', lineHeight: '1.5em' }}>
+                                "{pdi.objetivo_carreira}"
+                              </p>
+                            </div>
+
+                            {/* Competencies with optional Vértice score */}
+                            {pdi.competencias_foco.length > 0 && (
+                              <div style={{ marginBottom: 16 }}>
+                                <h5 style={{ margin: '0 0 8px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                                  Competências Vértice em Foco
+                                </h5>
+                                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                                  {pdi.competencias_foco.map(slug => {
+                                    const comp = COMPETENCIES.find(c => c.slug === slug)
+                                    const evalScore = currentEvaluation
+                                      ? (currentEvaluation.competency_scores as Record<string, number>)[slug]
+                                      : undefined
+                                    return (
+                                      <span key={slug} style={{
+                                        backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1',
+                                        padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#334155',
+                                        display: 'inline-flex', alignItems: 'center', gap: 5
+                                      }}>
+                                        <Star size={10} style={{ color: 'var(--color-primary)' }} />
+                                        {comp?.name ?? slug}
+                                        {evalScore !== undefined && (
+                                          <span style={{
+                                            fontSize: 9, fontWeight: 700, marginLeft: 2,
+                                            color: evalScore >= 80 ? '#15803d' : evalScore >= 60 ? '#1d4ed8' : '#92400e'
+                                          }}>
+                                            {evalScore}
+                                          </span>
+                                        )}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Action plan */}
+                            <div>
+                              <h5 style={{ margin: '0 0 6px 0', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                                Plano de Ações Pactuadas
+                              </h5>
+                              <p style={{ margin: 0, fontSize: 12, color: '#334155', backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, whiteSpace: 'pre-wrap', lineHeight: '1.5em' }}>
+                                {pdi.plano_acao}
+                              </p>
+                            </div>
+
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       )}
 
