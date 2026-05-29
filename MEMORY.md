@@ -15,6 +15,13 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Redesign UX/UI do modal de registro de PDI (seletor de competências)
+
+- **Samuel:** a visualização do modal de PDI estava péssima — a seção de competências era uma caixa de scroll de 180px com 18 checkboxes em lista plana (checkbox + nome + domínio repetido), cramped.
+- `[MODIFY]` `features/development/DevelopmentView.tsx` — Seção "Competências Vértice em Foco" redesenhada: **cards-toggle** (`<button aria-pressed>` → a11y) **agrupados pelos 5 domínios**, color-coded (`DOMAIN_COLOR` no module level, mesmas cores do detalhamento do laudo), grid de 2 colunas, estado selecionado claro (borda + fundo + check na cor do domínio) e **badge contador** "N selecionadas". Removida a caixa de scroll aninhada (o modal inteiro rola). Header/período/objetivo/plano mantidos (já ok) — foco cirúrgico.
+- `[NEW]` `docs/pdi-modal-redesign.html` — simulação do modal redesenhado (mostrada ao Samuel; antes/depois).
+- **Gate:** tsc/lint/build exit 0. (Resíduo: um `next build` órfão de um bg task travado segurava o lock do `.next`; matei o processo escopado pelo path do projeto — sem tocar nos MCPs em `D:\Claude` — e o build limpo passou.)
+
 ### 2026-05-29 — Passe de acessibilidade (WCAG): labels associados + aria-labels
 
 - **Achado real:** `<label>` não associado a input (sem htmlFor/id) em login/reset; selects de papel/gestor sem nome acessível. `:focus-visible` JÁ existe no design system (globals.css:1688, com variante dark) — ok.
