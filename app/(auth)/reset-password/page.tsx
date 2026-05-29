@@ -3,6 +3,31 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+// Proteção contra senha vazada via HIBP k-anonymity — espelha no app layer o
+// "leaked password protection" do Supabase. Envia apenas os 5 primeiros chars
+// do hash SHA-1 (k-anonymity); a senha nunca sai do dispositivo. Fail-open: se
+// a API estiver indisponível, não bloqueia o usuário.
+async function isPasswordPwned(password: string): Promise<boolean> {
+  try {
+    const bytes = new TextEncoder().encode(password)
+    const digest = await crypto.subtle.digest('SHA-1', bytes)
+    const hash = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+    const prefix = hash.slice(0, 5)
+    const suffix = hash.slice(5)
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { 'Add-Padding': 'true' },
+    })
+    if (!res.ok) return false
+    const body = await res.text()
+    return body.split('\n').some(line => line.split(':')[0]?.trim().toUpperCase() === suffix)
+  } catch {
+    return false
+  }
+}
+
 export default function ResetPasswordPage() {
   const supabase = createClient()
   const [password, setPassword] = useState('')
@@ -23,6 +48,14 @@ export default function ResetPasswordPage() {
     if (password !== confirm) { setError('As senhas não coincidem.'); return }
     if (password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return }
     setLoading(true)
+
+    // Proteção contra senha vazada (HIBP) — espelha no app o "leaked password
+    // protection" do Supabase. Fail-open se a API estiver indisponível.
+    if (await isPasswordPwned(password)) {
+      setError('Esta senha apareceu em vazamentos de dados públicos. Por segurança, escolha uma senha diferente.')
+      setLoading(false)
+      return
+    }
 
     // Update password in Supabase Auth
     const { error: authError } = await supabase.auth.updateUser({ password })
