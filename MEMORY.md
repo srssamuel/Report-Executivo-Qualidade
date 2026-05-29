@@ -15,6 +15,27 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-28 — Hierarquia de papéis (convite + RLS consultor) + painéis de capacidade/risco/OKR no Dashboard
+
+- **Objetivo:** Atender o pedido "ambos" do Samuel: (Track 1) corrigir a atribuição de hierarquias — formulário de convite incompleto + inconsistência de visibilidade RLS do `consultor`; (Track 2) implementar as melhores visualizações no Dashboard — heatmap de capacidade por responsável, concentração de risco por responsável e painel de atingimento de OKRs.
+- **Alterações Efetuadas:**
+  - `[MODIFY]` `features/admin/AdminUsersClient.tsx` — `INVITE_ROLES` expandido para os 7 papéis convidáveis (`superintendente`, `gerente`, `coordenador`, `consultor`, `lider`, `analista`, `viewer`). Antes faltavam `superintendente` e `lider`, impedindo o admin de atribuir esses níveis no convite. (`admin` continua fora do form — é promovido só via tabela `invitations`.)
+  - `[NEW]` `supabase/migrations/012_consultor_team_visibility.sql` — **redefinição idempotente** da função `is_team_member` (SECURITY DEFINER, `SET search_path = public`). Corrige fronteira RLS **não-monotônica**: na ordem canônica (admin > superintendente > gerente > coordenador > **consultor** > lider > analista > viewer), o `consultor` (rank 5) não enxergava ninguém enquanto o `lider` (rank 6, inferior) enxergava (analista, viewer). A 012 concede ao `consultor` a mesma visibilidade dos vizinhos `coordenador`/`lider`: **(analista, viewer)**. Também adiciona `consultor` à lista de alvos visíveis pelo `gerente`. **Direção escolhida: interpretação monotônica** (rank maior ⇒ visibilidade ⊇ rank menor) — decisão de segurança inferida do pedido de "alinhar a inconsistência".
+  - `[MODIFY]` `features/dashboard/DashboardView.tsx` — 2 novas `dash-section`:
+    - **Capacidade & Risco por responsável** (`<Users size={18}/>`): heatmap de carga via `ownerLoad()` + `capacityTone()` (tons '' / warn ≥85% / danger ≥115%) e concentração de risco por responsável (barras `.capacity-row`/`.capacity-track`).
+    - **Atingimento de OKRs** (`<Target size={18}/>`): `ProgressGauge value={Math.min(100, okrGlobalScore ?? 0)}` (clamp porque atingimento de OKR pode chegar a 120%), com lista de status por KR (`okrStatusTone`).
+  - `[MODIFY]` `app/(app)/page.tsx` — `<DashboardView>` agora recebe `okrTargets`, `okrMeasurements`, `isOkrFallback` e `weeklyCapacity` por props.
+- **Aplicação na nuvem (Supabase MCP `apply_migration`, projeto `rirkdpsyuvhumuhejofv`):**
+  - Leitura defensiva antes da escrita: confirmado que o remoto = migration 010 (sem branch de `consultor`).
+  - `apply_migration 012_consultor_team_visibility` → `{"success": true}`.
+  - Verificação pós-deploy: `has_consultor_branch: true`; grantees de EXECUTE = `authenticated, postgres, service_role` (anon/PUBLIC revogados, como esperado).
+- **Build & QG (CWD do shell = raiz do workspace; comandos prefixados com `cd` no projeto):** `npx tsc --noEmit` → zero erros ✅ · `npm run lint` → zero erros ✅ · `npm run build` → "✓ Compiled successfully in 66s", 9/9 páginas estáticas, "Proxy (Middleware)" presente, apenas warnings não-bloqueantes do Sentry ✅.
+- **QA visual:** painéis ficam atrás de Supabase Auth + `proxy.ts`; dev server sem credenciais só alcança a tela de login (credenciais não podem ser solicitadas/usadas), então a verificação por browser não provaria nada. O gate type/lint/build exercita o JSX + wiring de domínio exatos.
+- **Gaps Identificados:** Nenhum bloqueante. Migration 012 é mudança de controle de acesso (sensível) com direção inferida — confirmar a interpretação monotônica com o Samuel ao reportar.
+- **Próximos Passos:**
+  - `[ ]` Commit PT-BR dos 3 arquivos modificados + a migration nova.
+  - `[ ]` `git push origin main` → Vercel auto-deploy — **APENAS com confirmação explícita do Samuel** (push permanece gated).
+
 ### 2026-05-28 — Redesign aba PDI: histórico completo + painel contexto + OKRs em 1:1
 
 - **Objetivo:** Melhorar radicalmente o UX da aba PDI: exibir histórico de PDIs, integrar resumo das 1:1s, integrar perfil Vértice e OKRs no contexto do PDI. OKRs do período também exibidos nas atas 1:1.
