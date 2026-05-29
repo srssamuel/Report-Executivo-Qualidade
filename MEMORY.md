@@ -15,6 +15,16 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-28 — Revisão independente da entrega: corrige divisão por zero em `weeklyCapacity`
+
+- **Objetivo:** Aplicar a regra "toda entrega passa por revisor" sobre o código de dashboard recém-shipado (passou tsc/lint/build mas sem revisão de lógica). Revisão encontrou 1 bug real de runtime.
+- **Bug encontrado (pré-existente, herdado pelo novo painel):** o input de capacidade (`CapacityView.tsx:148`) usava `onChange={e => setWeeklyCapacity(Number(e.target.value))}`. Ao **esvaziar o campo**, `Number('') === 0` → `weeklyCapacity = 0`. Ambos os consumidores (`CapacityView` e o novo painel de `DashboardView`) calculam `Math.round((h / weeklyCapacity) * 100)` → `Infinity` → renderizava **"Infinity%"** e largura de barra inválida. O `min={1}` do input é só dica de spinner HTML, não impede limpar o campo.
+- **Correções (`[MODIFY]` 2 arquivos):**
+  - `CapacityView.tsx` — **root cause:** `onChange` agora clampa em `[1,999]` inteiro: `Math.max(1, Math.min(999, Math.floor(Number(e.target.value)) || 1))`. Garante o invariante `weeklyCapacity >= 1` para todos os consumidores.
+  - `DashboardView.tsx` — **defesa no boundary de prop:** `const safeCapacity = weeklyCapacity > 0 ? weeklyCapacity : 30` e divisão por `safeCapacity`. Componente fica correto-por-construção independente do caller.
+- **Build & QG:** `npx tsc --noEmit` exit 0 · `npm run lint` exit 0 · `npm run build` exit 0 (9/9 páginas, Proxy presente) ✅.
+- **Nota:** warning de IDE `'React' is declared but never read` em DashboardView/AdminUsers é pré-existente e **não-bloqueante** (tsc e eslint passam limpos; `noUnusedLocals` não está ativo). Não tocado.
+
 ### 2026-05-28 — Deploy + endurecimento autônomo (push, advisors, "hang" do dev desmistificado, Sentry v10)
 
 - **Objetivo:** Após autorização "continue e só pare quando concluir 100% do projeto", concluir o ciclo (push/deploy) e fechar os gaps autônomos pendentes do projeto.
