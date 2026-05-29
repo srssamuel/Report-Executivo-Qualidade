@@ -43,11 +43,20 @@ export default withSentryConfig(nextConfig, {
   project: 'report-executivo-qualidade',
   silent: !process.env.CI,
   widenClientFileUpload: true,
-  reactComponentAnnotation: {
-    enabled: true,
-  },
   tunnelRoute: '/monitoring',
-  disableLogger: true,
-  automaticVercelMonitors: true,
+  // Opções de build-time do Sentry v10. Só têm efeito no build de produção
+  // (webpack); sob Turbopack (next dev) são ignoradas. Mantê-las aqui elimina os
+  // deprecation warnings que apareciam no dev e preserva o comportamento de prod
+  // (source maps, anotação de componentes e cron monitors do Vercel).
+  webpack: {
+    reactComponentAnnotation: {
+      enabled: true,
+    },
+    automaticVercelMonitors: true,
+    // Substitui o antigo `disableLogger: true` (tree-shake dos logs de debug).
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
 })
 
