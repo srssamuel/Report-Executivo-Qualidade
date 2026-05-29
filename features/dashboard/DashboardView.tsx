@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Users, Target } from 'lucide-react'
 import {
   Item,
   Gain,
@@ -17,7 +17,15 @@ import {
   statusTone,
   dateFmt,
   gainTypeTone,
-  GAIN_TYPES
+  GAIN_TYPES,
+  ownerLoad,
+  capacityTone,
+  calculateOkrAtingimento,
+  resolveOkrStatus,
+  okrStatusTone,
+  OKRTarget,
+  OKRMeasurement,
+  OKRStatus
 } from '@/shared/domain'
 import { Badge, ProgressGauge, HBarChart, VBarChart, DonutChart } from '@/shared/components'
 
@@ -33,6 +41,10 @@ interface DashboardViewProps {
   onEdit: (id: string) => void
   gains: Gain[]
   items: Item[]
+  okrTargets: OKRTarget[]
+  okrMeasurements: OKRMeasurement[]
+  isOkrFallback: boolean
+  weeklyCapacity: number
 }
 
 export function DashboardView({
@@ -47,6 +59,10 @@ export function DashboardView({
   onEdit,
   gains,
   items,
+  okrTargets,
+  okrMeasurements,
+  isOkrFallback,
+  weeklyCapacity,
 }: DashboardViewProps) {
   const decisionQueue = [...filtered]
     .filter(i => !isDone(i))
@@ -60,6 +76,81 @@ export function DashboardView({
 
   const ownerCounts: Record<string, number> = {}
   filtered.forEach(it => ownersOf(it.owner).forEach(o => ownerCounts[o] = (ownerCounts[o] ?? 0) + 1))
+
+  /* ── Capacity heatmap (reuse ownerLoad + capacityTone) ── */
+  const load = ownerLoad(filtered) // ownerLoad já filtra !isDone internamente
+  const loadEntries = Object.entries(load).sort((a, b) => b[1] - a[1]).slice(0, 8)
+
+  /* ── Risk concentration by owner ── */
+  const ownerRisk: Record<string, { crit: number; att: number }> = {}
+  filtered.filter(i => !isDone(i)).forEach(it => {
+    const r = riskOf(it)
+    const isCrit = ['Atrasado', 'Bloqueado'].includes(r)
+    const isAtt = ['Vence hoje', 'Atenção 7 dias'].includes(r)
+    if (!isCrit && !isAtt) return
+    ownersOf(it.owner).forEach(o => {
+      if (!ownerRisk[o]) ownerRisk[o] = { crit: 0, att: 0 }
+      if (isCrit) ownerRisk[o].crit++
+      else ownerRisk[o].att++
+    })
+  })
+  const riskEntries = Object.entries(ownerRisk)
+    .sort((a, b) => b[1].crit - a[1].crit || b[1].att - a[1].att)
+    .slice(0, 8)
+
+  /* ── OKR snapshot (espelha agregação ponderada de OKRsView, período ativo) ── */
+  const okrMeasuresByTarget: Record<string, OKRMeasurement[]> = {}
+  okrMeasurements.forEach(m => {
+    if (!okrMeasuresByTarget[m.okr_id]) okrMeasuresByTarget[m.okr_id] = []
+    okrMeasuresByTarget[m.okr_id].push(m)
+  })
+  /* Período ativo = aquele cujas metas concentram mais resultados apurados (desempate por nº de metas) */
+  const periodResultCount: Record<string, number> = {}
+  const periodTargetCount: Record<string, number> = {}
+  okrTargets.forEach(t => {
+    const ms = okrMeasuresByTarget[t.id] || []
+    const withResult = ms.filter(m => m.resultado_apurado !== null && m.resultado_apurado !== undefined).length
+    periodResultCount[t.periodo] = (periodResultCount[t.periodo] ?? 0) + withResult
+    periodTargetCount[t.periodo] = (periodTargetCount[t.periodo] ?? 0) + 1
+  })
+  const activePeriod = Object.keys(periodResultCount).length
+    ? Object.entries(periodResultCount).sort((a, b) => b[1] - a[1] || (periodTargetCount[b[0]] ?? 0) - (periodTargetCount[a[0]] ?? 0))[0][0]
+    : ''
+  const periodTargets = okrTargets.filter(t => t.periodo === activePeriod)
+  let okrTotalWeight = 0
+  let okrTotalScore = 0
+  const okrStatusCounts: Record<OKRStatus, number> = { Atingido: 0, Parcial: 0, Crítico: 0, Pendente: 0 }
+  const perspScore: Record<string, { score: number; weight: number }> = {}
+  periodTargets.forEach(t => {
+    const ms = okrMeasuresByTarget[t.id] || []
+    let sum = 0
+    let count = 0
+    ms.forEach(m => {
+      if (m.resultado_apurado !== null && m.resultado_apurado !== undefined) {
+        const at = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
+        if (at !== null) {
+          sum += at
+          count++
+          okrStatusCounts[resolveOkrStatus(at)]++
+        }
+      } else {
+        okrStatusCounts.Pendente++
+      }
+    })
+    const avg = count > 0 ? sum / count : null
+    if (avg !== null) {
+      okrTotalScore += avg * t.peso
+      okrTotalWeight += t.peso
+      if (!perspScore[t.perspectiva]) perspScore[t.perspectiva] = { score: 0, weight: 0 }
+      perspScore[t.perspectiva].score += avg * t.peso
+      perspScore[t.perspectiva].weight += t.peso
+    }
+  })
+  const okrGlobalScore = okrTotalWeight > 0 ? Math.round((okrTotalScore / okrTotalWeight) * 100) : null
+  const okrPerspectiveRows = Object.entries(perspScore)
+    .map(([p, v]) => [p, v.weight > 0 ? Math.round((v.score / v.weight) * 100) : 0] as [string, number])
+    .sort((a, b) => b[1] - a[1])
+  const hasOkr = okrTargets.length > 0
 
   const narrative: string[] = []
   const byProduct = Object.entries(countsBy(filtered, i => i.product ?? 'Sem produto')).sort((a, b) => b[1] - a[1])
@@ -215,6 +306,115 @@ export function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* ── Capacidade + Concentração de risco ───────────────── */}
+      <div className="dash-section">
+        <div className="section-head">
+          <h2 className="section-title"><Users size={18} /> Capacidade e concentração de risco</h2>
+        </div>
+        <div className="grid two">
+          <div className="card panel-owner">
+            <div className="card-head">
+              <h3 className="card-title">Carga por responsável</h3>
+              <Badge label={`${weeklyCapacity}h/sem`} tone="tone-gray" />
+            </div>
+            <div className="card-body">
+              {loadEntries.length === 0 ? (
+                <div className="empty">Sem esforço alocado no recorte atual.</div>
+              ) : (
+                <div className="capacity-bars">
+                  {loadEntries.map(([owner, h]) => {
+                    const pct = Math.round((h / weeklyCapacity) * 100)
+                    const tone = capacityTone(pct)
+                    return (
+                      <div key={owner} className="capacity-row">
+                        <b title={owner}>{owner}</b>
+                        <div className={`capacity-track ${tone}`}><i style={{ width: `${Math.min(160, pct)}%` }} /></div>
+                        <small>{Math.round(h)}h / {pct}%</small>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="card panel-gaps">
+            <div className="card-head">
+              <h3 className="card-title">Concentração de risco</h3>
+              <Badge label={`${riskEntries.length} responsáveis`} tone="tone-red" />
+            </div>
+            <div className="card-body">
+              <div className="insight-list">
+                {riskEntries.length === 0 ? (
+                  <div className="empty">Nenhum responsável com itens em risco no recorte atual.</div>
+                ) : (
+                  riskEntries.map(([owner, r]) => (
+                    <div key={owner} className="insight">
+                      <div className="task-meta" style={{ marginBottom: 6 }}>
+                        <Badge label={owner} />
+                        {r.crit > 0 && <Badge label={`${r.crit} crítico(s)`} tone="tone-red" />}
+                        {r.att > 0 && <Badge label={`${r.att} em atenção`} tone="tone-amber" />}
+                      </div>
+                      <span>{r.crit > 0 ? 'Priorizar destrave imediato das frentes críticas.' : 'Acompanhar de perto para evitar escalada de prazo.'}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Atingimento de OKRs ──────────────────────────────── */}
+      {hasOkr && (
+        <div className="dash-section">
+          <div className="section-head">
+            <h2 className="section-title"><Target size={18} /> Atingimento de OKRs</h2>
+            {activePeriod && <Badge label={activePeriod} tone="tone-blue" />}
+          </div>
+          {isOkrFallback && (
+            <p className="dep-note" style={{ marginBottom: 12 }}>
+              Exibindo dados de demonstração — conecte os OKRs reais para refletir o período corrente.
+            </p>
+          )}
+          <div className="grid two">
+            <div className="card panel-health">
+              <div className="card-head"><h3 className="card-title">Score global ponderado</h3></div>
+              <div className="card-body">
+                <div className="health-wrap">
+                  <ProgressGauge value={Math.min(100, okrGlobalScore ?? 0)} />
+                </div>
+                {okrPerspectiveRows.length > 0 && (
+                  <div className="capacity-bars" style={{ marginTop: 16 }}>
+                    {okrPerspectiveRows.map(([persp, score]) => (
+                      <div key={persp} className="capacity-row">
+                        <b title={persp}>{persp}</b>
+                        <div className="capacity-track"><i style={{ width: `${Math.min(100, score)}%` }} /></div>
+                        <small>{score}%</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-head"><h3 className="card-title">Distribuição por status</h3></div>
+              <div className="card-body">
+                <div className="insight-list">
+                  {(['Atingido', 'Parcial', 'Crítico', 'Pendente'] as OKRStatus[]).map(st => (
+                    <div key={st} className="insight">
+                      <div className="task-meta">
+                        <Badge label={st} tone={okrStatusTone(st)} />
+                        <strong style={{ marginLeft: 'auto', fontSize: 18 }}>{okrStatusCounts[st]}</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Gains Summary ───────────────────────────────────── */}
       {gains.length > 0 && (

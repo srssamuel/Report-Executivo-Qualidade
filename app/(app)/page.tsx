@@ -1244,7 +1244,7 @@ export default function AppPage() {
       </div>
 
       {/* ── Views ────────────────────────────────────────────── */}
-      {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} />}
+      {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} okrTargets={okrTargets} okrMeasurements={okrMeasurements} isOkrFallback={isOkrFallback} weeklyCapacity={weeklyCapacity} />}
       {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProductList} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}

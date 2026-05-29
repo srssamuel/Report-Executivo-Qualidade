@@ -47,7 +47,7 @@ function parseEmailList(raw: string): { email: string; name: string }[] {
   })
 }
 
-const INVITE_ROLES: Role[] = ['gerente', 'coordenador', 'consultor', 'analista', 'viewer']
+const INVITE_ROLES: Role[] = ['superintendente', 'gerente', 'coordenador', 'consultor', 'lider', 'analista', 'viewer']
 
 interface AdminUsersClientProps {
   users: UserProfile[]
