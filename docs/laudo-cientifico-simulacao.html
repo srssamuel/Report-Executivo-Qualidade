@@ -207,6 +207,22 @@
   footer.foot .scale span { display: inline-flex; align-items: center; gap: 6px; }
   footer.foot .scale i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 
+  /* ── Detalhamento por competência ── */
+  .bd-domain { margin-bottom: 22px; }
+  .bd-dom-head { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; background: #f1f5f9; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+  .bd-comp { padding: 0 0 12px 14px; margin-bottom: 12px; border-left: 2px solid #e2e8f0; }
+  .bd-comp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+  .bd-comp-head .bd-score { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bd-note { margin: 4px 0 9px; font-size: 12px; color: var(--body); line-height: 1.55; }
+  .bd-subs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bd-sub { font-size: 10.5px; padding: 3px 9px; border-radius: 6px; font-weight: 600; }
+  .bd-comp.hi { border-left-color: #86efac; } .bd-comp.hi .bd-score, .bd-comp.hi .bd-note b { color: #047857; }
+  .bd-comp.mid { border-left-color: #fde68a; } .bd-comp.mid .bd-score, .bd-comp.mid .bd-note b { color: #b45309; }
+  .bd-comp.dev { border-left-color: #fda4af; } .bd-comp.dev .bd-score, .bd-comp.dev .bd-note b { color: #be123c; }
+  .bd-sub.hi { background: #ecfdf5; color: #047857; }
+  .bd-sub.mid { background: #fffbeb; color: #b45309; }
+  .bd-sub.dev { background: #fff1f2; color: #be123c; }
+
   @media (max-width: 760px) {
     body { padding: 16px 8px 48px; }
     section, header.head, footer.foot { padding-left: 22px; padding-right: 22px; }
@@ -363,6 +379,55 @@
           <div class="crow"><div class="ct"><span class="cn">Autogestão &amp; Foco <span class="cdomain">· Energia</span></span><span class="cs" style="color:var(--band-mid)">60</span></div><div class="mini"><i style="width:60%;background:var(--band-mid)"></i></div></div>
           <div class="crow"><div class="ct"><span class="cn">Negociação &amp; Conflito <span class="cdomain">· Relação</span></span><span class="cs" style="color:var(--band-mid)">62</span></div><div class="mini"><i style="width:62%;background:var(--band-mid)"></i></div></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ════ DETALHAMENTO POR COMPETÊNCIA ════ -->
+    <section>
+      <p class="sec-label">Detalhamento por competência — todos os 72 itens</p>
+      <p style="font-size:12.5px;color:#64748b;margin:-4px 0 18px;max-width:760px">Score e leitura de cada uma das 18 competências e 54 sub-competências. Comentário por banda: <b style="color:#047857">Excepcional ≥ 80</b> · <b style="color:#b45309">Proficiente 60–79</b> · <b style="color:#be123c">Em desenvolvimento &lt; 60</b>.</p>
+
+      <!-- A. Cognição -->
+      <div class="bd-domain">
+        <div class="bd-dom-head"><span>A. Cognição &amp; Análise</span><span style="color:#047857">88 / 100 · Excepcional</span></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Pensamento Analítico</span><span class="bd-score">92 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Capacidade de ler dados, raciocinar de forma crítica e formular hipóteses.</p><div class="bd-subs"><span class="bd-sub hi">Leitura de dados · 94</span><span class="bd-sub hi">Raciocínio crítico · 91</span><span class="bd-sub hi">Formulação de hipóteses · 90</span></div></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Fluência em IA Aplicada</span><span class="bd-score">86 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Repertório de IA, julgamento sobre os outputs e pensamento de prompt.</p><div class="bd-subs"><span class="bd-sub hi">Repertório de IA · 88</span><span class="bd-sub hi">Julgamento de outputs · 85</span><span class="bd-sub hi">Pensamento de prompt · 85</span></div></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Visão Sistêmica</span><span class="bd-score">84 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Conexão entre áreas, pensamento de segunda ordem e síntese.</p><div class="bd-subs"><span class="bd-sub hi">Conexão entre áreas · 86</span><span class="bd-sub hi">Pensamento de 2ª ordem · 82</span><span class="bd-sub hi">Síntese · 84</span></div></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Resolução de Problemas</span><span class="bd-score">87 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Decomposição, priorização e criatividade aplicada à solução.</p><div class="bd-subs"><span class="bd-sub hi">Decomposição · 89</span><span class="bd-sub hi">Priorização · 88</span><span class="bd-sub hi">Criatividade aplicada · 84</span></div></div>
+      </div>
+
+      <!-- B. Negócio -->
+      <div class="bd-domain">
+        <div class="bd-dom-head"><span>B. Negócio &amp; Cliente</span><span style="color:#047857">81 / 100 · Excepcional</span></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Experiência do Cliente</span><span class="bd-score">83 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Empatia de jornada, leitura de fricção e construção de valor percebido.</p><div class="bd-subs"><span class="bd-sub hi">Empatia de jornada · 85</span><span class="bd-sub hi">Leitura de fricção · 84</span><span class="bd-sub hi">Valor percebido · 80</span></div></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Orientação a Resultado</span><span class="bd-score">85 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Foco em impacto, disciplina de entrega e accountability.</p><div class="bd-subs"><span class="bd-sub hi">Foco em impacto · 87</span><span class="bd-sub hi">Disciplina de entrega · 86</span><span class="bd-sub hi">Accountability · 82</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Visão de Negócio</span><span class="bd-score">78 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Noção de receita e custo, leitura de mercado e pensamento estratégico.</p><div class="bd-subs"><span class="bd-sub mid">Noção de receita e custo · 76</span><span class="bd-sub mid">Leitura de mercado · 78</span><span class="bd-sub hi">Pensamento estratégico · 80</span></div></div>
+      </div>
+
+      <!-- C. Energia -->
+      <div class="bd-domain">
+        <div class="bd-dom-head"><span>C. Energia &amp; Equilíbrio Emocional</span><span style="color:#be123c">57 / 100 · Em desenvolvimento</span></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Inteligência Emocional</span><span class="bd-score">63 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Autoconsciência, autorregulação e empatia.</p><div class="bd-subs"><span class="bd-sub mid">Autoconsciência · 66</span><span class="bd-sub mid">Autorregulação · 60</span><span class="bd-sub mid">Empatia · 63</span></div></div>
+        <div class="bd-comp dev"><div class="bd-comp-head"><span>Tônus Vital</span><span class="bd-score">52 · Em desenvolvimento</span></div><p class="bd-note"><b>Priorize no plano de desenvolvimento.</b> Vitalidade, gestão de energia e presença.</p><div class="bd-subs"><span class="bd-sub dev">Vitalidade · 50</span><span class="bd-sub dev">Gestão de energia · 51</span><span class="bd-sub dev">Presença · 55</span></div></div>
+        <div class="bd-comp dev"><div class="bd-comp-head"><span>Resiliência</span><span class="bd-score">58 · Em desenvolvimento</span></div><p class="bd-note"><b>Priorize no plano de desenvolvimento.</b> Recuperação à adversidade, tolerância à ambiguidade e estabilidade sob pressão.</p><div class="bd-subs"><span class="bd-sub mid">Recuperação à adversidade · 60</span><span class="bd-sub dev">Tolerância à ambiguidade · 57</span><span class="bd-sub dev">Estabilidade sob pressão · 57</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Autogestão &amp; Foco</span><span class="bd-score">60 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Disciplina, gestão de atenção e autonomia.</p><div class="bd-subs"><span class="bd-sub mid">Disciplina · 64</span><span class="bd-sub dev">Gestão de atenção · 56</span><span class="bd-sub mid">Autonomia · 60</span></div></div>
+      </div>
+
+      <!-- D. Relação -->
+      <div class="bd-domain">
+        <div class="bd-dom-head"><span>D. Relação &amp; Influência</span><span style="color:#b45309">64 / 100 · Proficiente</span></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Relacionamento</span><span class="bd-score">67 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Construção de vínculo, colaboração e rede de contatos.</p><div class="bd-subs"><span class="bd-sub mid">Construção de vínculo · 70</span><span class="bd-sub mid">Colaboração · 68</span><span class="bd-sub mid">Rede de contatos · 63</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Comunicação &amp; Influência</span><span class="bd-score">66 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Clareza, narrativa e escuta ativa.</p><div class="bd-subs"><span class="bd-sub mid">Clareza · 70</span><span class="bd-sub mid">Narrativa · 64</span><span class="bd-sub mid">Escuta ativa · 64</span></div></div>
+        <div class="bd-comp dev"><div class="bd-comp-head"><span>Liderança &amp; Desenvolvimento</span><span class="bd-score">59 · Em desenvolvimento</span></div><p class="bd-note"><b>Priorize no plano de desenvolvimento.</b> Inspirar, delegar e dar feedback.</p><div class="bd-subs"><span class="bd-sub mid">Inspirar · 60</span><span class="bd-sub dev">Delegar · 54</span><span class="bd-sub mid">Dar feedback · 63</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Negociação &amp; Gestão de Conflito</span><span class="bd-score">62 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Assertividade, mediação e busca de ganha-ganha.</p><div class="bd-subs"><span class="bd-sub mid">Assertividade · 64</span><span class="bd-sub mid">Mediação · 60</span><span class="bd-sub mid">Busca de ganha-ganha · 62</span></div></div>
+      </div>
+
+      <!-- E. Crescimento -->
+      <div class="bd-domain">
+        <div class="bd-dom-head"><span>E. Crescimento &amp; Propósito</span><span style="color:#b45309">73 / 100 · Proficiente</span></div>
+        <div class="bd-comp hi"><div class="bd-comp-head"><span>Aprendizado Contínuo</span><span class="bd-score">81 · Excepcional</span></div><p class="bd-note"><b>Ponto forte consolidado.</b> Autodesenvolvimento, curiosidade e capacidade de desaprender.</p><div class="bd-subs"><span class="bd-sub hi">Autodesenvolvimento · 84</span><span class="bd-sub hi">Curiosidade · 82</span><span class="bd-sub mid">Capacidade de desaprender · 77</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Adaptabilidade &amp; Inovação</span><span class="bd-score">72 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Abertura à mudança, experimentação e iniciativa.</p><div class="bd-subs"><span class="bd-sub mid">Abertura à mudança · 74</span><span class="bd-sub mid">Experimentação · 70</span><span class="bd-sub mid">Iniciativa · 72</span></div></div>
+        <div class="bd-comp mid"><div class="bd-comp-head"><span>Propósito &amp; Direção</span><span class="bd-score">70 · Proficiente</span></div><p class="bd-note"><b>Sólido, com espaço para refinar.</b> Clareza de objetivo, intencionalidade e alinhamento valor-trabalho.</p><div class="bd-subs"><span class="bd-sub mid">Clareza de objetivo · 72</span><span class="bd-sub mid">Intencionalidade · 70</span><span class="bd-sub mid">Alinhamento valor-trabalho · 68</span></div></div>
       </div>
     </section>
 
