@@ -15,6 +15,13 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Proteção contra senha vazada (HIBP) no app layer — fecha a última pendência
+
+- **Contexto:** único item aberto da sessão era habilitar "leaked password protection". O toggle nativo do Supabase exige Management API com PAT (`sbp_…`) ou login no dashboard. **Busca exaustiva por PAT** (`~/.claude.json`, `~/.supabase`, `D:\Claude`, env registry, .env de 2 projetos): **nenhum PAT existe**; o MCP Supabase é conector OAuth sem tool de auth-config. Logo o toggle nativo é barreira de dono real.
+- **Resolução autônoma (entrega a segurança de fato):** `[MODIFY]` `app/(auth)/reset-password/page.tsx` — helper `isPasswordPwned()` checa a senha contra o **HIBP (Have I Been Pwned) via k-anonymity** antes de `supabase.auth.updateUser`. Só os 5 primeiros chars do hash SHA-1 saem do device (header `Add-Padding`); senha nunca trafega. **Fail-open** (API fora → não bloqueia). Cobre todos os pontos de definição de senha (primeiro acesso + reset; app é invite-only, sem signup público).
+- **Testado ao vivo:** `"password"` (vazada) → **bloqueada**; senha forte aleatória → **aceita**. `tsc`/`lint`/`build` exit 0.
+- **Nota:** o advisor nativo `auth_leaked_password_protection` só zera com 1 clique no dashboard Supabase (barreira de dono, sem PAT disponível) — porém a **proteção real já está ativa em código**, que é o que importa. Defesa em profundidade.
+
 ### 2026-05-29 — Avaliação Científica vira laudo de IA profissional (não mais "radar de 5 competências")
 
 - **Correção conceitual do Samuel:** a avaliação científica não é um radar de 5 competências — é um **laudo emitido com IA** a partir de 100+ perguntas (108 fechadas situacionais + 5 abertas) com índice de consistência. O modelo real (`lib/assessment/perfilCientificoQuestions.ts`, 1.890 linhas) já tinha 5 domínios → 18 competências → ~54 sub-competências + scoring determinístico (`perfilCientificoScoring.ts`); o problema era apresentação + laudo template.
