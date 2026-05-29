@@ -48,6 +48,16 @@ function scoreBand(score: number): { label: string; note: string; color: string;
   return { label: 'Em desenvolvimento', note: 'Priorize no plano de desenvolvimento', color: '#be123c', bg: '#fff1f2' }
 }
 
+// Cor por domínio (consistente com o detalhamento do laudo) — usada no seletor
+// de competências do PDI.
+const DOMAIN_COLOR: Record<string, string> = {
+  cognicao: '#2563eb',
+  negocio: '#0891b2',
+  energia: '#db2777',
+  relacao: '#7c3aed',
+  crescimento: '#059669',
+}
+
 interface DevelopmentViewProps {
   items: Item[]
   pdis: UserPDI[]
@@ -2040,54 +2050,70 @@ export function DevelopmentView({
 
               {/* Section 3 — Competências Vértice */}
               <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Star size={14} style={{ color: '#f59e0b' }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     Competências Vértice em Foco
                   </span>
+                  {pdiForm.competencias_foco.length > 0 && (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--color-primary)', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '1px 8px', borderRadius: 999 }}>
+                      {pdiForm.competencias_foco.length} selecionada{pdiForm.competencias_foco.length > 1 ? 's' : ''}
+                    </span>
+                  )}
                   <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
                 </div>
-                <div style={{
-                  maxHeight: 180, overflowY: 'auto',
-                  border: '1px solid #e2e8f0', padding: 12, borderRadius: 8,
-                  display: 'flex', flexDirection: 'column', gap: 6,
-                  backgroundColor: '#fafbfc'
-                }}>
-                  {COMPETENCIES.map(comp => (
-                    <label key={comp.slug} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      fontSize: 12, cursor: 'pointer',
-                      padding: '5px 8px', borderRadius: 6,
-                      backgroundColor: pdiForm.competencias_foco.includes(comp.slug) ? '#eff6ff' : 'transparent',
-                      border: `1px solid ${pdiForm.competencias_foco.includes(comp.slug) ? '#bfdbfe' : 'transparent'}`,
-                      transition: 'all 0.1s'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={pdiForm.competencias_foco.includes(comp.slug)}
-                        onChange={e => {
-                          const checked = e.target.checked
-                          setPdiForm(prev => {
-                            const current = prev.competencias_foco
-                            const next = checked
-                              ? [...current, comp.slug]
-                              : current.filter(s => s !== comp.slug)
-                            return { ...prev, competencias_foco: next }
-                          })
-                        }}
-                      />
-                      <span style={{ fontWeight: pdiForm.competencias_foco.includes(comp.slug) ? 600 : 400, color: '#1e293b' }}>
-                        {comp.name}
-                      </span>
-                      <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 'auto' }}>
-                        {DOMAINS.find(d => d.slug === comp.domain)?.name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Star size={9} style={{ color: '#f59e0b' }} />
-                  Selecione as competências prioritárias para o desenvolvimento deste trimestre.
+                <p style={{ fontSize: 11.5, color: '#64748b', margin: '0 0 14px' }}>
+                  Toque para selecionar as competências prioritárias deste trimestre — agrupadas pelos 5 domínios.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {DOMAINS.map(domain => {
+                    const comps = COMPETENCIES.filter(c => c.domain === domain.slug)
+                    const color = DOMAIN_COLOR[domain.slug] ?? '#2563eb'
+                    return (
+                      <div key={domain.slug}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+                          <span style={{ width: 9, height: 9, borderRadius: 3, background: color, flex: 'none' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>{domain.name}</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }} className="responsive-grid">
+                          {comps.map(comp => {
+                            const selected = pdiForm.competencias_foco.includes(comp.slug)
+                            return (
+                              <button
+                                key={comp.slug}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => setPdiForm(prev => {
+                                  const has = prev.competencias_foco.includes(comp.slug)
+                                  return { ...prev, competencias_foco: has ? prev.competencias_foco.filter(s => s !== comp.slug) : [...prev.competencias_foco, comp.slug] }
+                                })}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', width: '100%',
+                                  padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
+                                  border: `1.5px solid ${selected ? color : '#e2e8f0'}`,
+                                  background: selected ? `${color}14` : '#fff',
+                                  transition: 'border-color 0.12s, background 0.12s'
+                                }}
+                              >
+                                <span style={{
+                                  width: 18, height: 18, borderRadius: 5, flex: 'none',
+                                  border: `1.5px solid ${selected ? color : '#cbd5e1'}`,
+                                  background: selected ? color : '#fff',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  color: '#fff', fontSize: 12, fontWeight: 800, lineHeight: 1
+                                }}>
+                                  {selected ? '✓' : ''}
+                                </span>
+                                <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 500, color: selected ? '#0f172a' : '#334155', lineHeight: 1.25 }}>
+                                  {comp.name}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 

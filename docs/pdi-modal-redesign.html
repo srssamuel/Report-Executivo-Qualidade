@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PDI — modal redesenhado (simulação)</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --ink: #0f172a; --ink2: #1e293b; --body: #334155; --muted: #64748b; --line: #e2e8f0;
+    --d-cognicao:#2563eb; --d-negocio:#0891b2; --d-energia:#db2777; --d-relacao:#7c3aed; --d-crescimento:#059669;
+    --sans:"Inter",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:#e9edf3;min-height:100vh;
+    background-image:radial-gradient(120% 80% at 50% 0%, #eef2f8, #dbe3ee);}
+  .backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);
+    display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto;}
+  .modal{width:100%;max-width:660px;background:#fff;border-radius:12px;overflow:hidden;
+    box-shadow:0 24px 64px rgba(0,0,0,.22);}
+  .head{background:linear-gradient(135deg,var(--primary) 0%,#1e40af 100%);padding:20px 24px;
+    display:flex;align-items:center;justify-content:space-between;}
+  .head .mk{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);
+    border:1px solid rgba(255,255,255,.3);display:grid;place-items:center;color:#fff;}
+  .head h3{margin:0;font-size:16px;font-weight:700;color:#fff;}
+  .head p{margin:0;font-size:11px;color:rgba(255,255,255,.75);}
+  .head .x{background:rgba(255,255,255,.15);border:none;border-radius:8px;color:#fff;cursor:pointer;
+    width:32px;height:32px;display:grid;place-items:center;font-size:18px;}
+  form{padding:24px;}
+  .sec{margin-bottom:24px;}
+  .sec-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .sec-ic{font-size:14px;}
+  .sec-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;}
+  .sec-rule{flex:1;height:1px;background:var(--line);}
+  .count{font-size:10.5px;font-weight:700;color:var(--primary);background:#eff6ff;border:1px solid #bfdbfe;padding:1px 8px;border-radius:999px;}
+  .label{display:block;font-size:12px;font-weight:600;color:#5f7188;margin-bottom:6px;}
+  .ctrl{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  select,textarea{width:100%;font-family:inherit;font-size:13px;border:1px solid #d1d5db;border-radius:8px;
+    background:#f8fafc;padding:9px 11px;color:var(--ink2);}
+  textarea{resize:vertical;}
+  .hint{font-size:11.5px;color:var(--muted);margin:0 0 14px;}
+  .dom{margin-bottom:0;}
+  .dom + .dom{margin-top:16px;}
+  .dom-head{display:flex;align-items:center;gap:7px;margin-bottom:9px;}
+  .dom-dot{width:9px;height:9px;border-radius:3px;flex:none;}
+  .dom-name{font-size:11px;font-weight:700;color:#334155;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .chip{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:10px 12px;border-radius:9px;
+    cursor:pointer;border:1.5px solid var(--line);background:#fff;font-family:inherit;transition:.12s;}
+  .chip .box{width:18px;height:18px;border-radius:5px;flex:none;border:1.5px solid #cbd5e1;background:#fff;
+    display:grid;place-items:center;color:#fff;font-size:12px;font-weight:800;line-height:1;}
+  .chip .nm{font-size:12.5px;font-weight:500;color:#334155;line-height:1.25;}
+  .foot{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;}
+  .btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--body);}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;display:inline-flex;align-items:center;gap:6px;}
+  .ribbon{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#fffbeb;border:1px solid #fde68a;color:#92400e;
+    border-radius:999px;padding:6px 16px;font-size:12px;z-index:10;}
+</style>
+</head>
+<body>
+  <div class="ribbon"><b>Simulação</b> — modal de PDI redesenhado (depois). Seletor de competências agrupado por domínio.</div>
+  <div class="backdrop">
+    <div class="modal">
+      <div class="head">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="mk">◎</div>
+          <div>
+            <h3>Estruturar Novo PDI</h3>
+            <p>Plano de Desenvolvimento Individual · Mariana Andrade</p>
+          </div>
+        </div>
+        <button class="x">×</button>
+      </div>
+      <form onsubmit="return false">
+        <!-- Período e Status -->
+        <div class="sec">
+          <div class="sec-head"><span class="sec-ic">🕐</span><span class="sec-title">Período e Status</span><span class="sec-rule"></span></div>
+          <div class="ctrl">
+            <div><span class="label">Trimestre</span><select><option>Q2 (Abr-Jun)</option></select></div>
+            <div><span class="label">Status do PDI</span><select><option>Ativo</option></select></div>
+          </div>
+        </div>
+        <!-- Objetivo -->
+        <div class="sec">
+          <div class="sec-head"><span class="sec-ic" style="color:#10b981">📈</span><span class="sec-title">Objetivo de Carreira</span><span class="sec-rule"></span></div>
+          <span class="label">Meta Principal de Evolução Profissional</span>
+          <textarea rows="2">Assumir a gerência de Qualidade em 2 anos, com um time mais autônomo.</textarea>
+        </div>
+        <!-- Competências (REDESENHADO) -->
+        <div class="sec">
+          <div class="sec-head"><span class="sec-ic" style="color:#f59e0b">★</span><span class="sec-title">Competências Vértice em Foco</span><span class="count">3 selecionadas</span><span class="sec-rule"></span></div>
+          <p class="hint">Toque para selecionar as competências prioritárias deste trimestre — agrupadas pelos 5 domínios.</p>
+
+          <div class="dom">
+            <div class="dom-head"><span class="dom-dot" style="background:var(--d-cognicao)"></span><span class="dom-name">Cognição &amp; Análise</span></div>
+            <div class="grid">
+              <button class="chip" style="border-color:var(--d-cognicao);background:#2563eb14"><span class="box" style="border-color:var(--d-cognicao);background:var(--d-cognicao)">✓</span><span class="nm" style="font-weight:600;color:#0f172a">Pensamento Analítico</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Fluência em IA Aplicada</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Visão Sistêmica</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Resolução de Problemas</span></button>
+            </div>
+          </div>
+          <div class="dom">
+            <div class="dom-head"><span class="dom-dot" style="background:var(--d-negocio)"></span><span class="dom-name">Negócio &amp; Cliente</span></div>
+            <div class="grid">
+              <button class="chip"><span class="box"></span><span class="nm">Experiência do Cliente</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Orientação a Resultado</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Visão de Negócio</span></button>
+            </div>
+          </div>
+          <div class="dom">
+            <div class="dom-head"><span class="dom-dot" style="background:var(--d-energia)"></span><span class="dom-name">Energia &amp; Equilíbrio Emocional</span></div>
+            <div class="grid">
+              <button class="chip"><span class="box"></span><span class="nm">Inteligência Emocional</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Tônus Vital</span></button>
+              <button class="chip" style="border-color:var(--d-energia);background:#db277714"><span class="box" style="border-color:var(--d-energia);background:var(--d-energia)">✓</span><span class="nm" style="font-weight:600;color:#0f172a">Resiliência</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Autogestão &amp; Foco</span></button>
+            </div>
+          </div>
+          <div class="dom">
+            <div class="dom-head"><span class="dom-dot" style="background:var(--d-relacao)"></span><span class="dom-name">Relação &amp; Influência</span></div>
+            <div class="grid">
+              <button class="chip"><span class="box"></span><span class="nm">Relacionamento</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Comunicação &amp; Influência</span></button>
+              <button class="chip" style="border-color:var(--d-relacao);background:#7c3aed14"><span class="box" style="border-color:var(--d-relacao);background:var(--d-relacao)">✓</span><span class="nm" style="font-weight:600;color:#0f172a">Liderança &amp; Desenvolvimento</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Negociação &amp; Gestão de Conflito</span></button>
+            </div>
+          </div>
+          <div class="dom">
+            <div class="dom-head"><span class="dom-dot" style="background:var(--d-crescimento)"></span><span class="dom-name">Crescimento &amp; Propósito</span></div>
+            <div class="grid">
+              <button class="chip"><span class="box"></span><span class="nm">Aprendizado Contínuo</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Adaptabilidade &amp; Inovação</span></button>
+              <button class="chip"><span class="box"></span><span class="nm">Propósito &amp; Direção</span></button>
+            </div>
+          </div>
+        </div>
+        <!-- Plano -->
+        <div class="sec" style="margin-bottom:8px">
+          <div class="sec-head"><span class="sec-ic">✅</span><span class="sec-title">Plano de Ações</span><span class="sec-rule"></span></div>
+          <span class="label">Ações Pactuadas, Cursos e Mentorias</span>
+          <textarea rows="3">1. Delegar a auditoria mensal a um analista (checkpoint semanal). 2. Mentoria de liderança. 3. Bloco fixo de 90 min/semana para trabalho estratégico.</textarea>
+        </div>
+        <div class="foot">
+          <button class="btn">Cancelar</button>
+          <button class="btn primary">◎ Salvar PDI</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
