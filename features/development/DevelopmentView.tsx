@@ -113,10 +113,6 @@ export function DevelopmentView({
   })
 
   // AI analysis state
-  const [isAiAnalysisLoading, setIsAiAnalysisLoading] = useState<boolean>(false)
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
-  const [aiProvider, setAiProvider] = useState<string | null>(null)
-  const [aiError, setAiError] = useState<string | null>(null)
   const [isFinalizing, setIsFinalizing] = useState(false)
 
   // PDI history expanded cards
@@ -523,39 +519,6 @@ export function DevelopmentView({
     setIsPdiModalOpen(true)
   }
 
-  const handleGenerateAiAnalysis = async () => {
-    if (!currentEvaluation) return
-    setIsAiAnalysisLoading(true)
-    setAiError(null)
-    setAiAnalysis(null)
-    setAiProvider(null)
-    try {
-      const res = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          collaborator_name: selectedCollaborator,
-          domain_scores: currentEvaluation.domain_scores,
-          competency_scores: currentEvaluation.competency_scores,
-          open_answers: currentEvaluation.open_answers ?? {},
-          consistency_index: currentEvaluation.consistency_index ?? 0,
-          consistency_label: currentEvaluation.consistency_label ?? 'Não calculado'
-        })
-      })
-      const data = (await res.json()) as { analysis?: string; provider?: string; error?: string }
-      if (!res.ok) {
-        setAiError(data.error ?? 'Erro ao gerar análise')
-      } else {
-        setAiAnalysis(data.analysis ?? '')
-        setAiProvider(data.provider ?? null)
-      }
-    } catch {
-      setAiError('Falha de conexão com o serviço de IA. Verifique se o Ollama está rodando.')
-    } finally {
-      setIsAiAnalysisLoading(false)
-    }
-  }
-
   // Prep Radar Data
   const radarData = useMemo(() => {
     if (!currentEvaluation) return []
@@ -924,84 +887,6 @@ export function DevelopmentView({
                     </div>
                   </div>
 
-                  {/* AI Analysis Card */}
-                  <div className="card" style={{ padding: 24 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: 14, marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Sparkles size={18} style={{ color: 'var(--color-primary)' }} />
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Análise Aprofundada com IA</h3>
-                          <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>
-                            {aiProvider === 'openai' ? 'Gerado via OpenAI GPT-4o-mini' : aiProvider === 'ollama' ? 'Gerado via Ollama (deepseek-coder-v2 — local)' : 'Powered by IA local ou OpenAI'}
-                          </p>
-                        </div>
-                      </div>
-                      {!aiAnalysis ? (
-                        <button
-                          onClick={handleGenerateAiAnalysis}
-                          disabled={isAiAnalysisLoading}
-                          className="btn btn-primary small"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 170 }}
-                        >
-                          {isAiAnalysisLoading ? (
-                            <>
-                              <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-                              Analisando...
-                            </>
-                          ) : (
-                            <><Sparkles size={12} /> Gerar Análise com IA</>
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => { setAiAnalysis(null); setAiProvider(null); setAiError(null); }}
-                          className="btn btn-secondary small"
-                          style={{ fontSize: 11 }}
-                        >
-                          Gerar Novamente
-                        </button>
-                      )}
-                    </div>
-
-                    {!aiAnalysis && !aiError && !isAiAnalysisLoading && (
-                      <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
-                        <Sparkles size={28} style={{ marginBottom: 10, opacity: 0.4 }} />
-                        <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: '1.5em' }}>
-                          Clique em <strong>Gerar Análise com IA</strong> para receber um diagnóstico personalizado com insights executivos, ações práticas e trilha de PDI recomendada.
-                        </p>
-                        <p style={{ margin: '8px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
-                          Usa Ollama local (deepseek-coder-v2) em dev ou OpenAI se a chave estiver configurada.
-                        </p>
-                      </div>
-                    )}
-
-                    {isAiAnalysisLoading && (
-                      <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
-                          <span style={{ width: 16, height: 16, border: '2px solid #e2e8f0', borderTopColor: 'var(--color-primary)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-                          Analisando perfil Vértice via IA — pode levar até 60 segundos...
-                        </div>
-                      </div>
-                    )}
-
-                    {aiError && (
-                      <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
-                        <strong>Erro:</strong> {aiError}
-                      </div>
-                    )}
-
-                    {aiAnalysis && (
-                      <div style={{ fontSize: 13, lineHeight: '1.7em', color: '#334155' }} className="markdown-content">
-                        {aiAnalysis.split('\n').map((line, idx) => {
-                          if (line.startsWith('###')) return <h3 key={idx} style={{ fontSize: 14, fontWeight: 700, marginTop: 18, marginBottom: 8, color: '#0f172a' }}>{line.replace(/^###\s*/, '')}</h3>
-                          if (line.startsWith('**') && line.endsWith('**')) return <p key={idx} style={{ fontWeight: 700, margin: '10px 0 4px 0', color: '#1e293b' }}>{line.replace(/\*\*/g, '')}</p>
-                          if (line.startsWith('•') || line.startsWith('-')) return <li key={idx} style={{ marginLeft: 16, marginBottom: 4 }}>{line.replace(/^[•-]\s*/, '')}</li>
-                          if (line.trim() === '') return <div key={idx} style={{ height: 8 }} />
-                          return <p key={idx} style={{ margin: '0 0 8px 0' }}>{line}</p>
-                        })}
-                      </div>
-                    )}
-                  </div>
 
                 </div>
 
