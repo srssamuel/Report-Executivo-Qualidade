@@ -145,7 +145,7 @@ export function CapacityView({
               min={1}
               max={999}
               value={weeklyCapacity}
-              onChange={e => setWeeklyCapacity(Number(e.target.value))}
+              onChange={e => setWeeklyCapacity(Math.max(1, Math.min(999, Math.floor(Number(e.target.value)) || 1)))}
             />
           </label>
         </div>

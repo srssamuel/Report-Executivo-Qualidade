@@ -80,6 +80,9 @@ export function DashboardView({
   /* ── Capacity heatmap (reuse ownerLoad + capacityTone) ── */
   const load = ownerLoad(filtered) // ownerLoad já filtra !isDone internamente
   const loadEntries = Object.entries(load).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  // Guard contra divisão por zero: weeklyCapacity é prop e vira 0 se o campo de
+  // capacidade for esvaziado (Number('') === 0), o que renderizaria "Infinity%".
+  const safeCapacity = weeklyCapacity > 0 ? weeklyCapacity : 30
 
   /* ── Risk concentration by owner ── */
   const ownerRisk: Record<string, { crit: number; att: number }> = {}
@@ -324,7 +327,7 @@ export function DashboardView({
               ) : (
                 <div className="capacity-bars">
                   {loadEntries.map(([owner, h]) => {
-                    const pct = Math.round((h / weeklyCapacity) * 100)
+                    const pct = Math.round((h / safeCapacity) * 100)
                     const tone = capacityTone(pct)
                     return (
                       <div key={owner} className="capacity-row">
