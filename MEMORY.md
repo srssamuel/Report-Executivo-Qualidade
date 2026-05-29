@@ -15,6 +15,16 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Passe de acessibilidade (WCAG): labels associados + aria-labels
+
+- **Achado real:** `<label>` não associado a input (sem htmlFor/id) em login/reset; selects de papel/gestor sem nome acessível. `:focus-visible` JÁ existe no design system (globals.css:1688, com variante dark) — ok.
+- **Corrigido (aditivo, risco zero):**
+  - `app/(auth)/login/page.tsx` — labels associados (login-email, login-password, forgot-email).
+  - `app/(auth)/reset-password/page.tsx` — labels associados (new-password, confirm-password).
+  - `features/admin/AdminUsersClient.tsx` — `aria-label` nos selects de Papel e Gestor imediato por linha (controles da atribuição de hierarquia, antes sem nome acessível).
+- **Decisão de escopo sênior:** corrigido o caminho crítico universal (auth) + os controles de hierarquia. Sweep de a11y nos forms mais profundos (modais de feedback/PDI, capacidade, invite form) e harness `@axe-core/playwright` no CI ficam como iniciativa escopada (não medível ad-hoc por causa do CSP estrito).
+- **Gate:** tsc/lint/build exit 0.
+
 ### 2026-05-29 — Console de produção ZERADO (0 erros / 0 warnings) — verificado ao vivo
 
 - Cadeia de correção dos erros de console (descobertos no gate visual ao vivo):
