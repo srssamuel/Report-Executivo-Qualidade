@@ -27,6 +27,19 @@ import {
 } from '@/lib/assessment/perfilCientificoScoring'
 import { Item, Role, OKRFeedback, OKRTarget, OKRMeasurement, UserPDI, ProfileEvaluation, UserProfile } from '@/shared/domain'
 
+// Renderiza markdown inline simples (negrito **x**) como nós React — sem
+// dangerouslySetInnerHTML. Usado no laudo para destacar nomes de competência.
+function renderInlineMd(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((p, i) =>
+    /^\*\*[^*]+\*\*$/.test(p) ? (
+      <strong key={i} style={{ color: '#0f172a', fontWeight: 700 }}>{p.slice(2, -2)}</strong>
+    ) : (
+      <span key={i}>{p}</span>
+    )
+  )
+}
+
 interface DevelopmentViewProps {
   items: Item[]
   pdis: UserPDI[]
@@ -104,6 +117,7 @@ export function DevelopmentView({
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
   const [aiProvider, setAiProvider] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [isFinalizing, setIsFinalizing] = useState(false)
 
   // PDI history expanded cards
   const [expandedPdis, setExpandedPdis] = useState<Set<string>>(new Set())
@@ -311,74 +325,97 @@ export function DevelopmentView({
 
   // Compute results and submit evaluation
   const handleCompleteSurvey = async () => {
-    // 1. Prepare scoring responses array
-    const scoringResponses = Object.entries(answers).map(([code, answer]) => ({
-      code,
-      answer
-    }))
-
-    // 2. Call the scientific scoring engine
-    const scoresResult = computePerfilCientificoScores(scoringResponses)
-
-    // 3. Generate deterministic premium Portuguese narrative report
-    const sortedComp = Object.entries(scoresResult.competencyScores)
-      .map(([slug, score]) => {
-        const comp = COMPETENCIES.find(c => c.slug === slug)
-        return { slug, name: comp ? comp.name : slug, score }
-      })
-      .sort((a, b) => b.score - a.score)
-    
-    const strengths = sortedComp.slice(0, 3)
-    const focuses = sortedComp.slice(-3).reverse()
-
-    let narrative = `### Análise Executiva de Perfil Científico (Protocolo Vértice)\n\n`
-    narrative += `#### 1. Síntese Geral do Perfil\n`
-    const highDomain = Object.entries(scoresResult.domainScores).sort((a, b) => b[1] - a[1])[0]
-    const domName = DOMAINS.find(d => d.slug === highDomain[0])?.name || highDomain[0]
-    
-    narrative += `Com base nas respostas situacionais analisadas sob o rigor do Protocolo Vértice, o profissional apresenta excelente alinhamento operacional e maturidade tática. O seu principal destaque reside no domínio de **${domName}** com média de **${highDomain[1]}/100**, o que revela forte discernimento estratégico e capacidade analítica em cenários de alta complexidade.\n\n`
-    
-    narrative += `#### 2. Principais Fortalezas (Top 3 Competências)\n`
-    strengths.forEach((s, idx) => {
-      narrative += `* **${idx + 1}. ${s.name}** (${s.score}/100): Ponto focal de alta proficiência. Representa segurança na condução de processos e resolução de problemas operacionais.\n`
-    })
-    narrative += `\n`
-
-    narrative += `#### 3. Oportunidades de Desenvolvimento (Top 3 Focos de Crescimento)\n`
-    focuses.forEach((f, idx) => {
-      narrative += `* **${idx + 1}. ${f.name}** (${f.score}/100): Área recomendada para PDI. Pequenos ajustes de atitude e foco aqui gerarão saltos exponenciais de eficiência operacional.\n`
-    })
-    narrative += `\n`
-
-    narrative += `#### 4. Diagnóstico Completo por Domínio Vértice\n`
-    DOMAINS.forEach(d => {
-      const score = scoresResult.domainScores[d.slug] || 0
-      let details: string
-      if (score >= 80) {
-        details = 'Nível Excepcional. Atua com excelência sistêmica, apto a mentorear outros membros do time e otimizar rotinas.'
-      } else if (score >= 60) {
-        details = 'Proficiente. Resolve problemas com boa autonomia e entrega valor coerente alinhado aos padrões.'
-      } else {
-        details = 'Em desenvolvimento. Demanda supervisão tática e incentivos dirigidos para consolidar boas práticas.'
-      }
-      narrative += `* **${d.name}** (${score}/100): ${details} _(${d.description})_\n`
-    })
-
-    const payload = {
-      user_id: currentUserId,
-      collaborator_name: selectedCollaborator,
-      status: 'completed' as const,
-      answers: answers as Record<string, string | number>,
-      open_answers: openAnswers as Record<string, string>,
-      domain_scores: scoresResult.domainScores as Record<string, number>,
-      competency_scores: scoresResult.competencyScores as Record<string, number>,
-      subcompetency_scores: scoresResult.subCompetencyScores as Record<string, number>,
-      consistency_index: scoresResult.consistencyIndex,
-      consistency_label: scoresResult.consistencyLabel,
-      laudo_narrativo: narrative
-    }
-
+    setIsFinalizing(true)
     try {
+      // 1. Respostas situacionais
+      const scoringResponses = Object.entries(answers).map(([code, answer]) => ({
+        code,
+        answer
+      }))
+
+      // 2. Motor de scoring determinístico (3 níveis + consistência)
+      const scoresResult = computePerfilCientificoScores(scoringResponses)
+
+      // 3. Narrativa determinística — FALLBACK (usada só quando não há provedor
+      //    de IA). Usa nomes reais de competência/domínio, as respostas abertas
+      //    e a ressalva de consistência. Não é mais um texto-padrão genérico.
+      const compName = (slug: string) => COMPETENCIES.find(c => c.slug === slug)?.name ?? slug
+      const sortedComp = Object.entries(scoresResult.competencyScores)
+        .map(([slug, score]) => ({ name: compName(slug), score }))
+        .sort((a, b) => b.score - a.score)
+      const strengths = sortedComp.slice(0, 3)
+      const focuses = sortedComp.slice(-3).reverse()
+      const sortedDom = Object.entries(scoresResult.domainScores)
+        .map(([slug, score]) => ({ name: DOMAINS.find(d => d.slug === slug)?.name ?? slug, score }))
+        .sort((a, b) => b.score - a.score)
+      const topDom = sortedDom[0]
+      const lowDom = sortedDom[sortedDom.length - 1]
+      const ci = scoresResult.consistencyIndex
+      const ciLine =
+        ci == null
+          ? 'O índice de consistência não pôde ser calculado nesta avaliação.'
+          : ci >= 80
+            ? `O índice de consistência (${Math.round(ci)}/100) é alto — respostas coerentes entre situações distintas conferem confiabilidade a esta leitura.`
+            : ci >= 60
+              ? `O índice de consistência (${Math.round(ci)}/100) é moderado — a leitura é válida, mas vale confirmar alguns pontos na prática.`
+              : `O índice de consistência (${Math.round(ci)}/100) é baixo — interprete com cautela e valide com observação direta.`
+
+      let fallback = `### Síntese Executiva do Perfil\n`
+      if (topDom) fallback += `O perfil tem como principal força o domínio de **${topDom.name}** (${Math.round(topDom.score)}/100). ${ciLine}\n\n`
+      if (lowDom && lowDom.name !== topDom?.name) fallback += `O maior espaço de evolução está em **${lowDom.name}** (${Math.round(lowDom.score)}/100).\n\n`
+      fallback += `### Fortalezas Principais e Manifestação Operacional\n`
+      strengths.forEach(s => { fallback += `* **${s.name}** (${Math.round(s.score)}/100) — competência consolidada; tende a ser referência do time nas situações que a exigem.\n` })
+      fallback += `\n### Oportunidades de Desenvolvimento com Ações Práticas\n`
+      focuses.forEach(f => { fallback += `* **${f.name}** (${Math.round(f.score)}/100) — priorize no PDI com uma ação concreta e mensurável para os próximos 90 dias.\n` })
+      const pain = openAnswers['OPEN-PAINS']?.trim()
+      const obj = openAnswers['OPEN-OBJECTIVE']?.trim()
+      if (pain || obj) {
+        fallback += `\n### Leitura à Luz do Relato\n`
+        if (pain && focuses[0]) fallback += `Sobre o desafio relatado — “${pain}” — desenvolver **${focuses[0].name}** é a alavanca mais direta.\n`
+        if (obj && strengths[0]) fallback += `Para o objetivo de “${obj}”, as forças em **${strengths[0].name}**${strengths[1] ? ` e **${strengths[1].name}**` : ''} são a base a capitalizar.\n`
+      }
+      fallback += `\n### Trilha de PDI Recomendada\n`
+      focuses.forEach((f, i) => { fallback += `${i + 1}. Desenvolver **${f.name}** com meta clara e checkpoint mensal.\n` })
+      fallback += `\n_Laudo determinístico do Protocolo Vértice. Com um provedor de IA conectado, o laudo passa a ser redigido e personalizado a partir das respostas abertas._`
+
+      // 4. Laudo AI-PRIMÁRIO: gera via IA (OpenAI/Ollama). Usa o fallback se a
+      //    IA estiver indisponível — degradação graciosa, nunca trava a entrega.
+      let laudo = fallback
+      try {
+        const res = await fetch('/api/ai/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collaborator_name: selectedCollaborator,
+            domain_scores: scoresResult.domainScores,
+            competency_scores: scoresResult.competencyScores,
+            open_answers: openAnswers,
+            consistency_index: scoresResult.consistencyIndex ?? 0,
+            consistency_label: scoresResult.consistencyLabel ?? 'não calculado'
+          })
+        })
+        if (res.ok) {
+          const data = (await res.json()) as { analysis?: string }
+          if (data.analysis && data.analysis.trim().length > 80) laudo = data.analysis.trim()
+        }
+      } catch {
+        // mantém o fallback determinístico
+      }
+
+      const payload = {
+        user_id: currentUserId,
+        collaborator_name: selectedCollaborator,
+        status: 'completed' as const,
+        answers: answers as Record<string, string | number>,
+        open_answers: openAnswers as Record<string, string>,
+        domain_scores: scoresResult.domainScores as Record<string, number>,
+        competency_scores: scoresResult.competencyScores as Record<string, number>,
+        subcompetency_scores: scoresResult.subCompetencyScores as Record<string, number>,
+        consistency_index: scoresResult.consistencyIndex,
+        consistency_label: scoresResult.consistencyLabel,
+        laudo_narrativo: laudo
+      }
+
       await onSaveEvaluation(payload)
       clearSurveyDraft()
       setIsSurveyActive(false)
@@ -386,7 +423,9 @@ export function DevelopmentView({
       setAnswers({})
       setOpenAnswers({})
     } catch (e) {
-      console.error("Erro ao salvar avaliação: ", e)
+      console.error('Erro ao salvar avaliação: ', e)
+    } finally {
+      setIsFinalizing(false)
     }
   }
 
@@ -769,11 +808,18 @@ export function DevelopmentView({
                           ) : (
                             <button
                               onClick={handleCompleteSurvey}
-                              disabled={!(openAnswers[q.code]?.trim())}
+                              disabled={!(openAnswers[q.code]?.trim()) || isFinalizing}
                               className="btn btn-primary"
-                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, backgroundColor: '#22c55e', borderColor: '#22c55e' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, backgroundColor: isFinalizing ? '#16a34a' : '#22c55e', borderColor: '#22c55e', opacity: isFinalizing ? 0.85 : 1 }}
                             >
-                              Finalizar e Gerar Laudo <CheckCircle2 size={16} />
+                              {isFinalizing ? (
+                                <>
+                                  <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                                  Gerando laudo com IA…
+                                </>
+                              ) : (
+                                <>Finalizar e Gerar Laudo <CheckCircle2 size={16} /></>
+                              )}
                             </button>
                           )}
                         </div>
@@ -800,8 +846,8 @@ export function DevelopmentView({
                   <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{ alignSelf: 'flex-start', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
                       <div>
-                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Radar de Competências Executivas</h3>
-                        <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>Distribuição de pontuações médias normalizadas (0-100) por domínio científico</p>
+                        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Evidência — Radar dos 5 Domínios</h3>
+                        <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>Médias normalizadas (0–100) por domínio científico — base quantitativa do laudo acima</p>
                       </div>
                       
                       {/* Consistency Badge */}
@@ -834,12 +880,12 @@ export function DevelopmentView({
                     </div>
                   </div>
 
-                  {/* Textual Narrative Report Card */}
-                  <div className="card" style={{ padding: 25 }}>
+                  {/* Laudo (diagnóstico) — protagonista da tela (order:-1 sobe antes do radar) */}
+                  <div className="card" style={{ padding: 25, order: -1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: 15, marginBottom: 15 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <FileText size={18} style={{ color: 'var(--color-primary)' }} />
-                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Diagnóstico Científico Executivo</h3>
+                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Laudo de Perfil Científico</h3>
                       </div>
                       
                       {selectedCollaborator === currentUserFullName && (
@@ -856,17 +902,21 @@ export function DevelopmentView({
                     <div style={{ fontSize: 13, lineHeight: '1.6em', color: '#334155' }} className="markdown-content">
                       {currentEvaluation.laudo_narrativo ? (
                         currentEvaluation.laudo_narrativo.split('\n').map((line, idx) => {
-                          if (line.startsWith('###')) {
-                            return <h3 key={idx} style={{ fontSize: 15, fontWeight: 700, marginTop: 20, marginBottom: 10, color: '#0f172a' }}>{line.replace('###', '').trim()}</h3>
+                          const t = line.trim()
+                          if (t.startsWith('####')) {
+                            return <h4 key={idx} style={{ fontSize: 13.5, fontWeight: 700, marginTop: 16, marginBottom: 8, color: '#1e293b' }}>{renderInlineMd(t.replace(/^#+\s*/, ''))}</h4>
                           }
-                          if (line.startsWith('####')) {
-                            return <h4 key={idx} style={{ fontSize: 14, fontWeight: 700, marginTop: 15, marginBottom: 8, color: '#1e293b' }}>{line.replace('####', '').trim()}</h4>
+                          if (t.startsWith('###')) {
+                            return <h3 key={idx} style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 22, marginBottom: 10, color: 'var(--color-primary)', borderLeft: '3px solid var(--color-primary)', paddingLeft: 10 }}>{renderInlineMd(t.replace(/^#+\s*/, ''))}</h3>
                           }
-                          if (line.startsWith('*')) {
-                            return <li key={idx} style={{ marginLeft: 15, marginBottom: 5 }}>{line.replace('*', '').trim()}</li>
+                          if (/^\d+\.\s/.test(t)) {
+                            return <li key={idx} style={{ marginLeft: 18, marginBottom: 6, listStylePosition: 'inside' }}>{renderInlineMd(t.replace(/^\d+\.\s*/, ''))}</li>
                           }
-                          if (line.trim() === '') return <div key={idx} style={{ height: 10 }} />
-                          return <p key={idx} style={{ marginBottom: 10 }}>{line}</p>
+                          if (t.startsWith('*') || t.startsWith('-')) {
+                            return <li key={idx} style={{ marginLeft: 18, marginBottom: 6 }}>{renderInlineMd(t.replace(/^[*-]\s*/, ''))}</li>
+                          }
+                          if (t === '') return <div key={idx} style={{ height: 9 }} />
+                          return <p key={idx} style={{ marginBottom: 10 }}>{renderInlineMd(t)}</p>
                         })
                       ) : (
                         <p>Nenhum laudo gerado para esta avaliação.</p>

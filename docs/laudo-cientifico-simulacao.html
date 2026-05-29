@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Laudo de Perfil Científico — Protocolo Vértice (Simulação)</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --ink-2: #1e293b;
+    --body: #334155;
+    --muted: #64748b;
+    --faint: #94a3b8;
+    --line: #e2e8f0;
+    --line-2: #eef2f7;
+    --surface: #ffffff;
+    --page: #e9edf3;
+    --primary: #2563eb;
+    --primary-deep: #1e3a8a;
+    /* domínios */
+    --d-cognicao: #2563eb;
+    --d-negocio: #0891b2;
+    --d-crescimento: #059669;
+    --d-relacao: #7c3aed;
+    --d-energia: #db2777;
+    /* bandas de score */
+    --band-high: #059669;
+    --band-mid: #d97706;
+    --band-dev: #e11d48;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Georgia", serif;
+    --sans: "Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--body);
+    font-family: var(--sans);
+    line-height: 1.6;
+    padding: 40px 20px 80px;
+  }
+
+  /* faixa de simulação */
+  .sim-ribbon {
+    max-width: 940px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 12.5px;
+    letter-spacing: .01em;
+  }
+  .sim-ribbon b { color: #78350f; }
+  .sim-ribbon .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex: none; }
+
+  .doc {
+    max-width: 940px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 24px 60px -28px rgba(15, 23, 42, .28), 0 4px 14px -8px rgba(15, 23, 42, .12);
+    overflow: hidden;
+  }
+
+  /* ── Cabeçalho ───────────────────────────── */
+  header.head {
+    background:
+      radial-gradient(120% 140% at 88% -20%, rgba(37,99,235,.30), transparent 60%),
+      #0b1220;
+    color: #e8edf6;
+    padding: 38px 44px 30px;
+    border-bottom: 3px solid var(--primary);
+    position: relative;
+  }
+  .wordmark {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
+    color: #93b4f5; font-weight: 600; margin-bottom: 20px;
+  }
+  .wordmark .mk {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 800;
+    box-shadow: 0 2px 8px rgba(37,99,235,.5);
+  }
+  .doc-kind { font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: #7f9bc9; margin: 0 0 6px; font-weight: 600; }
+  h1.doc-title {
+    font-family: var(--serif); font-weight: 600;
+    font-size: 33px; line-height: 1.12; margin: 0 0 4px; color: #fff;
+    letter-spacing: -.01em;
+  }
+  .doc-sub { color: #aab9d4; font-size: 14px; margin: 0; }
+
+  .subject {
+    display: flex; flex-wrap: wrap; gap: 26px 44px; align-items: flex-end;
+    margin-top: 26px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.10);
+  }
+  .subject .who { flex: 1 1 240px; }
+  .subject .name { font-size: 21px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+  .subject .role { font-size: 13.5px; color: #aab9d4; margin-top: 2px; }
+  .subject .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-size: 11.5px; padding: 6px 11px; border-radius: 999px;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: #cfdcf2;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  }
+  .chip.alta { background: rgba(5,150,105,.16); border-color: rgba(16,185,129,.4); color: #7ef0c2; }
+  .chip b { color: #fff; font-weight: 700; }
+
+  /* ── Seções ──────────────────────────────── */
+  section { padding: 34px 44px; border-bottom: 1px solid var(--line-2); }
+  .sec-label {
+    font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--primary); font-weight: 700; margin: 0 0 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* ── Evidência ───────────────────────────── */
+  .evidence { display: grid; grid-template-columns: 360px 1fr; gap: 36px; align-items: center; }
+  .radar-wrap { text-align: center; }
+  .radar-cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .legend { display: grid; grid-template-columns: 1fr; gap: 9px; margin-top: 14px; }
+  .lg-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--body); }
+  .lg-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .lg-name { flex: 1; text-align: left; }
+  .lg-score { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  .dombars { display: grid; gap: 15px; }
+  .dombar .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .dombar .nm { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+  .dombar .vl { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .track { height: 9px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+  .track > i { display: block; height: 100%; border-radius: 999px; }
+  .band { font-size: 10.5px; color: var(--faint); margin-left: 8px; font-weight: 600; letter-spacing: .03em; }
+
+  /* ── Laudo (narrativa, editorial) ────────── */
+  .laudo { background: linear-gradient(180deg, #fcfdff, #fff); }
+  .laudo .reading { max-width: 720px; }
+  .laudo h2 {
+    font-family: var(--sans); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--primary-deep); font-weight: 700; margin: 30px 0 12px;
+    padding-left: 13px; border-left: 3px solid var(--primary);
+  }
+  .laudo h2:first-of-type { margin-top: 4px; }
+  .laudo p, .laudo li { font-family: var(--serif); font-size: 16.5px; line-height: 1.78; color: #2b3a4f; }
+  .laudo p { margin: 0 0 15px; }
+  .laudo .lead::first-letter {
+    font-size: 56px; line-height: .82; font-weight: 600; float: left;
+    padding: 4px 12px 0 0; color: var(--primary-deep);
+  }
+  .laudo ul { margin: 0 0 16px; padding-left: 4px; list-style: none; }
+  .laudo ul li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  .laudo ul li::before {
+    content: ""; position: absolute; left: 4px; top: 12px; width: 7px; height: 7px;
+    border-radius: 2px; background: var(--primary);
+  }
+  .laudo li strong { color: var(--ink); font-weight: 700; }
+  .pdi-card {
+    background: #f8fafc; border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px 22px; margin: 6px 0 4px;
+  }
+  .pdi-card ol { margin: 0; padding-left: 20px; }
+  .pdi-card li { font-family: var(--serif); font-size: 15.5px; line-height: 1.6; margin-bottom: 11px; color: #2b3a4f; }
+  .closing {
+    font-family: var(--serif); font-size: 17px; font-style: italic; line-height: 1.7;
+    color: var(--ink-2); border-top: 1px solid var(--line); margin-top: 26px; padding-top: 20px;
+  }
+
+  /* ── Competências (detalhe) ──────────────── */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+  .comp-col h3 { font-size: 13px; font-weight: 700; color: var(--ink); margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+  .pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: .03em; }
+  .pill.str { background: #ecfdf5; color: #047857; }
+  .pill.dev { background: #fff1f2; color: #be123c; }
+  .crow { margin-bottom: 12px; }
+  .crow .ct { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .crow .cn { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+  .crow .cs { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .crow .cdomain { font-size: 10.5px; color: var(--faint); font-weight: 600; }
+  .mini { height: 7px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+  .mini > i { display: block; height: 100%; border-radius: 999px; }
+
+  /* ── Abertas ─────────────────────────────── */
+  .opens { display: grid; gap: 14px; }
+  .open {
+    border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; background: #fcfdfe;
+    border-left: 3px solid var(--primary);
+  }
+  .open .q { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .open .a { font-family: var(--serif); font-size: 15px; color: #2b3a4f; line-height: 1.62; }
+
+  /* ── Rodapé ──────────────────────────────── */
+  footer.foot { padding: 26px 44px 34px; background: #0b1220; color: #93a3bd; }
+  footer.foot .ft-title { color: #cfdcf2; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; margin: 0 0 10px; }
+  footer.foot p { font-size: 12.5px; line-height: 1.65; margin: 0 0 8px; max-width: 760px; }
+  footer.foot .ai-note { color: #7ef0c2; }
+  footer.foot .scale { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 11.5px; }
+  footer.foot .scale span { display: inline-flex; align-items: center; gap: 6px; }
+  footer.foot .scale i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  @media (max-width: 760px) {
+    body { padding: 16px 8px 48px; }
+    section, header.head, footer.foot { padding-left: 22px; padding-right: 22px; }
+    .evidence { grid-template-columns: 1fr; gap: 24px; }
+    .comp-grid { grid-template-columns: 1fr; gap: 26px; }
+    h1.doc-title { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="sim-ribbon">
+    <span class="dot"></span>
+    <span><b>Simulação</b> — dados fictícios para demonstrar a experiência. Estrutura idêntica à avaliação real (5 domínios · 18 competências · 108 itens situacionais · 5 questões abertas · índice de consistência).</span>
+  </div>
+
+  <article class="doc">
+
+    <!-- ════ CABEÇALHO ════ -->
+    <header class="head">
+      <div class="wordmark"><span class="mk">V</span> Protocolo Vértice</div>
+      <p class="doc-kind">Laudo de Perfil Científico</p>
+      <h1 class="doc-title">Diagnóstico de Competências Profissionais</h1>
+      <p class="doc-sub">Avaliação situacional de competências · emitida com apoio de inteligência artificial</p>
+
+      <div class="subject">
+        <div class="who">
+          <div class="name">Mariana Andrade</div>
+          <div class="role">Coordenadora de Qualidade &amp; Experiência do Cliente · equipe de 9 pessoas</div>
+        </div>
+        <div class="meta">
+          <span class="chip">Emitido em <b>29/05/2026</b></span>
+          <span class="chip">108 itens · 5 abertas</span>
+          <span class="chip alta">Consistência <b>84/100</b> · Alta</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ════ EVIDÊNCIA QUANTITATIVA ════ -->
+    <section>
+      <p class="sec-label">Evidência quantitativa — base do laudo</p>
+      <div class="evidence">
+        <div class="radar-wrap">
+          <svg viewBox="0 0 400 320" width="100%" style="max-width:380px" role="img" aria-label="Radar dos 5 domínios">
+            <!-- grade -->
+            <polygon points="200,50 318.9,136.4 273.5,276.1 126.5,276.1 81.1,136.4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+            <polygon points="200,91.7 279.2,149.3 249,242.4 151,242.4 120.8,149.3" fill="none" stroke="#e8edf3" stroke-width="1"/>
+            <polygon points="200,133.3 239.6,162.1 224.5,208.7 175.5,208.7 160.4,162.1" fill="none" stroke="#eef2f7" stroke-width="1"/>
+            <!-- eixos -->
+            <g stroke="#e2e8f0" stroke-width="1">
+              <line x1="200" y1="175" x2="200" y2="50"/>
+              <line x1="200" y1="175" x2="318.9" y2="136.4"/>
+              <line x1="200" y1="175" x2="273.5" y2="276.1"/>
+              <line x1="200" y1="175" x2="126.5" y2="276.1"/>
+              <line x1="200" y1="175" x2="81.1" y2="136.4"/>
+            </g>
+            <!-- dados -->
+            <polygon points="200,65 296.3,143.7 253.6,248.8 153,239.7 132.2,153"
+                     fill="rgba(37,99,235,.16)" stroke="#2563eb" stroke-width="2"/>
+            <g fill="#2563eb">
+              <circle cx="200" cy="65" r="4"/>
+              <circle cx="296.3" cy="143.7" r="4"/>
+              <circle cx="253.6" cy="248.8" r="4"/>
+              <circle cx="153" cy="239.7" r="4"/>
+              <circle cx="132.2" cy="153" r="4"/>
+            </g>
+          </svg>
+          <div class="radar-cap">Distribuição normalizada (0–100) pelos 5 domínios</div>
+        </div>
+
+        <div>
+          <div class="dombars">
+            <div class="dombar">
+              <div class="top"><span class="nm">Cognição &amp; Análise</span><span class="vl">88<span class="band">Excepcional</span></span></div>
+              <div class="track"><i style="width:88%;background:var(--d-cognicao)"></i></div>
+            </div>
+            <div class="dombar">
+              <div class="top"><span class="nm">Negócio &amp; Cliente</span><span class="vl">81<span class="band">Excepcional</span></span></div>
+              <div class="track"><i style="width:81%;background:var(--d-negocio)"></i></div>
+            </div>
+            <div class="dombar">
+              <div class="top"><span class="nm">Crescimento &amp; Propósito</span><span class="vl">73<span class="band">Proficiente</span></span></div>
+              <div class="track"><i style="width:73%;background:var(--d-crescimento)"></i></div>
+            </div>
+            <div class="dombar">
+              <div class="top"><span class="nm">Relação &amp; Influência</span><span class="vl">64<span class="band">Proficiente</span></span></div>
+              <div class="track"><i style="width:64%;background:var(--d-relacao)"></i></div>
+            </div>
+            <div class="dombar">
+              <div class="top"><span class="nm">Energia &amp; Equilíbrio Emocional</span><span class="vl">57<span class="band">Em desenvolvimento</span></span></div>
+              <div class="track"><i style="width:57%;background:var(--d-energia)"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ LAUDO NARRATIVO (centro) ════ -->
+    <section class="laudo">
+      <p class="sec-label">Laudo interpretativo</p>
+      <div class="reading">
+
+        <h2>Síntese executiva do perfil</h2>
+        <p class="lead">Mariana Andrade apresenta um perfil de forte base cognitiva convertida em resultado — e o índice de consistência alto (84/100) confere confiabilidade a esta leitura: as respostas foram coerentes entre situações distintas, sem sinais relevantes de desejabilidade social. Os domínios de <strong>Cognição &amp; Análise (88)</strong> e <strong>Negócio &amp; Cliente (81)</strong> lideram o perfil, e o <strong>Pensamento Analítico (92)</strong> é o seu traço mais distintivo. É a profissional que o time procura quando o problema é difícil de enxergar: lê dados com rigor, desconfia de conclusões fáceis e transforma análise em entrega.</p>
+        <p>O contraponto está em <strong>Energia &amp; Equilíbrio Emocional (57)</strong> e <strong>Relação &amp; Influência (64)</strong> — e os dados conversam com o que ela mesma relatou. Ao descrever seu maior desconforto, Mariana escreveu: <em>“vivo apagando incêndios operacionais e falta espaço para pensar e desenvolver o time”</em>. O laudo confirma a percepção: a força analítica, quando não acompanhada de gestão de energia e de delegação, tende a prender a profissional justamente no operacional que ela domina. A transição recente — assumiu a coordenação há dez meses, após anos como analista sênior — explica boa parte do quadro: o repertório de “fazer” ainda pesa mais do que o de “liderar”.</p>
+
+        <h2>Fortalezas principais e manifestação operacional</h2>
+        <ul>
+          <li><strong>Pensamento Analítico (92)</strong> — checa a origem do dado antes de tratá-lo como verdade e separa correlação de causa. Na prática: é quem evita que o time comemore um número que não se sustenta.</li>
+          <li><strong>Resolução de Problemas (87)</strong> — decompõe o que é grande e mal definido em etapas tratáveis e sequencia por dependência, em vez de mergulhar sem plano.</li>
+          <li><strong>Fluência em IA Aplicada (86)</strong> — escolhe a ferramenta certa por tipo de tarefa e trata o output como rascunho a verificar, não como verdade pronta. Diferencial raro no nível de coordenação.</li>
+          <li><strong>Orientação a Resultado (85)</strong> — mantém foco no impacto e disciplina de entrega; conclui o que assume.</li>
+          <li><strong>Visão Sistêmica (84)</strong> — enxerga o efeito de segunda ordem das decisões e conecta áreas antes de propor mudanças.</li>
+        </ul>
+
+        <h2>Oportunidades de desenvolvimento com ações práticas</h2>
+        <ul>
+          <li><strong>Tônus Vital (52)</strong> — a vitalidade e a gestão de energia estão sob pressão pelo excesso operacional. <em>Ação:</em> bloquear dois períodos fixos de 90 min por semana para trabalho estratégico, protegidos de demandas reativas, e medir adesão por quatro semanas.</li>
+          <li><strong>Resiliência (58)</strong> — a estabilidade sob pressão oscila quando o volume aperta. <em>Ação:</em> adotar um ritual de fechamento de dia (3 linhas: o que avançou, o que travou, o próximo passo) para reduzir a carga cognitiva residual.</li>
+          <li><strong>Liderança &amp; Desenvolvimento (59)</strong> — delega pouco e ainda centraliza a execução. <em>Ação:</em> escolher um analista e transferir uma responsabilidade recorrente com checkpoint semanal, substituindo “fazer por ele” por “desenvolver com ele”.</li>
+        </ul>
+
+        <h2>Trilha de PDI recomendada — próximo trimestre</h2>
+        <div class="pdi-card">
+          <ol>
+            <li><strong>Delegação estruturada</strong> — sair do operacional é a alavanca de maior impacto, pois libera a força analítica (já madura) para o estratégico que ela busca. Meta: 2 responsabilidades recorrentes transferidas com autonomia real.</li>
+            <li><strong>Gestão de energia</strong> — base para tudo o mais; sem tempo protegido, nenhum desenvolvimento de liderança acontece. Meta: agenda com blocos estratégicos defendidos e queda mensurável de retrabalho reativo.</li>
+            <li><strong>Liderança de desenvolvimento de pessoas</strong> — converter a senioridade técnica em capacidade de formar o time. Meta: 1 plano de desenvolvimento individual conduzido por ela para um analista.</li>
+          </ol>
+        </div>
+
+        <h2>Mensagem de fortalecimento profissional</h2>
+        <p class="closing">Mariana, você perguntou se o seu “jeito analítico está te ajudando ou te prendendo no operacional”. O laudo responde: ele é a sua maior força — e, sozinho, também é a armadilha. O salto para a gerência de Qualidade que você projeta em dois anos não virá de analisar melhor, e sim de confiar a análise a um time que você desenvolveu. A boa notícia é que a base cognitiva que sustenta uma gestão de qualidade reconhecida já está aqui, e ela é sólida. O próximo capítulo é sobre soltar, não sobre apertar.</p>
+      </div>
+    </section>
+
+    <!-- ════ COMPETÊNCIAS (detalhe) ════ -->
+    <section>
+      <p class="sec-label">Competências em destaque — 18 avaliadas</p>
+      <div class="comp-grid">
+        <div class="comp-col">
+          <h3><span class="pill str">Fortalezas</span> Top 5</h3>
+          <div class="crow"><div class="ct"><span class="cn">Pensamento Analítico <span class="cdomain">· Cognição</span></span><span class="cs" style="color:var(--band-high)">92</span></div><div class="mini"><i style="width:92%;background:var(--band-high)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Resolução de Problemas <span class="cdomain">· Cognição</span></span><span class="cs" style="color:var(--band-high)">87</span></div><div class="mini"><i style="width:87%;background:var(--band-high)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Fluência em IA Aplicada <span class="cdomain">· Cognição</span></span><span class="cs" style="color:var(--band-high)">86</span></div><div class="mini"><i style="width:86%;background:var(--band-high)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Orientação a Resultado <span class="cdomain">· Negócio</span></span><span class="cs" style="color:var(--band-high)">85</span></div><div class="mini"><i style="width:85%;background:var(--band-high)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Visão Sistêmica <span class="cdomain">· Cognição</span></span><span class="cs" style="color:var(--band-high)">84</span></div><div class="mini"><i style="width:84%;background:var(--band-high)"></i></div></div>
+        </div>
+        <div class="comp-col">
+          <h3><span class="pill dev">Desenvolvimento</span> Focos prioritários</h3>
+          <div class="crow"><div class="ct"><span class="cn">Tônus Vital <span class="cdomain">· Energia</span></span><span class="cs" style="color:var(--band-dev)">52</span></div><div class="mini"><i style="width:52%;background:var(--band-dev)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Resiliência <span class="cdomain">· Energia</span></span><span class="cs" style="color:var(--band-dev)">58</span></div><div class="mini"><i style="width:58%;background:var(--band-dev)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Liderança &amp; Desenvolvimento <span class="cdomain">· Relação</span></span><span class="cs" style="color:var(--band-dev)">59</span></div><div class="mini"><i style="width:59%;background:var(--band-dev)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Autogestão &amp; Foco <span class="cdomain">· Energia</span></span><span class="cs" style="color:var(--band-mid)">60</span></div><div class="mini"><i style="width:60%;background:var(--band-mid)"></i></div></div>
+          <div class="crow"><div class="ct"><span class="cn">Negociação &amp; Conflito <span class="cdomain">· Relação</span></span><span class="cs" style="color:var(--band-mid)">62</span></div><div class="mini"><i style="width:62%;background:var(--band-mid)"></i></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ RESPOSTAS ABERTAS ════ -->
+    <section>
+      <p class="sec-label">Respostas dissertativas — insumo do laudo de IA</p>
+      <div class="opens">
+        <div class="open"><div class="q">Momento profissional atual</div><div class="a">“Coordeno Qualidade e Experiência do Cliente numa operação de serviços, com 9 analistas. Respondo por satisfação, auditoria de processos e os planos de melhoria contínua.”</div></div>
+        <div class="open"><div class="q">Maior desafio ou desconforto hoje</div><div class="a">“O tempo. Vivo apagando incêndios operacionais e sinto que falta espaço para pensar de forma estratégica e desenvolver o time.”</div></div>
+        <div class="open"><div class="q">Onde quer estar em dois anos</div><div class="a">“Como Gerente de Qualidade, com um time mais autônomo e uma régua de qualidade reconhecida pela diretoria.”</div></div>
+        <div class="open"><div class="q">O que mudou nos últimos doze meses</div><div class="a">“Assumi a coordenação há dez meses, depois de anos como analista sênior. Sair do ‘fazer’ para o ‘liderar’ tem sido meu maior aprendizado — e minha maior dificuldade.”</div></div>
+        <div class="open"><div class="q">O que espera que o laudo revele</div><div class="a">“Se o meu jeito analítico está me ajudando ou me prendendo no operacional — e o que preciso desenvolver para liderar de verdade.”</div></div>
+      </div>
+    </section>
+
+    <!-- ════ RODAPÉ / METODOLOGIA ════ -->
+    <footer class="foot">
+      <p class="ft-title">Metodologia</p>
+      <p>Avaliação situacional (Situational Judgment Test): cada item apresenta um cenário real e 5 alternativas graduadas por nível de competência (1–5). Os escores são normalizados para 0–100 em três níveis — sub-competência, competência e domínio. O <b>índice de consistência</b> compara 14 pares de itens espelhados (mesma competência, situações distintas); quanto mais próximas as respostas, maior a confiabilidade do laudo.</p>
+      <p class="ai-note">Na versão de produção, este laudo é redigido por inteligência artificial (OpenAI) a partir das 108 respostas situacionais + 5 respostas abertas + índice de consistência — personalizado para cada profissional, nunca um texto-padrão.</p>
+      <div class="scale">
+        <span><i style="background:var(--band-high)"></i> 80–100 · Excepcional</span>
+        <span><i style="background:var(--band-mid)"></i> 60–79 · Proficiente</span>
+        <span><i style="background:var(--band-dev)"></i> 0–59 · Em desenvolvimento</span>
+      </div>
+    </footer>
+
+  </article>
+</body>
+</html>
