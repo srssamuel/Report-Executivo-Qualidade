@@ -105,12 +105,12 @@ export default function ResetPasswordPage() {
         {success && <div className="auth-success">{success}</div>}
         <form onSubmit={handleReset}>
           <div className="auth-field">
-            <label>Nova senha</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
+            <label htmlFor="new-password">Nova senha</label>
+            <input id="new-password" type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
           </div>
           <div className="auth-field">
-            <label>Confirmar senha</label>
-            <input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" autoComplete="new-password" />
+            <label htmlFor="confirm-password">Confirmar senha</label>
+            <input id="confirm-password" type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" autoComplete="new-password" />
           </div>
           <button className="btn primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 8, minHeight: 44 }}>
             {loading ? 'Salvando…' : 'Salvar nova senha'}

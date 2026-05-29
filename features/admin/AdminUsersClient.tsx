@@ -257,14 +257,14 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
                       {u.id === currentUserId
                         ? <span className="badge tone-blue">{ROLE_LABELS[u.role as Role] ?? u.role}</span>
                         : (
-                          <select value={u.role} onChange={e => changeRole(u.id, e.target.value as Role)} style={{ minWidth: 160 }}>
+                          <select aria-label={`Papel de ${u.full_name || u.email}`} value={u.role} onChange={e => changeRole(u.id, e.target.value as Role)} style={{ minWidth: 160 }}>
                             {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([r, l]) => <option key={r} value={r}>{l}</option>)}
                           </select>
                         )
                       }
                     </td>
                     <td>
-                      <select value={u.manager_id ?? ''} onChange={e => changeManager(u.id, e.target.value)} style={{ minWidth: 180 }}>
+                      <select aria-label={`Gestor imediato de ${u.full_name || u.email}`} value={u.manager_id ?? ''} onChange={e => changeManager(u.id, e.target.value)} style={{ minWidth: 180 }}>
                         <option value="">— Sem gestor —</option>
                         {userList.filter(m => m.id !== u.id).map(m => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
                       </select>

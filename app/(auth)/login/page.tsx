@@ -55,12 +55,12 @@ export default function LoginPage() {
             {error && <div className="auth-error">{error}</div>}
             <form onSubmit={handleLogin}>
               <div className="auth-field">
-                <label>E-mail</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="email" />
+                <label htmlFor="login-email">E-mail</label>
+                <input id="login-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="email" />
               </div>
               <div className="auth-field">
-                <label>Senha</label>
-                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+                <label htmlFor="login-password">Senha</label>
+                <input id="login-password" type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
               </div>
               <button className="btn primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 8, minHeight: 44 }}>
                 {loading ? 'Entrando…' : 'Entrar'}
@@ -80,8 +80,8 @@ export default function LoginPage() {
             {success && <div className="auth-success">{success}</div>}
             <form onSubmit={handleForgot}>
               <div className="auth-field">
-                <label>E-mail</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="email" />
+                <label htmlFor="forgot-email">E-mail</label>
+                <input id="forgot-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="email" />
               </div>
               <button className="btn primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 8, minHeight: 44 }}>
                 {loading ? 'Enviando…' : 'Enviar link'}
