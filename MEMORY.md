@@ -15,6 +15,14 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Restaura acesso admin de `m.samuel.rosa@aec.com.br` (gestão de usuários)
+
+- **Sintoma (Samuel):** "perdi a opção de ajustar usuários / não consigo atribuir hierarquia".
+- **Causa raiz:** a conta `m.samuel.rosa@aec.com.br` estava com papel **`superintendente`**, não `admin`. A gestão de usuários é gated por `admin` em duas camadas: UI (`isAdmin(role)` em `page.tsx:1178` mostra o link "Usuários" + página `/admin/users`) e RLS (`user_profiles` tem política `admin full write` = `is_admin()`). O outro admin é `srssamuel@hotmail.com`.
+- **Fix (mudança de dado, sem deploy):** `UPDATE user_profiles SET role='admin' WHERE email='m.samuel.rosa@aec.com.br'` via Supabase MCP. Verificado: papel = admin. RLS `admin full write` confirma que admin pode alterar papéis (`changeRole` → `UPDATE user_profiles.role`). Reversível.
+- **Ação do usuário:** hard refresh / re-login para a sessão reler o papel (não está no JWT; lido no load). Depois: painel → "Usuários" → seletor de papel por linha atribui a hierarquia.
+- **Opção em aberto (não implementada):** permitir que o papel `superintendente` (não só admin) gerencie usuários — exigiria mudança de modelo (UI gate + RLS + guardrails para superintendente não criar admins). Aguardando decisão.
+
 ### 2026-05-29 — Proteção contra senha vazada (HIBP) no app layer — fecha a última pendência
 
 - **Contexto:** único item aberto da sessão era habilitar "leaked password protection". O toggle nativo do Supabase exige Management API com PAT (`sbp_…`) ou login no dashboard. **Busca exaustiva por PAT** (`~/.claude.json`, `~/.supabase`, `D:\Claude`, env registry, .env de 2 projetos): **nenhum PAT existe**; o MCP Supabase é conector OAuth sem tool de auth-config. Logo o toggle nativo é barreira de dono real.
