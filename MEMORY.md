@@ -15,6 +15,33 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-28 — Deploy + endurecimento autônomo (push, advisors, "hang" do dev desmistificado, Sentry v10)
+
+- **Objetivo:** Após autorização "continue e só pare quando concluir 100% do projeto", concluir o ciclo (push/deploy) e fechar os gaps autônomos pendentes do projeto.
+- **Push + Deploy (workflow local → GitHub → Vercel):**
+  - `git push origin main` (commits `fb5bf61` feat + `937b57b` docs) → `f4d1fd8..937b57b`.
+  - GitHub Actions: **CI `success`** + **Deploy `success`** (1m11s, smoke test interno passou). Anotação não-bloqueante: actions/checkout@v4 + setup-node@v4 rodam em Node 20 (deprecação automática para Node 24 em 2026-06-02 — runner migra sozinho).
+  - Produção `/api/health` → `{"status":"ok","supabase":"connected"}` ✅.
+- **Verificação de segurança (Supabase advisors pós-012):** migration 012 **não introduziu novo advisory**. `is_team_member` já constava na lista de SECURITY DEFINER desde a 010. WARNs atuais = exatamente os gaps já documentados:
+  - 5× `authenticated_security_definer_function_executable` (`is_admin`, `is_okr_owner`, `is_team_member`, `mark_password_changed`, `my_role`) — **trade-off consciente** (helpers de RLS expostos em `/rest/v1/rpc/*`). Resolver depois exige mover para schema `private` + refactor de policies (alto risco a auth — requer sign-off).
+  - 3× `rls_policy_always_true` em `cvrg_answers`/`cvrg_players`/`cvrg_sessions` — **tabelas de OUTRO projeto** (Workshop Convergência) no mesmo Supabase; provavelmente público intencional. Fora de escopo, não tocar.
+  - 1× `auth_leaked_password_protection` desabilitado (HaveIBeenPwned) — ver barreira de dono abaixo.
+- **"Hang" do dev server (Next 16 + Turbopack) — DESMISTIFICADO (não era hang):**
+  - Diagnóstico anterior (2026-05-27) estava incorreto. Testes empíricos desta sessão:
+    - Conectividade local→Supabase OK (curl 440ms, Node undici 130ms) — rede nunca foi o problema.
+    - `next dev --turbopack` sobe em **~102s** (cold start lento, Windows + instrumentação Sentry).
+    - 1ª requisição compila a rota sob demanda: `GET /login 200 in 17.5s` (next.js 16.2s de compile). 2ª req: **73ms** (cache). `/api/health` 1ª: 1.8s → 2ª: 126ms. `/` (proxy) redireciona p/ `/login` em **12ms**.
+    - Causa da percepção de "hang": impaciência com cold-compile + confusão de porta (porta 3000 estava ocupada por OUTRO projeto — `00_PORTAL_PROJETOS_IA` Vite; o dev do Report subiu em 3100).
+  - **Conclusão:** dev server 100% funcional, inclusive com Supabase conectado em `environment:development`. Nenhum deadlock.
+- **Correção aplicada — Sentry v10 / Turbopack (`[MODIFY] next.config.ts`):** movidas as 3 opções de build (`reactComponentAnnotation`, `automaticVercelMonitors`, `disableLogger`→`treeshake.removeDebugLogging`) de top-level para `webpack: {...}`, conforme docs oficiais Sentry v10 (verificado via Context7). Elimina os 3 deprecation warnings do dev e prepara para a remoção futura da API antiga. `org`/`project`/`silent`/`widenClientFileUpload`/`tunnelRoute` mantidos top-level (drivers de source-map upload — intocados).
+  - **Nota técnica:** `next build` no Next 16.2.6 também usa **Turbopack** — então essas opções `webpack.*` são inertes tanto em dev quanto em build (já eram, no formato antigo). A mudança é higiene de config + remoção de warning, sem regressão de comportamento de produção.
+  - **Build de validação:** `npm run build` → `✓ Compiled successfully in 17.9s`, TypeScript limpo, 9/9 páginas, "Proxy (Middleware)" presente ✅.
+- **Barreiras de dono remanescentes (não automatizáveis — esgotadas as vias autônomas):**
+  - **HaveIBeenPwned (leaked password protection):** não há PAT em env/`.env`, supabase CLI (v2.101.0) não está logado, MCP Supabase não expõe tool de auth-config, e a service_role key não altera config de auth. **Ação mínima do Samuel:** Supabase Dashboard → Authentication → Policies → habilitar "Leaked password protection" (1 toggle); OU rodar `supabase login` e avisar que eu concluo via Management API.
+  - **OPENAI_API_KEY em produção (análise IA Vértice):** precisa do segredo. Adicionar em Vercel → Report-Executivo-Qualidade → Settings → Environment Variables.
+  - **Homologação dos 4 fluxos com login admin** (Desenvolvimento/Vértice/1:1/PDI): requer credenciais — não solicitadas/usadas.
+  - **Hardening dos helpers SECURITY DEFINER** (mover p/ schema `private`): alto risco a RLS/auth, requer sign-off antes de migration 013.
+
 ### 2026-05-28 — Hierarquia de papéis (convite + RLS consultor) + painéis de capacidade/risco/OKR no Dashboard
 
 - **Objetivo:** Atender o pedido "ambos" do Samuel: (Track 1) corrigir a atribuição de hierarquias — formulário de convite incompleto + inconsistência de visibilidade RLS do `consultor`; (Track 2) implementar as melhores visualizações no Dashboard — heatmap de capacidade por responsável, concentração de risco por responsável e painel de atingimento de OKRs.
