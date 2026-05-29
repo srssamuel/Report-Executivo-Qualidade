@@ -15,6 +15,21 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Avaliação Científica vira laudo de IA profissional (não mais "radar de 5 competências")
+
+- **Correção conceitual do Samuel:** a avaliação científica não é um radar de 5 competências — é um **laudo emitido com IA** a partir de 100+ perguntas (108 fechadas situacionais + 5 abertas) com índice de consistência. O modelo real (`lib/assessment/perfilCientificoQuestions.ts`, 1.890 linhas) já tinha 5 domínios → 18 competências → ~54 sub-competências + scoring determinístico (`perfilCientificoScoring.ts`); o problema era apresentação + laudo template.
+- **3 defeitos encontrados e corrigidos:**
+  1. O "laudo" era um **texto determinístico** (`if score>=80/>=60/else`, igual para todos) e **ignorava as 5 abertas**.
+  2. `/api/ai/analyze` tinha **domínios ERRADOS hardcoded** ("Liderança/Execução/Relacionamento/Inovação/Gestão") — não existiam no instrumento.
+  3. A UI **liderava com o radar** (rotulado "Competências" mas plotando domínios).
+- **Alterações:**
+  - `[NEW]` `docs/laudo-cientifico-simulacao.html` — artefato visual (simulação premium, editorial) que o Samuel pediu para ver: laudo de "Mariana Andrade" com estrutura real, laudo no centro, radar/barras como evidência, 5 abertas transcritas.
+  - `[MODIFY]` `app/api/ai/analyze/route.ts` — prompt reescrito: importa `DOMAINS/COMPETENCIES/OPEN_QUESTIONS` (fonte única → fim do hardcode), mapeia slug→nome, injeta as 5 abertas com enunciado real, estrutura de laudo de 5 blocos, ressalva de consistência. **+ Segurança:** auth obrigatória (`getUser`→401) + rate-limit por usuário (8/min) — endpoint usa chave PAGA e o `proxy.ts` exclui `/api`.
+  - `[MODIFY]` `features/development/DevelopmentView.tsx` — `handleCompleteSurvey` agora é **AI-primário** (chama `/api/ai/analyze`; fallback determinístico **reescrito** usando abertas/nomes reais/consistência). Estado `isFinalizing` + botão com spinner ("Gerando laudo com IA…"). UI reposicionada via CSS `order:-1` (laudo no topo, radar vira "Evidência — Radar dos 5 Domínios"). Renderer de markdown melhorado (`renderInlineMd` p/ **negrito** sem dangerouslySetInnerHTML; corrige bug `###`-antes-de-`####`; suporta `-` e listas numeradas).
+- **Chave de IA:** reaproveitada a `OPENAI_API_KEY` do Protocolo Vértice (`datacx-mentoria/.env.local`) → anexada ao `.env.local` local (gitignored) **e** adicionada ao **Vercel produção** (`vercel env add OPENAI_API_KEY production` ✅). Laudo sai 100% por IA em prod a partir do próximo deploy.
+- **Build & QG:** `npx tsc --noEmit` exit 0 · `npm run lint` exit 0 · `npm run build` exit 0 (9/9 páginas) ✅.
+- **Pós-deploy a verificar:** POST em `https://report-executivo-qualidade.vercel.app/api/ai/analyze` (autenticado) deve retornar `provider:openai` com laudo dos domínios reais.
+
 ### 2026-05-28 — Revisão independente da entrega: corrige divisão por zero em `weeklyCapacity`
 
 - **Objetivo:** Aplicar a regra "toda entrega passa por revisor" sobre o código de dashboard recém-shipado (passou tsc/lint/build mas sem revisão de lógica). Revisão encontrou 1 bug real de runtime.
