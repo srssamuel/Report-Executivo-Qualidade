@@ -15,6 +15,15 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Gestor imediato (manager_id) por colaborador no controle de usuários
+
+- **Gap (Samuel):** o controle de usuários só tinha papéis (níveis), sem a relação de reporte (quem é gestor de quem).
+- `[NEW]` `supabase/migrations/013_user_manager_id.sql` — `ADD COLUMN manager_id uuid REFERENCES user_profiles(id) ON DELETE SET NULL` + index `idx_user_profiles_manager_id`. **Aplicada no remoto** via MCP (`{"success":true}`). Idempotente.
+- `[MODIFY]` `shared/domain/index.ts` — `UserProfile` ganha `manager_id?: string | null`. (Client/tipo ativos são `shared/*`; `lib/domain` + `app/admin/users/client.tsx` são código morto.)
+- `[MODIFY]` `features/admin/AdminUsersClient.tsx` — nova coluna "Gestor imediato" na tabela de usuários ativos: `<select>` por linha listando todos os outros usuários + "— Sem gestor —"; `changeManager()` → `UPDATE user_profiles SET manager_id` (RLS `admin full write` cobre).
+- **Gate:** tsc/lint/build exit 0.
+- **Aberto (opcional):** `manager_id` ainda não alimenta `is_team_member` (visibilidade de equipe segue por rank de papel). Wiring para visibilidade precisa por gestor é um passo futuro.
+
 ### 2026-05-29 — Restaura acesso admin de `m.samuel.rosa@aec.com.br` (gestão de usuários)
 
 - **Sintoma (Samuel):** "perdi a opção de ajustar usuários / não consigo atribuir hierarquia".
