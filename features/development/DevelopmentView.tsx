@@ -40,6 +40,14 @@ function renderInlineMd(text: string): React.ReactNode {
   )
 }
 
+// Banda de score → rótulo, nota e cores. Base do comentário determinístico por
+// item no detalhamento (18 competências + ~54 sub-competências).
+function scoreBand(score: number): { label: string; note: string; color: string; bg: string } {
+  if (score >= 80) return { label: 'Excepcional', note: 'Ponto forte consolidado', color: '#047857', bg: '#ecfdf5' }
+  if (score >= 60) return { label: 'Proficiente', note: 'Sólido, com espaço para refinar', color: '#b45309', bg: '#fffbeb' }
+  return { label: 'Em desenvolvimento', note: 'Priorize no plano de desenvolvimento', color: '#be123c', bg: '#fff1f2' }
+}
+
 interface DevelopmentViewProps {
   items: Item[]
   pdis: UserPDI[]
@@ -887,6 +895,56 @@ export function DevelopmentView({
                     </div>
                   </div>
 
+
+                  {/* Detalhamento por competência — todos os itens e sub-itens */}
+                  <div className="card" style={{ padding: 24 }}>
+                    <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 14, marginBottom: 18 }}>
+                      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Detalhamento por competência</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b' }}>Score e leitura de cada uma das 18 competências e ~54 sub-competências avaliadas</p>
+                    </div>
+                    {DOMAINS.map(domain => {
+                      const domainScores = currentEvaluation.domain_scores as Record<string, number>
+                      const compScores = currentEvaluation.competency_scores as Record<string, number>
+                      const subScores = (currentEvaluation.subcompetency_scores ?? {}) as Record<string, number>
+                      const dScore = Math.round(domainScores[domain.slug] ?? 0)
+                      const dBand = scoreBand(dScore)
+                      const comps = COMPETENCIES.filter(c => c.domain === domain.slug)
+                      return (
+                        <div key={domain.slug} style={{ marginBottom: 20 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 12 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{domain.code}. {domain.name}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: dBand.color, whiteSpace: 'nowrap' }}>{dScore}/100 · {dBand.label}</span>
+                          </div>
+                          {comps.map(comp => {
+                            const cScore = Math.round(compScores[comp.slug] ?? 0)
+                            const cBand = scoreBand(cScore)
+                            return (
+                              <div key={comp.slug} style={{ padding: '0 0 12px 12px', marginBottom: 10, borderLeft: `2px solid ${cBand.bg}` }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{comp.name}</span>
+                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: cBand.color, whiteSpace: 'nowrap' }}>{cScore}/100 · {cBand.label}</span>
+                                </div>
+                                <p style={{ margin: '3px 0 8px', fontSize: 11.5, color: '#475569', lineHeight: '1.5em' }}>
+                                  <strong style={{ color: cBand.color }}>{cBand.note}.</strong> {comp.description}
+                                </p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {comp.subCompetencies.map(sub => {
+                                    const sScore = Math.round(subScores[sub.slug] ?? 0)
+                                    const sBand = scoreBand(sScore)
+                                    return (
+                                      <span key={sub.slug} title={`${sub.name}: ${sScore}/100 · ${sBand.label}`} style={{ fontSize: 10.5, padding: '2px 8px', borderRadius: 6, background: sBand.bg, color: sBand.color, fontWeight: 600 }}>
+                                        {sub.name} · {sScore}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
 
                 </div>
 
