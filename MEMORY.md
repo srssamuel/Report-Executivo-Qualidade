@@ -15,6 +15,15 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-29 — Gate visual ao vivo + favicon + decisões sênior de escopo
+
+- **Gate visual RODADO ao vivo** no dashboard de produção: criado usuário QA admin efêmero (service_role + Playwright login), capturas em 1440px e 390px, **usuário apagado** (verificado: só `m.samuel.rosa` + `srssamuel` como admins).
+- **Achados gráficos:** ✅ ponto focal <3s (KPI strip + score 72%), cor=sinal semântica, painel de capacidade/risco integrado, responsivo colapsa OK. ⚠ melhorar: densidade/altura (muito scroll), redundância "Por responsável" (contagem) vs "Carga por responsável" (esforço), % de capacidade extremo (247%) lê alarmante, filtros pesados no mobile.
+- **Console root-caused:** (1) `favicon.ico` 404 → **FIXADO** com `app/icon.svg` (cadeado on-brand, reusa identidade do login); (2) GET transitório a `/login` como script (recebe HTML) → **benigno**, sem impacto funcional (app loga + renderiza 100%).
+- **CSP estrito confirmado** (bloqueou injeção do axe via CDN) — boa postura de segurança. **a11y/Lighthouse numéricos NÃO medidos** (precisam de harness `@axe-core/playwright` + acesso autenticado). Não declarado "100%".
+- **Achado de a11y (estático):** telas de auth (`login`, `reset-password`) têm `<label>` **não associado** ao input (sem htmlFor/id) — issue WCAG real; mesma falha provável em forms de admin/dashboard. Recomendado um passe de a11y completo (iniciativa escopada), não bolt-on parcial.
+- **Decisão sênior de escopo:** shippar só o que é certo+completo (favicon). NÃO reestruturar dashboard nem meio-fazer a11y no fim de sessão maratona — são iniciativas escopadas. Próximos passos recomendados ao Samuel para ele priorizar.
+
 ### 2026-05-29 — Gestor imediato (manager_id) por colaborador no controle de usuários
 
 - **Gap (Samuel):** o controle de usuários só tinha papéis (níveis), sem a relação de reporte (quem é gestor de quem).
