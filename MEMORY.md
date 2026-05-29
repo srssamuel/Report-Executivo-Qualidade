@@ -15,6 +15,23 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-05-28 — Redesign aba PDI: histórico completo + painel contexto + OKRs em 1:1
+
+- **Objetivo:** Melhorar radicalmente o UX da aba PDI: exibir histórico de PDIs, integrar resumo das 1:1s, integrar perfil Vértice e OKRs no contexto do PDI. OKRs do período também exibidos nas atas 1:1.
+- **Alterações Efetuadas:**
+  - `[MODIFY]` `features/development/DevelopmentView.tsx` — redesign completo da aba PDI e atualização da aba 1:1:
+    - Props: adicionados `okrTargets: OKRTarget[]` e `okrMeasurements: OKRMeasurement[]`
+    - State: `expandedPdis: Set<string>` para controle de cards colapsáveis
+    - Computed: `collaboratorPdis` (histórico ordenado), `collaboratorOkrTargets` (match flexível de nome), `collaboratorOkrMeasurements`
+    - `handleEditPdi` refatorado para aceitar PDI opcional como parâmetro (edição de item do histórico)
+    - Aba 1:1: cada card de feedback agora exibe faixa de contexto OKR com KRs ativos do trimestre, barra de progresso e atingimento %
+    - Aba PDI: layout duas colunas — painel de contexto lateral (270px) com 3 cards (Perfil Vértice com scores por domínio + fortalezas/áreas de dev; Últimas 1:1s com resumo dos 3 mais recentes; OKRs Ativos com KRs e progresso); histórico de PDIs colapsáveis à direita
+  - `[MODIFY]` `app/(app)/page.tsx` — `<DevelopmentView>` agora recebe `okrTargets={okrTargets}` e `okrMeasurements={okrMeasurements}`
+- **Build & QG:** `npx tsc --noEmit` → zero erros · `npm run build` → compile 33s, 9/9 páginas ✅
+- **Commit:** `5fbb304 feat: redesign aba PDI com painel de contexto e histórico + OKRs em 1:1`
+- **Deploy:** `git push origin main` → Vercel auto-deploy disparado ✅
+- **Working tree:** limpo
+
 ### 2026-05-28 — Onboarding avaliação, análise IA Vértice e upgrade UX modais 1:1 + PDI
 
 - **Objetivo:** 4 melhorias solicitadas: (A) corrigir banner OKR falso positivo, (B) onboarding da avaliação, (C) análise IA do perfil Vértice, (D) redesign UX dos modais 1:1 e PDI.
