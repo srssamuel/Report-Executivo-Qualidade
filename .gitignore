@@ -31,3 +31,6 @@ npm-debug.log*
 
 # Serena MCP cache (não versionar)
 .serena/
+
+# QA visual scratch (screenshots + temp credentials — nunca versionar)
+.playwright-tmp/
