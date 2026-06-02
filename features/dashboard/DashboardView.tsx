@@ -232,7 +232,7 @@ export function DashboardView({
                         <strong style={{ fontSize: 13, display: 'block', lineHeight: 1.4 }}>
                           {it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}
                         </strong>
-                        <p style={{ margin: '4px 0 0', color: '#5f7188', fontSize: 12, lineHeight: 1.45 }}>
+                        <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 12, lineHeight: 1.45 }}>
                           {it.nextAction || it.executiveComment || it.definition || 'Sem próxima ação registrada.'}
                         </p>
                       </div>
@@ -465,7 +465,7 @@ export function DashboardView({
                           {g.gain_value && <Badge label={g.gain_value} tone="tone-green" />}
                         </div>
                         <strong>{it ? `${it.product ?? ''} — ${it.project ?? it.demand ?? 'Sem projeto'}` : g.item_id}</strong>
-                        {g.detail && <span style={{ color: '#5f7188', fontSize: 12, lineHeight: 1.4 }}>{g.detail}</span>}
+                        {g.detail && <span style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.4 }}>{g.detail}</span>}
                       </div>
                     )
                   })}
