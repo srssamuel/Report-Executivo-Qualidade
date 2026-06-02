@@ -15,6 +15,30 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-01 — Sprint das 9 pendências do report ao vivo: Itens 2–9 CONCLUÍDOS
+
+- **Origem:** Samuel revisou `report-executivo-qualidade.vercel.app` e levantou 9 pendências; escopo travado em "Tudo, na ordem proposta" com gates por etapa. Decisões locked: Item 2 → só reset pelo ADM por ora; Item 5 → carregar OKRs idempotente agora; Item 8 → auto-carregar via IA + cache.
+- **Item 5 — OKRs Jan–Jun (idempotente):** `[NEW]` `supabase/migrations/014_expand_okr_perspectiva.sql`; seed idempotente a partir de `Planilha_Apuracao_OKRs_Jan_Jun.xlsx`. ✅
+- **Item 3 — Reset de senha pelo ADM:** `[NEW]` `app/api/admin/reset-password/route.ts` (Zod + auth admin + rate-limit; gera link de recuperação via service_role). Botão no painel admin. ✅ (Item 2 atendido por este caminho — só ADM por enquanto, conforme decisão.)
+- **Item 4 — Cadastrar/excluir produtos:** CRUD de produtos no painel admin (RLS admin-write). ✅
+- **Item 6 — Resumo executivo imprimível + cascata:** bloco no ExecutiveView com pendências, % de aderência e última atualização por recurso; estrutura para desdobramento por gerente. ✅
+- **Itens 7 + 9 + 8 — Bloco Desenvolvimento:**
+  - Item 7 (perfil científico Vértice) — descrição/escala detalhadas e funcionamento validado.
+  - Item 9 (PDI) — melhorias sobre o redesign do modal (entrada de 2026-05-29).
+  - **Item 8 (atas de 1:1 com resumo inteligente):** `[NEW]` `app/api/ai/ata-summary/route.ts` (OpenAI gpt-4o-mini → fallback Ollama; auth + rate-limit 10/60s + Zod; markdown em 4 seções fixas). `[MODIFY]` `features/development/DevelopmentView.tsx` — estado + `useEffect` de auto-load com **chave de cache** `vertice_ata_summary_${colaborador}_${qtd}:${dataMaisRecente}` (auto-invalida em novo 1:1), `handleRegenerateAta` (admin), e card "Resumo Inteligente do Colaborador" com badge de provider (OpenAI/Local), spinner inline e renderer de markdown espelhando o laudo. **Economia de token:** sem histórico → `autoStatusSummary` determinístico (0 API); cache hit → restauração instantânea (0 token); cache miss → 1 chamada LLM.
+- **Limpeza:** removidos 8 artefatos de 0 byte (lixo de comandos shell mal-redirecionados de sessão anterior: `a.Mes`, `l.split('`, `supabase/migrations/!baseIds.has(x))`, etc.). Preservados os arquivos legítimos novos.
+- **Gate:** `npx tsc --noEmit` EXIT 0 (apenas hints de depreciação `React.FormEvent` [6385], não bloqueantes); `npm run build` ✓ 12 rotas, `/api/ai/ata-summary` + `/api/admin/reset-password` registradas. (Nota ambiente: máquina sob pressão de memória — tsc precisou de `--max-old-space-size=4096`; `git status` chegou a falhar com malloc. Não é regressão de código.)
+- **Item 1 — visões do dashboard (em curso):**
+  - **Passo seguro aplicado (risco visual zero):** `[MODIFY]` `features/dashboard/DashboardView.tsx` — duas cores hardcoded `#5f7188` (linhas 235 e 468) → `var(--muted)` (o hex É literalmente o valor do token). Refactor de consistência, **não** mudança perceptual — render idêntico, dispensa screenshot.
+  - **Bloqueio honesto para o resto do Item 1:** a evolução de layout/densidade (achados do gate de 2026-05-29: densidade/scroll do dashboard, redundância "Por responsável" [contagem] × "Carga por responsável" [esforço], barra de capacidade exibindo 247% que "lê alarmante", filtros pesados no mobile) é trabalho **visual** — as regras de design (`DEFINITION_OF_PREMIUM_DONE`, `DESIGN_QUALITY_GATE`) proíbem declarar "pronto" sem screenshot real. **`next dev` trava nesta máquina** (✓ Ready mas o handler nunca responde) → o gate de QA visual só roda contra um **deploy** (preview/prod). Logo, o loop visual do Item 1 depende de autorização de deploy.
+- **Estado do repositório (importante):** TODO o sprint dos Itens 2–9 + o fix do Item 1 está **NÃO COMMITADO** na árvore de trabalho (modificados: `app/(app)/page.tsx`, `app/admin/users/page.tsx`, `app/globals.css`, `features/{admin,dashboard,development,executive,okrs}/*`, `lib/assessment/perfilCientificoQuestions.ts`, `scripts/seed-okrs.js`, `shared/domain/index.ts`, `MEMORY.md`; novos: `app/api/admin/reset-password/`, `app/api/ai/ata-summary/`, `supabase/migrations/014_*.sql`). Último commit ainda é `5679beb` (PDI, 2026-05-29). Nada foi commitado/deployado — conforme a regra "nunca commitar/deployar sem pedido explícito".
+- **Status:** Itens 2–9 ✅ código completo + typecheck/build exit 0; Item 1 com passe de token aplicado. **Pendência de dono única e real:** autorizar (a) commit dos Itens 2–9 e (b) deploy de preview — necessário tanto para Samuel ver os Itens 2–9 ao vivo quanto para rodar o gate visual do Item 1.
+- **Próximos Passos:**
+  - `[ ]` Item 1 — após deploy de preview: rodar gate visual (screenshots 1440/1920/768/390 via Chrome DevTools MCP) e executar a evolução de layout/densidade das visões.
+  - `[ ]` Commit + push das entregas dos Itens 2–9 (quando Samuel autorizar) — mensagens `feat:`/`fix:` por item.
+  - `[ ]` Aplicar migration `014_expand_okr_perspectiva.sql` no Supabase remoto (quando Samuel autorizar a mudança de schema de produção).
+  - `[ ]` `chore(dev)`: trocar `React.FormEvent` → `React.FormEvent<HTMLFormElement>` em DevelopmentView (limpa os hints 6385).
+
 ### 2026-05-29 — Redesign UX/UI do modal de registro de PDI (seletor de competências)
 
 - **Samuel:** a visualização do modal de PDI estava péssima — a seção de competências era uma caixa de scroll de 180px com 18 checkboxes em lista plana (checkbox + nome + domínio repetido), cramped.
