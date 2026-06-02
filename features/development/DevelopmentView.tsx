@@ -831,7 +831,7 @@ export function DevelopmentView({
                   return (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#5f7188', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
                           Questão Situacional {currentQuestionIndex + 1} de 113
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>
@@ -927,7 +927,7 @@ export function DevelopmentView({
                   return (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#5f7188', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
                           Questão Aberta de Contexto {openIdx + 1} de 5
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>

@@ -46,7 +46,7 @@ export function TimelineView({ filtered, onEdit }: TimelineViewProps) {
                   <Badge label={it.status} tone={statusTone(it.status)} />
                 </div>
                 <strong style={{ display: 'block', marginTop: 4 }}>{it.project ?? 'Sem projeto'}</strong>
-                <span style={{ color: '#5f7188' }}>{it.demand ?? 'Sem demanda'}</span>
+                <span style={{ color: 'var(--muted)' }}>{it.demand ?? 'Sem demanda'}</span>
               </div>
               <button className="btn small" onClick={() => onEdit(it.id)}>Editar</button>
             </div>

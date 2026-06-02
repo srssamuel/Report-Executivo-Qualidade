@@ -235,7 +235,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
             {mode === 'batch' ? (
               <>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
                     E-mails (cole vários — separados por ; ou quebra de linha)
                   </label>
                   <textarea
@@ -260,7 +260,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '200px auto', gap: 12, alignItems: 'end' }}>
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Papel para todos</label>
+                    <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Papel para todos</label>
                     <select value={role} onChange={e => setRole(e.target.value as Role)}>
                       {INVITE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                       <option value="admin">Administrador</option>
@@ -274,11 +274,11 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px auto', gap: 12, alignItems: 'end' }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>E-mail</label>
+                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>E-mail</label>
                   <input type="email" required value={singleEmail} onChange={e => setSingleEmail(e.target.value)} placeholder="colaborador@empresa.com" />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Papel</label>
+                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Papel</label>
                   <select value={role} onChange={e => setRole(e.target.value as Role)}>
                     {INVITE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                     <option value="admin">Administrador</option>
@@ -289,7 +289,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
             )}
           </form>
 
-          <p style={{ margin: '10px 0 0', color: '#5f7188', fontSize: 13 }}>
+          <p style={{ margin: '10px 0 0', color: 'var(--muted)', fontSize: 13 }}>
             Cada usuário receberá um e-mail para definir sua senha no primeiro acesso.
           </p>
 
@@ -303,7 +303,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
                     <tr key={i} style={{ background: r.ok ? '#f0fdf4' : '#fef2f2' }}>
                       <td style={{ fontWeight: 600 }}>{r.email}</td>
                       <td>{r.ok ? <span className="badge tone-green">OK</span> : <span className="badge tone-red">Erro</span>}</td>
-                      <td style={{ color: '#5f7188', fontSize: 12 }}>{r.note || r.error || ''}</td>
+                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.note || r.error || ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -345,7 +345,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
                         {userList.filter(m => m.id !== u.id).map(m => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
                       </select>
                     </td>
-                    <td style={{ color: '#5f7188', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button
@@ -383,11 +383,11 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
 
           <form onSubmit={handleAddProduct} style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 12, alignItems: 'end', marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Novo produto</label>
+              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Novo produto</label>
               <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)} placeholder="Nome do produto" maxLength={80} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Cor</label>
+              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Cor</label>
               <input type="color" aria-label="Cor do produto" value={newProductColor} onChange={e => setNewProductColor(e.target.value)} style={{ width: '100%', height: 38, padding: 2, border: '1px solid #d1d5db', borderRadius: 8, background: '#f8fafc', cursor: 'pointer' }} />
             </div>
             <button className="btn primary" type="submit" disabled={productLoading}>{productLoading ? 'Salvando…' : 'Adicionar'}</button>
@@ -400,7 +400,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
               </thead>
               <tbody>
                 {productList.length === 0 ? (
-                  <tr><td colSpan={4} style={{ color: '#5f7188', fontSize: 13 }}>Nenhum produto cadastrado.</td></tr>
+                  <tr><td colSpan={4} style={{ color: 'var(--muted)', fontSize: 13 }}>Nenhum produto cadastrado.</td></tr>
                 ) : productList.map(p => (
                   <tr key={p.id}>
                     <td>
@@ -421,7 +421,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
               </tbody>
             </table>
           </div>
-          <p style={{ margin: '10px 0 0', color: '#5f7188', fontSize: 13 }}>
+          <p style={{ margin: '10px 0 0', color: 'var(--muted)', fontSize: 13 }}>
             Desativar oculta o produto de novos lançamentos sem apagar o histórico. Excluir remove o registro — itens já lançados mantêm o rótulo de texto.
           </p>
         </div>
@@ -440,7 +440,7 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
                     <tr key={inv.id}>
                       <td style={{ fontWeight: 600 }}>{inv.email}</td>
                       <td><span className="badge tone-gray">{ROLE_LABELS[inv.role as Role] ?? inv.role}</span></td>
-                      <td style={{ color: '#5f7188', fontSize: 12 }}>{new Date(inv.created_at).toLocaleDateString('pt-BR')}</td>
+                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(inv.created_at).toLocaleDateString('pt-BR')}</td>
                       <td>{inv.accepted_at ? <span className="badge tone-green">Aceito</span> : <span className="badge tone-amber">Pendente</span>}</td>
                       <td>
                         {!inv.accepted_at && <button className="btn small danger" onClick={() => revokeInvite(inv.id)}>Revogar</button>}

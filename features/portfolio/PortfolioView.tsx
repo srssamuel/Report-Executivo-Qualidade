@@ -168,7 +168,7 @@ export function PortfolioView({
                     ) : (
                       dateFmt(it.dueDate)
                     )}
-                    <div style={{ fontSize: 11, color: '#5f7188', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                       {relativeDateText(it.dueDate)}
                     </div>
                   </td>
@@ -187,7 +187,7 @@ export function PortfolioView({
                             onBlur={e => onFieldChange(it.id, 'effortHours', Number(e.target.value) || 0)}
                             style={{ width: 50 }}
                           />
-                          <span style={{ fontSize: 10, color: '#5f7188' }}>h</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>h</span>
                         </div>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                           <input
@@ -199,16 +199,16 @@ export function PortfolioView({
                             onBlur={e => onFieldChange(it.id, 'teamSize', Number(e.target.value) || 1)}
                             style={{ width: 50 }}
                           />
-                          <span style={{ fontSize: 10, color: '#5f7188' }}>eq</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>eq</span>
                         </div>
-                        <div style={{ fontSize: 10, color: '#5f7188' }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
                           Restante: {itemRemainingEffort(it)}h
                         </div>
                       </div>
                     ) : (
                       <div style={{ fontSize: 12 }}>
                         {itemEffort(it)}h · {itemTeamSize(it)} eq<br />
-                        <span style={{ fontSize: 10, color: '#5f7188' }}>
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>
                           Restante: {itemRemainingEffort(it)}h
                         </span>
                       </div>
@@ -245,7 +245,7 @@ export function PortfolioView({
                       <div style={{ fontSize: 12 }}>
                         {it.predecessorId ? <span style={{ fontWeight: 600 }}>{it.predecessorId}</span> : '—'}
                         {it.dependencyNote && (
-                          <div style={{ fontSize: 11, color: '#5f7188', marginTop: 2 }}>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                             {it.dependencyNote}
                           </div>
                         )}

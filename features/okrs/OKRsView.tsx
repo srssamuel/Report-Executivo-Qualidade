@@ -411,7 +411,7 @@ export function OKRsView({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span className={`badge ${okrPerspectiveTone(p.perspective)}`}>{p.perspective}</span>
-                        <span style={{ fontSize: 11, color: '#5f7188' }}>Peso: {p.weight}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Peso: {p.weight}</span>
                       </div>
                       <strong style={{ fontSize: 13 }}>{p.score !== null ? `${p.score.toFixed(1)}%` : 'Sem lançamentos'}</strong>
                     </div>
@@ -561,7 +561,7 @@ export function OKRsView({
                             </td>
                             <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                               {t.meta_exibida}
-                              <div style={{ fontSize: 10, color: '#5f7188', fontWeight: 400 }}>Peso: {t.peso}</div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Peso: {t.peso}</div>
                             </td>
                             <td>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -686,7 +686,7 @@ export function OKRsView({
                                             />
                                           </label>
                                           <div style={{ flex: 1, alignSelf: 'end', paddingBottom: 6 }}>
-                                            <span style={{ fontSize: 11, color: '#5f7188' }}>
+                                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                                               Meta: {t.meta_exibida} ({t.unidade})
                                             </span>
                                           </div>
@@ -771,7 +771,7 @@ export function OKRsView({
                                                 <CheckCircle size={14} /> Metas Auditadas com Sucesso
                                               </div>
                                               <p style={{ margin: '0 0 6px 0' }}><strong>Feedback Superintendência:</strong> {m.audit_feedback || 'Nenhuma ressalva cadastrada.'}</p>
-                                              <p style={{ margin: 0, fontSize: 10, color: '#5f7188' }}>Alterações bloqueadas para o Gerente. Solicite o destrave com a Superintendência se houver correções.</p>
+                                              <p style={{ margin: 0, fontSize: 10, color: 'var(--muted)' }}>Alterações bloqueadas para o Gerente. Solicite o destrave com a Superintendência se houver correções.</p>
                                             </div>
                                           ) : (
                                             <div>

@@ -46,7 +46,7 @@ export function RisksView({ filtered, onEdit }: RisksViewProps) {
               <Badge label={it.status} tone={statusTone(it.status)} />
             </div>
             <strong>{it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}</strong>
-            <span style={{ color: '#5f7188', fontSize: 13 }}>
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>
               {showGaps ? `Lacunas: ${dataGaps(it).join(', ')}` : it.nextAction || it.executiveComment || it.definition || 'Sem detalhe.'}
             </span>
             <button className="btn small" onClick={() => onEdit(it.id)}>Atualizar</button>
