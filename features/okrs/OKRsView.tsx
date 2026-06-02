@@ -33,9 +33,8 @@ interface OKRsViewProps {
 type TabId = 'dashboard' | 'measurements' | 'recontracting'
 
 const PERIODS = [
-  { id: 'Q1', label: '1º Trimestre (Jan-Mar)' },
-  { id: 'Q2', label: '2º Trimestre (Abr-Jun)' },
-  { id: 'Q3', label: '3º Trimestre (Jul-Set)' }
+  { id: 'Jan-Jun', label: '1º Semestre (Jan–Jun)' },
+  { id: 'Jul-Dez', label: '2º Semestre (Jul–Dez)' }
 ]
 
 const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson', 'Aleff']
@@ -79,8 +78,9 @@ export function OKRsView({
     }
   }, [matchedManager, isSuperOrAdmin, selectedManager])
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('Q1')
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('Jan-Jun')
   const [selectedPerspective, setSelectedPerspective] = useState<string>('')
+  const selectedPeriodLabel = PERIODS.find(p => p.id === selectedPeriod)?.label ?? selectedPeriod
 
   
   // Lançamento state
@@ -91,7 +91,7 @@ export function OKRsView({
     perspectiva: 'Performance',
     direcao: 'Maior é melhor',
     peso: 1,
-    periodo: 'Q3',
+    periodo: 'Jul-Dez',
     periodicidade: 'Mensal'
   })
 
@@ -234,16 +234,16 @@ export function OKRsView({
     }
   }
 
-  // Action: Clone to next quarter
+  // Action: Clone semester OKRs to the next semester
   const handleCloneQ3 = async () => {
     if (selectedManager === 'Todos') {
       alert('Por favor, selecione um gerente específico no filtro superior para realizar a recontratação.')
       return
     }
-    const prev = selectedPeriod === 'Q3' ? 'Q2' : 'Q1'
-    if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o ${selectedPeriod}? A estrutura de KRs do trimestre anterior (${prev}) será clonada.`)) return
+    const prev = 'Jan-Jun'
+    if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o 2º Semestre (Jul–Dez)? A estrutura de KRs do 1º Semestre (${prev}) será clonada.`)) return
     try {
-      await onCloneToQ3(selectedManager, prev, selectedPeriod)
+      await onCloneToQ3(selectedManager, prev, 'Jul-Dez')
     } catch (err) {
       console.error(err)
     }
@@ -364,7 +364,7 @@ export function OKRsView({
             setEditOkrForm(null)
           }}
         >
-          <Settings size={15} /> Contratação &amp; Q3
+          <Settings size={15} /> Contratação &amp; Recontratação
         </button>
       </div>
 
@@ -375,7 +375,7 @@ export function OKRsView({
             <div className={`status-tile ${okrStats.globalScore !== null ? (okrStats.globalScore >= 100 ? 'good' : (okrStats.globalScore >= 70 ? 'warn' : 'danger')) : ''}`}>
               <span>Score Executivo OKRs</span>
               <strong>{okrStats.globalScore !== null ? `${okrStats.globalScore.toFixed(1)}%` : '—'}</strong>
-              <small>Média ponderada do trimestre</small>
+              <small>Média ponderada do semestre</small>
             </div>
             <div className="status-tile">
               <span>Resultado KRs</span>
@@ -434,8 +434,8 @@ export function OKRsView({
               <div className="card-body" style={{ fontSize: 12, lineHeight: '1.5em' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ padding: 10, background: 'rgba(99, 102, 241, 0.05)', borderRadius: 6, borderLeft: '3px solid #6366f1' }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4 }}><Sparkles size={12} /> Recontratação Trimestral</h4>
-                    Neste módulo você pode recontratar os OKRs para o 3º Trimestre. A recontratação copia a árvore de objetivos e KRs, mas reinicia as apurações semanais/mensais para Julho, Agosto e Setembro.
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4 }}><Sparkles size={12} /> Recontratação Semestral</h4>
+                    Neste módulo você pode recontratar os OKRs para o 2º Semestre (Jul–Dez). A recontratação copia a árvore de objetivos e KRs, mas reinicia as apurações mensais de Julho a Dezembro.
                   </div>
                   <div style={{ padding: 10, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 6, borderLeft: '3px solid #10b981' }}>
                     <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}><UserCheck size={12} /> Fluxo de Apuração e Evidências</h4>
@@ -807,14 +807,14 @@ export function OKRsView({
               <Copy size={36} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.7 }} />
               <h3>Contrato de OKRs Vazio</h3>
               <p style={{ maxWidth: 460, margin: '6px auto 20px auto', fontSize: 12, color: 'var(--text-muted)' }}>
-                Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período <strong>{selectedPeriod}</strong>. 
-                {selectedManager !== 'Todos' && 'Você pode clonar a estrutura de KRs do trimestre anterior para iniciar as apurações rapidamente e economizar tempo.'}
+                Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período <strong>{selectedPeriodLabel}</strong>.
+                {selectedManager !== 'Todos' && 'Você pode clonar a estrutura de KRs do 1º Semestre (Jan–Jun) para iniciar as apurações rapidamente e economizar tempo.'}
               </p>
-              
+
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                {selectedManager !== 'Todos' && (selectedPeriod === 'Q2' || selectedPeriod === 'Q3') && (
+                {selectedManager !== 'Todos' && selectedPeriod === 'Jul-Dez' && (
                   <button className="btn primary" onClick={handleCloneQ3}>
-                    🔄 Recontratar OKRs do {selectedPeriod === 'Q3' ? '2º Trimestre (Q2)' : '1º Trimestre (Q1)'} para o {selectedPeriod}
+                    🔄 Recontratar OKRs do 1º Semestre (Jan–Jun) para o 2º Semestre (Jul–Dez)
                   </button>
                 )}
                 {selectedManager !== 'Todos' && (
