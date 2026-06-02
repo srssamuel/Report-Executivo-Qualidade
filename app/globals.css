@@ -1381,14 +1381,104 @@ body.table-dense td .mini-textarea {
   margin: 6px 0 0;
   white-space: pre-wrap;
 }
-.report-box {
-  height: 460px;
+/* Executive report — rendered preview (substitui o dump em textarea) */
+.report-preview {
+  display: grid;
+  gap: 11px;
+  padding: 26px 30px 28px;
+  background:
+    linear-gradient(180deg, var(--surface-blue) 0%, var(--surface) 88px),
+    var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--blue-600);
+  border-radius: var(--radius-md);
+  max-height: 560px;
+  overflow-y: auto;
+  color: var(--ink);
+  line-height: 1.6;
+}
+.report-preview .rp-title {
+  margin: 0;
   font-family: var(--font-heading);
-  background: #0b1f3a;
-  color: #eef5ff;
-  border-color: #123e7c;
-  line-height: 1.55;
-  border-radius: 16px;
+  font-size: var(--text-h3);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--blue-900);
+}
+.report-preview .rp-meta {
+  margin: -4px 0 4px;
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+.report-preview .rp-section {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 0 1px;
+  font-family: var(--font-heading);
+  font-size: var(--text-body);
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  color: var(--blue-800);
+}
+.report-preview .rp-section:first-child {
+  margin-top: 0;
+}
+.report-preview .rp-section-num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--blue-800);
+  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.report-preview .rp-para {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--ink);
+}
+.report-preview .rp-para strong {
+  font-weight: 700;
+  color: var(--blue-900);
+  font-variant-numeric: tabular-nums;
+}
+.report-preview .rp-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.report-preview .rp-item {
+  position: relative;
+  padding-left: 18px;
+  font-size: var(--text-body);
+  color: var(--ink);
+}
+.report-preview .rp-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--blue-400);
+}
+.report-preview .rp-item strong {
+  font-weight: 700;
+  color: var(--blue-900);
+  font-variant-numeric: tabular-nums;
+}
+.report-preview .rp-em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: var(--text-small);
 }
 
 /* Section head */
@@ -2325,10 +2415,30 @@ body.table-dense td .mini-textarea {
   background: var(--surface-2);
 }
 
-/* Report box */
-[data-theme="dark"] .report-box {
-  background: #060d18;
-  border-color: #1a3060;
+/* Report preview */
+[data-theme="dark"] .report-preview {
+  background:
+    linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 88px),
+    var(--surface);
+  border-color: var(--line);
+  border-left-color: var(--blue-500);
+}
+[data-theme="dark"] .report-preview .rp-title {
+  color: var(--ink);
+}
+[data-theme="dark"] .report-preview .rp-section {
+  color: var(--blue-300);
+}
+[data-theme="dark"] .report-preview .rp-section-num {
+  background: var(--blue-600);
+  color: #04101f;
+}
+[data-theme="dark"] .report-preview .rp-para strong,
+[data-theme="dark"] .report-preview .rp-item strong {
+  color: var(--blue-200);
+}
+[data-theme="dark"] .report-preview .rp-item::before {
+  background: var(--blue-500);
 }
 
 /* Theme toggle button */
@@ -2472,11 +2582,37 @@ body.table-dense td .mini-textarea {
   .table-wrap {
     box-shadow: none;
   }
+  /* Não fatiar cartões, linhas de tabela e seções entre páginas ao imprimir/PDF */
+  .card,
+  .kpi,
+  .report-preview,
+  .insight,
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .card {
+    border-color: var(--line-strong);
+  }
   .table-wrap {
     overflow: visible;
   }
   table {
     min-width: 0;
     font-size: 10px;
+  }
+  /* O preview precisa imprimir inteiro — sem corte por scroll cap */
+  .report-preview {
+    max-height: none;
+    overflow: visible;
+    border-left-width: 3px;
+  }
+  /* Garante fundos/cores fiéis no PDF (Chrome respeita print-color-adjust) */
+  .badge,
+  .kpi::before,
+  .report-preview .rp-section-num,
+  .report-preview .rp-item::before {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

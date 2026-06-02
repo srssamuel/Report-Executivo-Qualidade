@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Copy, Printer } from 'lucide-react'
 import {
   Item,
@@ -177,6 +177,103 @@ function lastUpdateLabel(iso: string | null): string {
   if (!iso) return '—'
   const formatted = dateFmt(iso)
   return formatted === 'Sem prazo' ? '—' : formatted
+}
+
+// Renderiza marcação inline do relatório (*negrito* e _itálico_) como HTML semântico.
+const INLINE_RE = /(\*[^*\n]+\*|_[^_\n]+_)/g
+function renderInline(text: string, keyBase: string): ReactNode[] {
+  const out: ReactNode[] = []
+  let last = 0
+  let i = 0
+  for (const m of text.matchAll(INLINE_RE)) {
+    const idx = m.index ?? 0
+    if (idx > last) out.push(text.slice(last, idx))
+    const token = m[0]
+    const inner = token.slice(1, -1)
+    if (token.startsWith('*')) out.push(<strong key={`${keyBase}-s${i}`}>{inner}</strong>)
+    else out.push(<em key={`${keyBase}-e${i}`} className="rp-em">{inner}</em>)
+    last = idx + token.length
+    i++
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+// Converte o relatório textual (markdown estilo WhatsApp) num documento executivo
+// estruturado — título, metadado, seções numeradas, listas e parágrafos. O botão
+// "Copiar relatório" continua copiando o texto cru; isto é só a pré-visualização.
+function ReportPreview({ text }: { text: string }) {
+  const blocks: ReactNode[] = []
+  let titleDone = false
+  let listBuf: string[] = []
+  let k = 0
+
+  const flushList = () => {
+    if (!listBuf.length) return
+    const items = listBuf
+    listBuf = []
+    const idx = k++
+    blocks.push(
+      <ul key={`rp-${idx}`} className="rp-list">
+        {items.map((it, j) => (
+          <li key={j} className="rp-item">
+            {renderInline(it, `rp-li-${idx}-${j}`)}
+          </li>
+        ))}
+      </ul>,
+    )
+  }
+
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\s+$/, '')
+    if (!line.trim()) {
+      flushList()
+      continue
+    }
+
+    const section = line.match(/^\*(\d+)\.\s+(.*?)\*$/)
+    const bullet = line.match(/^•\s+(.*)$/)
+    const fullyBold = /^\*[^*]+\*$/.test(line)
+    const fullyItalic = /^_[^_]+_$/.test(line)
+
+    if (!titleDone && fullyBold) {
+      titleDone = true
+      flushList()
+      blocks.push(
+        <p key={`rp-${k++}`} className="rp-title">
+          {line.slice(1, -1)}
+        </p>,
+      )
+    } else if (fullyItalic) {
+      flushList()
+      blocks.push(
+        <p key={`rp-${k++}`} className="rp-meta">
+          {line.slice(1, -1)}
+        </p>,
+      )
+    } else if (section) {
+      flushList()
+      blocks.push(
+        <p key={`rp-${k++}`} className="rp-section">
+          <span className="rp-section-num">{section[1]}</span>
+          <span>{section[2]}</span>
+        </p>,
+      )
+    } else if (bullet) {
+      listBuf.push(bullet[1] ?? '')
+    } else {
+      flushList()
+      const idx = k++
+      blocks.push(
+        <p key={`rp-${idx}`} className="rp-para">
+          {renderInline(line, `rp-p-${idx}`)}
+        </p>,
+      )
+    }
+  }
+  flushList()
+
+  return <div className="report-preview">{blocks}</div>
 }
 
 export function ExecutiveView({ filtered, filters, userProfiles, profile }: ExecutiveViewProps) {
@@ -420,9 +517,17 @@ export function ExecutiveView({ filtered, filters, userProfiles, profile }: Exec
       </div>
 
       <div className="card">
-        <div className="card-head"><h3 className="card-title">Relatório textual executivo</h3></div>
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Relatório textual executivo</h3>
+            <small style={{ color: 'var(--muted)' }}>
+              Formatação pronta para WhatsApp / Teams — use “Copiar relatório” para enviar aos
+              colaboradores
+            </small>
+          </div>
+        </div>
         <div className="card-body">
-          <textarea className="report-box" style={{ width: '100%' }} readOnly value={report} />
+          <ReportPreview text={report} />
         </div>
       </div>
     </div>
