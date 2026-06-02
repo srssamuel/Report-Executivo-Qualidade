@@ -5,7 +5,7 @@
 - **Status de Ciclo de Vida:** Active
 - **Branch Ativa:** main
 - **Porta Local / Dev Server:** localhost:3000
-- **Deploy URLs:** [Local Dev Only]
+- **Deploy URLs:** https://report-executivo-qualidade.vercel.app (produção, live)
 
 ## Infraestrutura e Credenciais Seguras
 
@@ -14,6 +14,24 @@
 - **CLI Operacional:** npm run dev / npm run build
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
+
+### 2026-06-02 — Fechamento das 9 pendências: deploy autorizado, Itens 2–9 ao vivo, Item 1 auditado
+
+- **Autorização de dono:** Samuel concedeu **"autorização completa"** — commit + push dos Itens 2–9, deploy de produção e aplicação da migration `014` no Supabase remoto. Supera o bloqueio "NÃO COMMITADO" registrado na entrada de 2026-06-01 (que ainda apontava `5679beb` como último commit).
+- **Commit + deploy:** Itens 2–9 commitados em conventional commits PT-BR e enviados para `main` → GitHub Actions (CI lint→typecheck→build, smoke test no login) → Vercel produção. Cadeia de commits relevante até `634bc3a` (inclui `563a8ba fix(csp)` liberando Vercel Speed Insights, `ac8e680 feat(executivo)` relatório imprimível, `6c260a8 fix(okrs)` filtro Jan–Jun, `7047b49 fix(views)` contraste token no tema escuro).
+- **Migration 014 aplicada em produção:** `014_expand_okr_perspectiva.sql` aplicada no projeto remoto `rirkdpsyuvhumuhejofv`. OKRs Jan–Jun carregados (seed idempotente). ✅
+- **Validação ao vivo:** smoke test do login OK; **console de produção 0 erros / 0 warnings** (verificado via Playwright); Itens 2–9 conferidos na URL pública. ✅
+- **Item 1 — visões do dashboard (VEREDITO):** auditoria autenticada de TODAS as visões ao vivo + leitura integral do JSX de `DevelopmentView.tsx` (2456 linhas). Confirmado:
+  - **Item 8 (Resumo Inteligente 1:1):** o painel renderiza sempre `(ataSummary || autoStatusSummary)` — **nunca fica em branco**. Cadeia de fallback IA→cache(localStorage)→determinístico (0 API). Badge de provider "IA · OpenAI" / "IA · Local". O texto "não gerado" que aparecia em auditoria anterior é cópia legítima de empty-state (linhas 768/1344/1859), não branch morto.
+  - **Item 9 (PDI):** workspace conectado de 3 colunas (Perfil Vértice + últimas 1:1s + OKRs ativos à esquerda; histórico de PDIs com chips de competência cruzados ao score Vértice à direita) + botão "Estruturar PDI do Perfil Vértice" (IA). Evoluído de "básico". ✅
+  - **Decisão sênior:** todas as visões (Dashboard, Carteira, Board, Riscos, Timeline, Capacidade, Executivo, OKRs, Desenvolvimento×3) estão profissionalmente evoluídas e coerentes com o design system custom. Conforme `DEFINITION_OF_PREMIUM_DONE` + doutrina anti-churn, **nenhuma edição gratuita** foi feita — Item 1 declarado satisfeito sem manufaturar mudança.
+- **Limpeza de sessão:** usuário QA admin efêmero `f2858fe1-…` **apagado** (`rm-qa-user.mjs`, guard de projeto OK); 12 PNGs de auditoria removidos da raiz `D:\Projetos IA\`; dev server órfão da porta 3100 finalizado (PID 5468). `.playwright-tmp` é gitignored (`634bc3a`).
+- **Gate:** árvore de trabalho **limpa**, branch `main`, último commit `634bc3a`. Sem edições de código nesta sessão (auditoria + cleanup apenas).
+- **Status final:** **9/9 pendências fechadas.** Itens 2–9 entregues ao vivo; Item 1 auditado e aprovado sem regressão.
+- **Próximos Passos (opcionais, não bloqueantes):**
+  - `[ ]` `chore(dev)`: `React.FormEvent` → `React.FormEvent<HTMLFormElement>` em DevelopmentView (limpa hints 6385).
+  - `[ ]` Habilitar HaveIBeenPwned (`auth_leaked_password_protection`) no painel Supabase Auth (1 toggle — barreira de dono).
+  - `[ ]` Reativar Vercel Web Analytics no dashboard + re-add `<Analytics/>` se quiser telemetria de uso (hoje só `<SpeedInsights/>` ativo).
 
 ### 2026-06-01 — Sprint das 9 pendências do report ao vivo: Itens 2–9 CONCLUÍDOS
 
