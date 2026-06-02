@@ -8,7 +8,7 @@ import {
   Settings, ShieldAlert
 } from 'lucide-react'
 import {
-  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role,
+  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role, PERSPECTIVES,
   okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
@@ -37,8 +37,6 @@ const PERIODS = [
   { id: 'Q2', label: '2º Trimestre (Abr-Jun)' },
   { id: 'Q3', label: '3º Trimestre (Jul-Set)' }
 ]
-
-const PERSPECTIVES: Perspective[] = ['Performance', 'Governança', 'Valor', 'Projetos']
 
 const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson', 'Aleff']
 
@@ -145,12 +143,9 @@ export function OKRsView({
     let countAudited = 0
     let countNotAudited = 0
 
-    const perspectiveScores: Record<Perspective, { score: number; weight: number }> = {
-      Performance: { score: 0, weight: 0 },
-      Governança: { score: 0, weight: 0 },
-      Valor: { score: 0, weight: 0 },
-      Projetos: { score: 0, weight: 0 }
-    }
+    const perspectiveScores = Object.fromEntries(
+      PERSPECTIVES.map(p => [p, { score: 0, weight: 0 }])
+    ) as Record<Perspective, { score: number; weight: number }>
 
     managerTargets.forEach(t => {
       const okrMeasures = okrMeasurementsMap[t.id] || []
