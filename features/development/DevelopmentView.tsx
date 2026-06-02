@@ -136,6 +136,13 @@ export function DevelopmentView({
   // PDI history expanded cards
   const [expandedPdis, setExpandedPdis] = useState<Set<string>>(new Set())
 
+  // Item 8 — Resumo inteligente das atas de 1:1 (auto-load + cache local)
+  const [ataSummary, setAtaSummary] = useState<string>('')
+  const [ataSummaryLoading, setAtaSummaryLoading] = useState<boolean>(false)
+  const [ataSummaryProvider, setAtaSummaryProvider] = useState<string | null>(null)
+  const [ataSummaryError, setAtaSummaryError] = useState<boolean>(false)
+  const [ataRefreshNonce, setAtaRefreshNonce] = useState<number>(0)
+
   const isSuperOrAdmin = role === 'admin' || role === 'superintendente'
 
   // Dynamic list of viewable collaborators based on role hierarchy
@@ -293,6 +300,129 @@ export function DevelopmentView({
     
     return summary
   }, [selectedCollaborator, items])
+
+  // ── Item 8: chave de cache do resumo de atas (auto-invalida ao surgir nova ata) ─
+  const ataCacheKey = useMemo(() => {
+    const latestFeedbackDate = collaboratorFeedbacks
+      .map(f => f.date)
+      .sort()
+      .slice(-1)[0] ?? 'none'
+    return `vertice_ata_summary_${selectedCollaborator}_${collaboratorFeedbacks.length}:${latestFeedbackDate}`
+  }, [selectedCollaborator, collaboratorFeedbacks])
+
+  // Força regeração: limpa o cache da chave atual e incrementa o nonce do efeito
+  const handleRegenerateAta = () => {
+    try {
+      localStorage.removeItem(ataCacheKey)
+    } catch {
+      // localStorage indisponível — segue para o re-fetch mesmo assim
+    }
+    setAtaRefreshNonce(n => n + 1)
+  }
+
+  // ── Item 8: carrega resumo inteligente das atas quando a aba 1:1 está ativa ───
+  // Economia de tokens: sem histórico → captura determinística; cache hit → instantâneo;
+  // só um cache miss real gasta uma chamada de LLM.
+  useEffect(() => {
+    if (activeTab !== 'feedbacks' || !selectedCollaborator) return
+
+    // Sem nenhuma ata registrada → usa a captura automática determinística (zero API)
+    if (collaboratorFeedbacks.length === 0) {
+      setAtaSummary(autoStatusSummary)
+      setAtaSummaryProvider(null)
+      setAtaSummaryError(false)
+      setAtaSummaryLoading(false)
+      return
+    }
+
+    let ignore = false
+
+    // Cache hit → restaura sem gastar tokens
+    try {
+      const cached = localStorage.getItem(ataCacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached) as { summary: string; provider: string | null }
+        setAtaSummary(parsed.summary)
+        setAtaSummaryProvider(parsed.provider)
+        setAtaSummaryError(false)
+        setAtaSummaryLoading(false)
+        return
+      }
+    } catch {
+      // cache corrompido — ignora e refaz
+      try { localStorage.removeItem(ataCacheKey) } catch { /* noop */ }
+    }
+
+    // Snapshot de aderência dos OKRs do colaborador (apenas KRs já apurados)
+    const attainments = collaboratorOkrTargets
+      .map(t => {
+        const meas = collaboratorOkrMeasurements.filter(m => m.okr_id === t.id)
+        const lastWithResult = meas.filter(m => m.resultado_apurado !== null).slice(-1)[0]
+        return lastWithResult?.atingimento ?? null
+      })
+      .filter((v): v is number => v !== null)
+
+    const okrAdherence = attainments.length > 0
+      ? {
+          total: collaboratorOkrTargets.length,
+          avg_attainment: Math.round(attainments.reduce((a, b) => a + b, 0) / attainments.length),
+          on_track: attainments.filter(v => v >= 70).length,
+          at_risk: attainments.filter(v => v < 70).length
+        }
+      : undefined
+
+    // 1:1s mais recentes primeiro, truncados ao contrato da API
+    const recentOneonones = [...collaboratorFeedbacks]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 12)
+      .map(f => ({
+        date: f.date ? new Date(f.date).toLocaleDateString('pt-BR') : undefined,
+        type: f.feedback_type,
+        trimestre: f.trimestre,
+        strengths: f.strengths || undefined,
+        improvements: f.improvements || undefined,
+        action_plan: f.action_plan || undefined
+      }))
+
+    setAtaSummaryLoading(true)
+    setAtaSummaryError(false)
+
+    fetch('/api/ai/ata-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collaborator_name: selectedCollaborator,
+        status_summary: autoStatusSummary,
+        okr_adherence: okrAdherence,
+        recent_oneonones: recentOneonones
+      })
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ summary: string; provider: string }>
+      })
+      .then(data => {
+        if (ignore) return
+        setAtaSummary(data.summary)
+        setAtaSummaryProvider(data.provider)
+        setAtaSummaryLoading(false)
+        try {
+          localStorage.setItem(ataCacheKey, JSON.stringify({ summary: data.summary, provider: data.provider }))
+        } catch {
+          // quota de localStorage — não-fatal, resumo segue visível na sessão
+        }
+      })
+      .catch(() => {
+        if (ignore) return
+        // Fallback para a captura determinística → o card nunca fica vazio
+        setAtaSummary(autoStatusSummary)
+        setAtaSummaryProvider(null)
+        setAtaSummaryError(true)
+        setAtaSummaryLoading(false)
+      })
+
+    return () => { ignore = true }
+  }, [activeTab, selectedCollaborator, collaboratorFeedbacks, collaboratorOkrTargets, collaboratorOkrMeasurements, autoStatusSummary, ataCacheKey, ataRefreshNonce])
 
   // Open feedback modal and inject auto-captured status
   const handleOpenFeedbackModal = () => {
@@ -512,25 +642,89 @@ export function DevelopmentView({
     setIsPdiModalOpen(true)
   }
 
+  // Gera um rascunho de PDI personalizado a partir de dados reais do colaborador:
+  // competências avaliadas (nome + descrição do Protocolo Vértice), domínios
+  // agregados, último 1:1 registrado e OKRs ativos. Síncrono de propósito — o
+  // gestor revisa e edita o formulário antes de salvar.
   const handleStructurePdiFromEvaluation = () => {
     if (!currentEvaluation) return
-    
-    // Pick the 3 competencies with the lowest scores as focus candidates
-    const sortedLow = Object.entries(currentEvaluation.competency_scores)
+
+    // Primeira frase de uma descrição (insight curto, sem cortar no meio)
+    const firstSentence = (text: string) => {
+      const trimmed = text.trim()
+      const match = trimmed.match(/^.*?[.!?](\s|$)/)
+      return (match ? match[0] : trimmed).trim()
+    }
+
+    // 1. Competências ordenadas por score (nome real + descrição do instrumento)
+    const rankedComp = Object.entries(currentEvaluation.competency_scores)
       .map(([slug, score]) => {
         const comp = COMPETENCIES.find(c => c.slug === slug)
-        return { slug, name: comp ? comp.name : slug, score }
+        return { slug, name: comp?.name ?? slug, description: comp?.description ?? '', score }
       })
       .sort((a, b) => a.score - b.score)
-      .slice(0, 3)
-      .map(item => item.slug)
+
+    const focuses = rankedComp.slice(0, 3)                     // 3 menores = foco do PDI
+    const topStrength = rankedComp[rankedComp.length - 1]      // maior = alavanca a capitalizar
+    const focusSlugs = focuses.map(f => f.slug)
+
+    // 2. Domínios agregados — maior força x maior lacuna
+    const rankedDom = Object.entries(currentEvaluation.domain_scores)
+      .map(([slug, score]) => ({ name: DOMAINS.find(d => d.slug === slug)?.name ?? slug, score }))
+      .sort((a, b) => b.score - a.score)
+    const topDom = rankedDom[0]
+    const lowDom = rankedDom[rankedDom.length - 1]
+
+    // 3. Objetivo de carreira declarado na avaliação (resposta aberta), se houver
+    const declaredObjective = currentEvaluation.open_answers?.['OPEN-OBJECTIVE']?.trim()
+
+    // 4. Último 1:1 registrado — fios de continuidade (plano de ação / evolução)
+    const lastFeedback = collaboratorFeedbacks
+      .slice()
+      .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime())[0]
+    const lastActionPlan = lastFeedback?.action_plan?.trim()
+    const lastImprovements = lastFeedback?.improvements?.trim()
+
+    // 5. OKRs ativos do colaborador — ancoragem do desenvolvimento ao resultado
+    const activeOkrs = collaboratorOkrTargets.slice(0, 2).map(t => t.objetivo).filter(Boolean)
+
+    // ── Objetivo de carreira personalizado ──────────────────────────────────
+    let objetivo = declaredObjective ? `Objetivo declarado: "${declaredObjective}". ` : ''
+    if (topDom) {
+      objetivo += `Capitalizar a força em ${topDom.name} (${Math.round(topDom.score)}/100)`
+      if (topStrength) objetivo += `, com destaque para ${topStrength.name},`
+      const gap = lowDom && lowDom.name !== topDom.name
+        ? `${lowDom.name} (${Math.round(lowDom.score)}/100)`
+        : 'os pontos mapeados em desenvolvimento'
+      objetivo += ` enquanto eleva o domínio de ${gap} ao longo do trimestre.`
+    } else {
+      objetivo += `Elevar de forma consistente as competências do Protocolo Vértice mapeadas em desenvolvimento.`
+    }
+
+    // ── Plano de ação multi-etapas, ancorado em dados reais ──────────────────
+    const steps: string[] = []
+    focuses.forEach(f => {
+      const insight = f.description ? ` — ${firstSentence(f.description)}` : ''
+      steps.push(`${steps.length + 1}. Desenvolver ${f.name} (${Math.round(f.score)}/100)${insight} Definir 1 ação mensurável e checkpoint mensal no 1:1.`)
+    })
+    if (topStrength) {
+      steps.push(`${steps.length + 1}. Usar ${topStrength.name} (${Math.round(topStrength.score)}/100) como alavanca: mentorar um par ou liderar uma frente onde essa força acelere o time.`)
+    }
+    if (activeOkrs.length > 0) {
+      steps.push(`${steps.length + 1}. Conectar o desenvolvimento ao resultado: vincular as ações aos OKRs ativos — ${activeOkrs.join('; ')}.`)
+    }
+    if (lastActionPlan) {
+      steps.push(`${steps.length + 1}. Dar continuidade ao último 1:1: ${lastActionPlan}`)
+    } else if (lastImprovements) {
+      steps.push(`${steps.length + 1}. Retomar os pontos de evolução do último 1:1: ${lastImprovements}`)
+    }
 
     setEditingPdiId(null)
     setPdiForm({
       trimestre: 'Q2',
-      objetivo_carreira: `Desenvolver excelência tática e analítica maximizando as competências do Protocolo Vértice.`,
-      competencias_foco: sortedLow,
-      plano_acao: `1. Executar as metas acordadas nos rituais de One-on-One.\n2. Dedicar foco de 30 minutos diários em auto-estudo das competências mapeadas em atraso.`,
+      objetivo_carreira: objetivo,
+      competencias_foco: focusSlugs,
+      plano_acao: steps.join('\n'),
       status: 'Ativo'
     })
     setActiveTab('pdi')
@@ -921,9 +1115,12 @@ export function DevelopmentView({
                       const comps = COMPETENCIES.filter(c => c.domain === domain.slug)
                       return (
                         <div key={domain.slug} style={{ marginBottom: 20 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 12 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{domain.code}. {domain.name}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: dBand.color, whiteSpace: 'nowrap' }}>{dScore}/100 · {dBand.label}</span>
+                          <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{domain.code}. {domain.name}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: dBand.color, whiteSpace: 'nowrap' }}>{dScore}/100 · {dBand.label}</span>
+                            </div>
+                            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b', lineHeight: '1.5em' }}>{domain.description}</p>
                           </div>
                           {comps.map(comp => {
                             const cScore = Math.round(compScores[comp.slug] ?? 0)
@@ -1175,6 +1372,102 @@ export function DevelopmentView({
                 <Plus size={14} /> Registrar Novo 1:1
               </button>
             )}
+          </div>
+
+          {/* Item 8 — Resumo inteligente do colaborador (auto-gerado por IA + cache local) */}
+          <div
+            className="card"
+            style={{
+              padding: 0,
+              marginBottom: 18,
+              border: '1px solid #e2e8f0',
+              borderTop: '3px solid var(--color-primary)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 12, padding: '12px 18px', backgroundColor: '#f8fafc',
+              borderBottom: '1px solid #f1f5f9'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Sparkles size={15} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', letterSpacing: '0.02em' }}>
+                  Resumo Inteligente do Colaborador
+                </span>
+                {ataSummaryProvider && !ataSummaryLoading && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+                    padding: '2px 7px', borderRadius: 99,
+                    color: ataSummaryProvider === 'openai' ? '#1d4ed8' : '#7c3aed',
+                    backgroundColor: ataSummaryProvider === 'openai' ? '#eff6ff' : '#f5f3ff',
+                    border: `1px solid ${ataSummaryProvider === 'openai' ? '#bfdbfe' : '#ddd6fe'}`
+                  }}>
+                    {ataSummaryProvider === 'openai' ? 'IA · OpenAI' : 'IA · Local'}
+                  </span>
+                )}
+              </div>
+              {isSuperOrAdmin && collaboratorFeedbacks.length > 0 && (
+                <button
+                  onClick={handleRegenerateAta}
+                  disabled={ataSummaryLoading}
+                  className="btn small"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: ataSummaryLoading ? 0.6 : 1, flexShrink: 0 }}
+                  title="Regerar resumo com IA"
+                >
+                  <RotateCcw size={12} /> Regerar
+                </button>
+              )}
+            </div>
+
+            <div style={{ padding: '14px 18px' }}>
+              {ataSummaryLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#64748b', fontSize: 12, padding: '6px 0' }}>
+                  <span style={{
+                    width: 14, height: 14, border: '2px solid #e2e8f0', borderTopColor: 'var(--color-primary)',
+                    borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite'
+                  }} />
+                  <Clock size={13} style={{ flexShrink: 0 }} />
+                  Sintetizando histórico de 1:1 e aderência de OKRs…
+                </div>
+              ) : (
+                <>
+                  {ataSummaryError && (
+                    <div style={{
+                      fontSize: 10.5, color: '#92400e', backgroundColor: '#fffbeb',
+                      border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', marginBottom: 10
+                    }}>
+                      IA indisponível no momento — exibindo captura automática da carteira.
+                    </div>
+                  )}
+                  <div className="markdown-content" style={{ fontSize: 12, color: '#334155', lineHeight: '1.55em' }}>
+                    {(ataSummary || autoStatusSummary).split('\n').map((line, idx) => {
+                      const t = line.trim()
+                      if (t === '') return <div key={idx} style={{ height: 6 }} />
+                      if (t.startsWith('####')) {
+                        return <h5 key={idx} style={{ fontSize: 11, fontWeight: 700, margin: '8px 0 3px 0', color: '#1e293b' }}>{renderInlineMd(t.replace(/^#+\s*/, ''))}</h5>
+                      }
+                      if (t.startsWith('###')) {
+                        return (
+                          <h4 key={idx} style={{
+                            fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                            margin: '12px 0 6px 0', color: 'var(--color-primary)',
+                            borderLeft: '3px solid var(--color-primary)', paddingLeft: 9
+                          }}>{renderInlineMd(t.replace(/^#+\s*/, ''))}</h4>
+                        )
+                      }
+                      if (/^\d+\./.test(t)) {
+                        return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 14 }}>{renderInlineMd(t)}</p>
+                      }
+                      if (t.startsWith('*') || t.startsWith('-')) {
+                        return <p key={idx} style={{ margin: '0 0 3px 0', paddingLeft: 12 }}>• {renderInlineMd(t.replace(/^[*-]\s*/, ''))}</p>
+                      }
+                      return <p key={idx} style={{ margin: '0 0 4px 0' }}>{renderInlineMd(t)}</p>
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {collaboratorFeedbacks.length === 0 ? (

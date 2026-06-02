@@ -104,35 +104,35 @@ export const DOMAINS: readonly Domain[] = [
     code: "A",
     name: "Cognição & Análise",
     description:
-      "Como o profissional pensa: lê dados, raciocina, usa IA, conecta sistemas e resolve problemas.",
+      "Mede a qualidade do raciocínio diante da informação: como o profissional lê dados, separa sinal de ruído, formula hipóteses, opera com IA como copiloto e enxerga o sistema por trás do problema. Domínio alto indica decisões fundamentadas em evidência e a capacidade de resolver o problema certo — não apenas o mais visível.",
   },
   {
     slug: "negocio",
     code: "B",
     name: "Negócio & Cliente",
     description:
-      "Como o profissional gera valor: entende o cliente, entrega resultado e lê o negócio.",
+      "Mede a capacidade de transformar esforço em valor percebido: compreender a jornada do cliente, manter o foco no resultado que importa e ler o negócio em termos de receita, custo e estratégia. Domínio alto indica alguém que entrega impacto mensurável e conecta o próprio trabalho ao que move o ponteiro da organização.",
   },
   {
     slug: "energia",
     code: "C",
     name: "Energia & Equilíbrio Emocional",
     description:
-      "A base vital e emocional: inteligência emocional, vitalidade, resiliência e autogestão.",
+      "Mede a base vital e emocional que sustenta o desempenho ao longo do tempo: consciência e regulação das próprias emoções, gestão de energia, recuperação diante da adversidade e disciplina de foco. Domínio alto indica estabilidade sob pressão e constância — a diferença entre picos isolados e performance sustentável.",
   },
   {
     slug: "relacao",
     code: "D",
     name: "Relação & Influência",
     description:
-      "Como o profissional opera com pessoas: vínculo, comunicação, liderança e negociação.",
+      "Mede como o profissional cria resultado por meio de pessoas: constrói vínculo e confiança, comunica com clareza e narrativa, desenvolve o time e conduz negociações e conflitos para o ganha-ganha. Domínio alto indica influência legítima — capacidade de mobilizar e alinhar sem depender de autoridade formal.",
   },
   {
     slug: "crescimento",
     code: "E",
     name: "Crescimento & Propósito",
     description:
-      "O motor de evolução: aprendizado contínuo, adaptabilidade/inovação e clareza de direção.",
+      "Mede o motor de evolução do profissional: apetite por aprender e desaprender, abertura à mudança com iniciativa para inovar e clareza sobre o propósito que dá direção às escolhas. Domínio alto indica alguém que se renova diante do novo e mantém coerência entre valores, objetivos e trabalho.",
   },
 ] as const;
 
@@ -144,7 +144,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "pensamento_analitico",
     name: "Pensamento Analítico",
     domain: "cognicao",
-    description: "Capacidade de ler dados, raciocinar de forma crítica e formular hipóteses.",
+    description:
+      "Avalia a capacidade de ler dados com precisão, questionar premissas e transformar observações soltas em hipóteses testáveis. Quem domina extrai de uma planilha ou painel o que importa, distingue correlação de causa e propõe explicações verificáveis em vez de opiniões.",
     subCompetencies: [
       { slug: "leitura_de_dados", name: "Leitura de dados" },
       { slug: "raciocinio_critico", name: "Raciocínio crítico" },
@@ -155,7 +156,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "fluencia_ia_aplicada",
     name: "Fluência em IA Aplicada",
     domain: "cognicao",
-    description: "Repertório de IA, julgamento sobre os outputs e pensamento de prompt.",
+    description:
+      "Avalia o repertório de ferramentas de IA, o critério para julgar a qualidade dos outputs e a habilidade de formular instruções que produzem o resultado desejado. Quem domina usa IA como copiloto para acelerar o trabalho, detecta alucinações e respostas frágeis e refina o prompt até o resultado ser confiável.",
     subCompetencies: [
       { slug: "repertorio_de_ia", name: "Repertório de IA" },
       { slug: "julgamento_de_outputs", name: "Julgamento de outputs" },
@@ -166,7 +168,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "visao_sistemica",
     name: "Visão Sistêmica",
     domain: "cognicao",
-    description: "Conexão entre áreas, pensamento de segunda ordem e capacidade de síntese.",
+    description:
+      "Avalia a capacidade de conectar áreas e variáveis, antecipar efeitos de segunda ordem e sintetizar complexidade em um quadro claro. Quem domina enxerga como uma decisão em uma ponta afeta a outra, prevê consequências indiretas e resume o todo sem perder o essencial.",
     subCompetencies: [
       { slug: "conexao_entre_areas", name: "Conexão entre áreas" },
       { slug: "pensamento_de_segunda_ordem", name: "Pensamento de 2ª ordem" },
@@ -177,7 +180,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "resolucao_de_problemas",
     name: "Resolução de Problemas",
     domain: "cognicao",
-    description: "Decomposição, priorização e criatividade aplicada à solução.",
+    description:
+      "Avalia como o profissional quebra um problema complexo em partes tratáveis, prioriza o que ataca a causa e gera soluções criativas viáveis. Quem domina decompõe o desafio, concentra energia no que move o ponteiro e combina rigor com criatividade para destravar o que parecia sem saída.",
     subCompetencies: [
       { slug: "decomposicao", name: "Decomposição" },
       { slug: "priorizacao", name: "Priorização" },
@@ -190,7 +194,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "experiencia_do_cliente",
     name: "Experiência do Cliente",
     domain: "negocio",
-    description: "Empatia de jornada, leitura de fricção e construção de valor percebido.",
+    description:
+      "Avalia a empatia com a jornada do cliente, a sensibilidade para identificar pontos de fricção e a habilidade de construir valor percebido. Quem domina enxerga o produto pelos olhos de quem usa, localiza onde a experiência trava e desenha entregas que o cliente sente como valiosas.",
     subCompetencies: [
       { slug: "empatia_de_jornada", name: "Empatia de jornada" },
       { slug: "leitura_de_friccao", name: "Leitura de fricção" },
@@ -201,7 +206,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "orientacao_a_resultado",
     name: "Orientação a Resultado",
     domain: "negocio",
-    description: "Foco em impacto, disciplina de entrega e accountability.",
+    description:
+      "Avalia o foco no impacto real em vez da atividade, a disciplina de levar o trabalho até o fim e a responsabilização pelos próprios resultados. Quem domina mira o desfecho que importa, entrega com consistência e assume os números — bons ou ruins — sem terceirizar a culpa.",
     subCompetencies: [
       { slug: "foco_em_impacto", name: "Foco em impacto" },
       { slug: "disciplina_de_entrega", name: "Disciplina de entrega" },
@@ -212,7 +218,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "visao_de_negocio",
     name: "Visão de Negócio",
     domain: "negocio",
-    description: "Noção de receita e custo, leitura de mercado e pensamento estratégico.",
+    description:
+      "Avalia a compreensão de receita, custo e margem, a leitura do mercado e dos concorrentes e o pensamento estratégico de médio prazo. Quem domina entende como a empresa ganha dinheiro, posiciona o trabalho diante do cenário competitivo e escolhe onde investir esforço para retorno futuro.",
     subCompetencies: [
       { slug: "noção_receita_custo", name: "Noção de receita e custo" },
       { slug: "leitura_de_mercado", name: "Leitura de mercado" },
@@ -225,7 +232,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "inteligencia_emocional",
     name: "Inteligência Emocional",
     domain: "energia",
-    description: "Autoconsciência, autorregulação e empatia.",
+    description:
+      "Avalia a consciência das próprias emoções, a capacidade de regulá-las sob pressão e a empatia para captar o estado do outro. Quem domina reconhece o que sente antes de reagir, mantém a serenidade em momentos tensos e ajusta a abordagem ao ler com precisão as emoções alheias.",
     subCompetencies: [
       { slug: "autoconsciencia", name: "Autoconsciência" },
       { slug: "autorregulacao", name: "Autorregulação" },
@@ -236,7 +244,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "tonus_vital",
     name: "Tônus Vital",
     domain: "energia",
-    description: "Vitalidade, gestão de energia e presença.",
+    description:
+      "Avalia a vitalidade física e mental, a gestão consciente da própria energia ao longo do dia e a presença plena nas interações. Quem domina sustenta o ritmo sem se esgotar, protege os picos de energia para o que exige mais e está inteiro — não disperso — em cada conversa.",
     subCompetencies: [
       { slug: "vitalidade", name: "Vitalidade" },
       { slug: "gestao_de_energia", name: "Gestão de energia" },
@@ -247,7 +256,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "resiliencia",
     name: "Resiliência",
     domain: "energia",
-    description: "Recuperação à adversidade, tolerância à ambiguidade e estabilidade sob pressão.",
+    description:
+      "Avalia a velocidade de recuperação diante de reveses, a tolerância à incerteza e a estabilidade emocional sob pressão. Quem domina se reergue rápido após um tropeço, opera bem mesmo sem todas as respostas e mantém a clareza quando o cenário fica adverso.",
     subCompetencies: [
       { slug: "recuperacao_a_adversidade", name: "Recuperação à adversidade" },
       { slug: "tolerancia_a_ambiguidade", name: "Tolerância à ambiguidade" },
@@ -258,7 +268,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "autogestao_e_foco",
     name: "Autogestão & Foco",
     domain: "energia",
-    description: "Disciplina, gestão de atenção e autonomia.",
+    description:
+      "Avalia a disciplina para cumprir o que se propõe, a gestão da atenção contra distrações e a autonomia para se conduzir sem supervisão constante. Quem domina mantém constância nos hábitos, protege blocos de foco profundo e organiza o próprio trabalho sem precisar ser cobrado.",
     subCompetencies: [
       { slug: "disciplina", name: "Disciplina" },
       { slug: "gestao_de_atencao", name: "Gestão de atenção" },
@@ -271,7 +282,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "relacionamento",
     name: "Relacionamento",
     domain: "relacao",
-    description: "Construção de vínculo, colaboração e rede de contatos.",
+    description:
+      "Avalia a capacidade de criar vínculos de confiança, colaborar de forma genuína e cultivar uma rede de relações ao longo do tempo. Quem domina constrói pontes em vez de muros, soma com os outros em direção a um objetivo comum e mantém uma rede viva que sustenta resultados futuros.",
     subCompetencies: [
       { slug: "construcao_de_vinculo", name: "Construção de vínculo" },
       { slug: "colaboracao", name: "Colaboração" },
@@ -282,7 +294,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "comunicacao_e_influencia",
     name: "Comunicação & Influência",
     domain: "relacao",
-    description: "Clareza, narrativa e escuta ativa.",
+    description:
+      "Avalia a clareza ao transmitir ideias, a capacidade de construir narrativa que engaja e a escuta ativa que compreende antes de responder. Quem domina explica o complexo de forma simples, conecta fatos em uma história que move e ouve de verdade — captando o que não foi dito.",
     subCompetencies: [
       { slug: "clareza", name: "Clareza" },
       { slug: "narrativa", name: "Narrativa" },
@@ -293,7 +306,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "lideranca_e_desenvolvimento",
     name: "Liderança & Desenvolvimento",
     domain: "relacao",
-    description: "Inspirar, delegar e dar feedback.",
+    description:
+      "Avalia a capacidade de inspirar e dar direção, delegar com confiança e desenvolver pessoas por meio de feedback. Quem domina mobiliza o time em torno de um propósito, distribui responsabilidade real em vez de microgerenciar e faz o outro crescer com devolutivas francas e úteis.",
     subCompetencies: [
       { slug: "inspirar", name: "Inspirar" },
       { slug: "delegar", name: "Delegar" },
@@ -304,7 +318,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "negociacao_e_conflito",
     name: "Negociação & Gestão de Conflito",
     domain: "relacao",
-    description: "Assertividade, mediação e busca de ganha-ganha.",
+    description:
+      "Avalia a assertividade para defender posições, a habilidade de mediar tensões e a busca por acordos de ganha-ganha. Quem domina diz o que precisa ser dito com firmeza e respeito, desarma conflitos antes que escalem e procura a solução em que todos os lados saem ganhando.",
     subCompetencies: [
       { slug: "assertividade", name: "Assertividade" },
       { slug: "mediacao", name: "Mediação" },
@@ -317,7 +332,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "aprendizado_continuo",
     name: "Aprendizado Contínuo",
     domain: "crescimento",
-    description: "Autodesenvolvimento, curiosidade e capacidade de desaprender.",
+    description:
+      "Avalia o apetite por autodesenvolvimento, a curiosidade que move a busca pelo novo e a capacidade de desaprender o que ficou obsoleto. Quem domina assume a responsabilidade pela própria evolução, faz perguntas em vez de presumir e abandona certezas vencidas quando a realidade muda.",
     subCompetencies: [
       { slug: "autodesenvolvimento", name: "Autodesenvolvimento" },
       { slug: "curiosidade", name: "Curiosidade" },
@@ -328,7 +344,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "adaptabilidade_e_inovacao",
     name: "Adaptabilidade & Inovação",
     domain: "crescimento",
-    description: "Abertura à mudança, experimentação e iniciativa.",
+    description:
+      "Avalia a abertura para mudar de rota, a disposição para experimentar e a iniciativa de propor o novo sem esperar ordem. Quem domina acolhe a mudança como oportunidade, testa hipóteses em pequena escala e age proativamente para melhorar o que está ao alcance.",
     subCompetencies: [
       { slug: "abertura_a_mudanca", name: "Abertura à mudança" },
       { slug: "experimentacao", name: "Experimentação" },
@@ -339,7 +356,8 @@ export const COMPETENCIES: readonly Competency[] = [
     slug: "proposito_e_direcao",
     name: "Propósito & Direção",
     domain: "crescimento",
-    description: "Clareza de objetivo, intencionalidade e alinhamento valor-trabalho.",
+    description:
+      "Avalia a clareza sobre os próprios objetivos, a intencionalidade nas escolhas e o alinhamento entre valores pessoais e o trabalho. Quem domina sabe aonde quer chegar, decide com propósito em vez de reagir ao acaso e mantém coerência entre o que acredita e o que faz no dia a dia.",
     subCompetencies: [
       { slug: "clareza_de_objetivo", name: "Clareza de objetivo" },
       { slug: "intencionalidade", name: "Intencionalidade" },
