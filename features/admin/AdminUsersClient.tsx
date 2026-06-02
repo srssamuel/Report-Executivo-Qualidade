@@ -2,7 +2,7 @@
 
 import React, { useState, FormEvent } from 'react'
 import { createClient } from '@/shared/supabase/client'
-import { UserProfile, ROLE_LABELS, Role } from '@/shared/domain'
+import { UserProfile, ROLE_LABELS, Role, Product } from '@/shared/domain'
 
 interface Invitation {
   id: string
@@ -52,10 +52,11 @@ const INVITE_ROLES: Role[] = ['superintendente', 'gerente', 'coordenador', 'cons
 interface AdminUsersClientProps {
   users: UserProfile[]
   invitations: Invitation[]
+  products: Product[]
   currentUserId: string
 }
 
-export function AdminUsersClient({ users, invitations, currentUserId }: AdminUsersClientProps) {
+export function AdminUsersClient({ users, invitations, products, currentUserId }: AdminUsersClientProps) {
   const supabase = createClient()
   const [userList, setUserList] = useState(users)
   const [inviteList, setInviteList] = useState(invitations)
@@ -67,6 +68,16 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
   const [success, setSuccess] = useState('')
   const [results, setResults] = useState<InviteResult[]>([])
   const [mode, setMode] = useState<'single' | 'batch'>('batch')
+  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [resetResult, setResetResult] = useState<{ email: string; tempPassword: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  // Products management
+  const [productList, setProductList] = useState(products)
+  const [newProductName, setNewProductName] = useState('')
+  const [newProductColor, setNewProductColor] = useState('#3b82f6')
+  const [productLoading, setProductLoading] = useState(false)
+  const [productError, setProductError] = useState('')
 
   async function handleInvite(e: FormEvent) {
     e.preventDefault()
@@ -121,6 +132,71 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
     if (!confirm('Revogar este convite?')) return
     await supabase.from('invitations').delete().eq('id', id)
     setInviteList(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function handleResetPassword(userId: string, email: string) {
+    if (!confirm(`Gerar nova senha temporária para ${email}? A senha atual deixará de funcionar imediatamente.`)) return
+    setResettingId(userId)
+    setResetResult(null)
+    setCopied(false)
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        alert(json.error || 'Erro ao redefinir senha.')
+        return
+      }
+      setResetResult({ email: json.email ?? email, tempPassword: json.tempPassword })
+    } finally {
+      setResettingId(null)
+    }
+  }
+
+  async function copyTempPassword() {
+    if (!resetResult) return
+    try {
+      await navigator.clipboard.writeText(resetResult.tempPassword)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard may be unavailable */ }
+  }
+
+  async function handleAddProduct(e: FormEvent) {
+    e.preventDefault()
+    const name = newProductName.trim()
+    if (!name) { setProductError('Informe o nome do produto.'); return }
+    if (productList.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      setProductError('Já existe um produto com este nome.'); return
+    }
+    setProductError(''); setProductLoading(true)
+    const { data, error } = await supabase
+      .from('products')
+      .insert({ name, color: newProductColor })
+      .select('*')
+      .single()
+    setProductLoading(false)
+    if (error || !data) { setProductError(error?.message ?? 'Falha ao cadastrar produto.'); return }
+    const created = data as unknown as Product
+    setProductList(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+    setNewProductName('')
+    setNewProductColor('#3b82f6')
+  }
+
+  async function toggleProductActive(id: string, active: boolean) {
+    const { error } = await supabase.from('products').update({ active }).eq('id', id)
+    if (error) { alert(error.message); return }
+    setProductList(prev => prev.map(p => p.id === id ? { ...p, active } : p))
+  }
+
+  async function deleteProduct(id: string, name: string) {
+    if (!confirm(`Excluir o produto "${name}"? Itens já lançados mantêm o rótulo, mas ele deixa de aparecer para novos lançamentos.`)) return
+    const { error } = await supabase.from('products').delete().eq('id', id)
+    if (error) { alert(error.message); return }
+    setProductList(prev => prev.filter(p => p.id !== id))
   }
 
   const parsed = mode === 'batch' ? parseEmailList(batchText) : []
@@ -271,19 +347,83 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
                     </td>
                     <td style={{ color: '#5f7188', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
                     <td>
-                      {u.id !== currentUserId && (
-                        <button className="btn small danger" onClick={async () => {
-                          if (!confirm(`Remover acesso de ${u.email}?`)) return
-                          await supabase.from('user_profiles').update({ role: 'viewer' }).eq('id', u.id)
-                          setUserList(prev => prev.map(x => x.id === u.id ? { ...x, role: 'viewer' } : x))
-                        }}>Revogar</button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          className="btn small"
+                          disabled={resettingId === u.id}
+                          onClick={() => handleResetPassword(u.id, u.email)}
+                        >
+                          {resettingId === u.id ? 'Gerando…' : 'Resetar senha'}
+                        </button>
+                        {u.id !== currentUserId && (
+                          <button className="btn small danger" onClick={async () => {
+                            if (!confirm(`Remover acesso de ${u.email}?`)) return
+                            await supabase.from('user_profiles').update({ role: 'viewer' }).eq('id', u.id)
+                            setUserList(prev => prev.map(x => x.id === u.id ? { ...x, role: 'viewer' } : x))
+                          }}>Revogar</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      {/* Products management */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-head">
+          <h3 className="card-title">Produtos</h3>
+          <span className="badge tone-teal">{productList.filter(p => p.active).length} ativo(s)</span>
+        </div>
+        <div className="card-body">
+          {productError && <div className="auth-error">{productError}</div>}
+
+          <form onSubmit={handleAddProduct} style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 12, alignItems: 'end', marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Novo produto</label>
+              <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)} placeholder="Nome do produto" maxLength={80} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Cor</label>
+              <input type="color" aria-label="Cor do produto" value={newProductColor} onChange={e => setNewProductColor(e.target.value)} style={{ width: '100%', height: 38, padding: 2, border: '1px solid #d1d5db', borderRadius: 8, background: '#f8fafc', cursor: 'pointer' }} />
+            </div>
+            <button className="btn primary" type="submit" disabled={productLoading}>{productLoading ? 'Salvando…' : 'Adicionar'}</button>
+          </form>
+
+          <div className="table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Cor</th><th>Produto</th><th>Status</th><th>Ações</th></tr>
+              </thead>
+              <tbody>
+                {productList.length === 0 ? (
+                  <tr><td colSpan={4} style={{ color: '#5f7188', fontSize: 13 }}>Nenhum produto cadastrado.</td></tr>
+                ) : productList.map(p => (
+                  <tr key={p.id}>
+                    <td>
+                      <span aria-hidden="true" style={{ display: 'inline-block', width: 18, height: 18, borderRadius: 5, background: p.color, border: '1px solid rgba(15,23,42,0.15)', verticalAlign: 'middle' }} />
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{p.name}</td>
+                    <td>{p.active ? <span className="badge tone-green">Ativo</span> : <span className="badge tone-gray">Inativo</span>}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="btn small" onClick={() => toggleProductActive(p.id, !p.active)}>
+                          {p.active ? 'Desativar' : 'Reativar'}
+                        </button>
+                        <button className="btn small danger" onClick={() => deleteProduct(p.id, p.name)}>Excluir</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: '10px 0 0', color: '#5f7188', fontSize: 13 }}>
+            Desativar oculta o produto de novos lançamentos sem apagar o histórico. Excluir remove o registro — itens já lançados mantêm o rótulo de texto.
+          </p>
         </div>
       </div>
 
@@ -309,6 +449,50 @@ export function AdminUsersClient({ users, invitations, currentUserId }: AdminUse
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Temp password result modal */}
+      {resetResult && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Senha temporária gerada"
+          onClick={() => setResetResult(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)',
+            display: 'grid', placeItems: 'center', zIndex: 1000, padding: 16,
+          }}
+        >
+          <div className="card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '100%' }}>
+            <div className="card-head">
+              <h3 className="card-title">Senha temporária gerada</h3>
+              <span className="badge tone-green">OK</span>
+            </div>
+            <div className="card-body">
+              <p style={{ margin: '0 0 12px', color: '#374151', fontSize: 14 }}>
+                Repasse esta senha para <strong>{resetResult.email}</strong> por um canal seguro.
+                No próximo acesso o usuário será obrigado a definir uma senha própria.
+              </p>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px',
+                background: '#0f172a', borderRadius: 10, marginBottom: 12,
+              }}>
+                <code style={{ flex: 1, color: '#f8fafc', fontSize: 18, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                  {resetResult.tempPassword}
+                </code>
+                <button className="btn small primary" type="button" onClick={copyTempPassword}>
+                  {copied ? 'Copiado ✓' : 'Copiar'}
+                </button>
+              </div>
+              <p style={{ margin: '0 0 16px', color: '#b45309', fontSize: 12, fontWeight: 600 }}>
+                ⚠ Esta senha não será exibida novamente. Copie agora.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn" type="button" onClick={() => setResetResult(null)}>Fechar</button>
+              </div>
             </div>
           </div>
         </div>
