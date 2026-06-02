@@ -1250,7 +1250,7 @@ export default function AppPage() {
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
-      {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
+      {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} userProfiles={userProfiles} profile={profile} />}
       {view === 'okrs' && (
         <OKRsView
           targets={okrTargets}

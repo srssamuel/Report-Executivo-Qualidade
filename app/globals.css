@@ -908,6 +908,16 @@ textarea {
   color: #53657a;
   border-color: #dfe7f0;
 }
+.tone-teal {
+  background: #e3f6f3;
+  color: #0f766e;
+  border-color: #c2e9e2;
+}
+.tone-indigo {
+  background: #ecebfe;
+  color: #4338ca;
+  border-color: #d5d2fb;
+}
 
 /* Traffic legend */
 .traffic-legend {
@@ -2283,6 +2293,16 @@ body.table-dense td .mini-textarea {
   background: #1a2332;
   border-color: #2a3a4e;
   color: var(--muted);
+}
+[data-theme="dark"] .tone-teal {
+  background: #0d2522;
+  border-color: #155049;
+  color: #5eddcc;
+}
+[data-theme="dark"] .tone-indigo {
+  background: #16172e;
+  border-color: #2c2e5a;
+  color: #a5a1f5;
 }
 
 /* Auth */

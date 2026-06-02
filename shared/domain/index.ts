@@ -508,7 +508,18 @@ export function addDays(date: Date, days: number): Date {
 
 // ── OKR Module Types & Helpers ──────────────────────────────────────────────
 
-export type Perspective = 'Performance' | 'Governança' | 'Valor' | 'Projetos'
+// Single source of truth for OKR perspectivas (contracted Jan-Jun plan uses all 7).
+// Type derives from the array so the runtime list and the union can never drift apart.
+export const PERSPECTIVES = [
+  'Performance',
+  'Governança',
+  'Valor',
+  'Projetos',
+  'Adoção',
+  'IA/Mensageria',
+  'Pleitos',
+] as const
+export type Perspective = (typeof PERSPECTIVES)[number]
 export type Direcao = 'Maior é melhor' | 'Menor é melhor' | 'Igual/meta exata'
 export type OKRStatus = 'Pendente' | 'Atingido' | 'Parcial' | 'Crítico'
 
@@ -580,6 +591,9 @@ export function okrPerspectiveTone(perspectiva: Perspective): string {
   if (perspectiva === 'Governança') return 'tone-purple'
   if (perspectiva === 'Valor') return 'tone-green'
   if (perspectiva === 'Projetos') return 'tone-amber'
+  if (perspectiva === 'Adoção') return 'tone-teal'
+  if (perspectiva === 'IA/Mensageria') return 'tone-indigo'
+  if (perspectiva === 'Pleitos') return 'tone-red'
   return 'tone-gray'
 }
 

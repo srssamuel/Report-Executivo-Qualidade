@@ -28,3 +28,6 @@ sentry.properties
 # Logs
 *.log
 npm-debug.log*
+
+# Serena MCP cache (não versionar)
+.serena/
