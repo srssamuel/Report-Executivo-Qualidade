@@ -11,9 +11,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // va.vercel-scripts.com: script do Vercel Speed Insights (<SpeedInsights/> em app/layout.tsx).
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline'",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} https://*.supabase.co`,
+      // vitals.vercel-insights.com: beacon de métricas do Speed Insights.
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} https://*.supabase.co https://vitals.vercel-insights.com`,
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
       "frame-ancestors 'none'",
