@@ -170,7 +170,38 @@ export function isDone(it: Item): boolean {
   return ['Concluído','Entregue','Cancelado'].includes(it.status)
 }
 
-export function ownersOf(owner?: string): string[] {
+/** Marcas diacríticas combinantes (U+0300–U+036F) — usadas para remover acentos. */
+const COMBINING_DIACRITICS = new RegExp('[\\u0300-\\u036f]', 'g')
+
+/** Normaliza um nome para comparação: remove acento, baixa caixa, colapsa espaços. */
+function ownerKey(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(COMBINING_DIACRITICS, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Registro de nomes canônicos (full_name dos usuários cadastrados). */
+let _canonicalOwners: string[] = []
+
+/**
+ * Define a lista de nomes canônicos a partir dos perfis cadastrados.
+ * Deve ser chamado (sincronamente) antes de derivar listas/filtros de responsáveis.
+ */
+export function setCanonicalOwners(names: ReadonlyArray<string | undefined | null>): void {
+  _canonicalOwners = names
+    .map(n => String(n ?? '').trim())
+    .filter(n => n.length > 0)
+}
+
+export function getCanonicalOwners(): string[] {
+  return [..._canonicalOwners]
+}
+
+/** Quebra um texto livre de responsável(is) em tokens, sem canonicalizar. */
+export function splitOwners(owner?: string): string[] {
   return String(owner ?? '')
     .replace(/\s+e\s+/gi, ',')
     .replace(/\s*&\s*/g, ',')
@@ -178,6 +209,53 @@ export function ownersOf(owner?: string): string[] {
     .split(',')
     .map(x => x.trim())
     .filter(Boolean)
+}
+
+/**
+ * Resolve um token de responsável para o nome canônico cadastrado.
+ * Estratégia conservadora em camadas: só canoniza quando há UM único match.
+ * Em ambiguidade ou ausência de match, devolve o token original (preserva o dado).
+ */
+export function canonicalizeOwner(token: string): string {
+  const t = token.trim()
+  if (!t || _canonicalOwners.length === 0) return t
+  const tk = ownerKey(t)
+  if (!tk) return t
+
+  const uniqueMatch = (matches: string[]): string | null => {
+    const set = [...new Set(matches)]
+    return set.length === 1 ? set[0]! : null
+  }
+  const firstWord = (c: string) => ownerKey(c).split(' ')[0] ?? ''
+
+  // T1 — igualdade exata normalizada (corrige acento/caixa/espaço duplicado)
+  const r1 = uniqueMatch(_canonicalOwners.filter(c => ownerKey(c) === tk))
+  if (r1) return r1
+  // T2 — canônico começa com "token " (ex.: "Pedro" → "Pedro Almeida Santos")
+  const r2 = uniqueMatch(_canonicalOwners.filter(c => ownerKey(c).startsWith(tk + ' ')))
+  if (r2) return r2
+  // T3 — primeira palavra do canônico == token
+  const r3 = uniqueMatch(_canonicalOwners.filter(c => firstWord(c) === tk))
+  if (r3) return r3
+  // T4 — primeira palavra do canônico começa com token (ex.: "Kath" → "Kathelleen …")
+  const r4 = uniqueMatch(_canonicalOwners.filter(c => firstWord(c).startsWith(tk)))
+  if (r4) return r4
+  // T5 — alguma palavra do canônico == token (ex.: "Bertoldo" → "Luiz Fernando Bertoldo …")
+  const r5 = uniqueMatch(_canonicalOwners.filter(c => ownerKey(c).split(' ').includes(tk)))
+  if (r5) return r5
+  // T6 — alguma palavra do canônico começa com token
+  const r6 = uniqueMatch(_canonicalOwners.filter(c => ownerKey(c).split(' ').some(w => w.startsWith(tk))))
+  if (r6) return r6
+
+  return t
+}
+
+/**
+ * Chokepoint único de responsável(is) usado por TODAS as abas:
+ * quebra o texto livre, canoniza cada token contra os nomes cadastrados e deduplica.
+ */
+export function ownersOf(owner?: string): string[] {
+  return [...new Set(splitOwners(owner).map(canonicalizeOwner))]
 }
 
 export function normalizeStatus(status: unknown): string {

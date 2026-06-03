@@ -14,7 +14,7 @@ import {
   normalizeItem,
   filteredItems, sortItems,
   riskOf,
-  scoreOf, dataGaps, isDone, ownersOf,
+  scoreOf, dataGaps, isDone, ownersOf, setCanonicalOwners,
   dateFmt,
   itemEffort, itemRemainingEffort, itemStart,
   urgencyCandidateScore, recommendationType,
@@ -290,6 +290,12 @@ export default function AppPage() {
   const role: Role = profile?.role ?? 'viewer'
   const canEditItems = canEdit(role)
   const canDeleteItems = canDelete(role)
+
+  // Registro canônico de responsáveis — padroniza nomes em TODAS as abas via ownersOf().
+  // Síncrono e idempotente: roda antes de `filtered` e dos useMemo derivados nesta render.
+  useMemo(() => {
+    setCanonicalOwners(userProfiles.map(u => u.full_name))
+  }, [userProfiles])
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = sortItems(filteredItems(items, filters), filters.sort)
