@@ -15,6 +15,18 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-03 — Padronização de nomes de responsáveis (chokepoint `ownersOf`) — ao vivo
+
+- **Pedido (Samuel):** "os nomes devem ser patronizados com os nomes dos usuários… deveríamos ajustar a lógica" — nomes livres/parciais/variantes nos itens (apelidos `Kath`, caixa/acentos, duplo-espaço, strings combinadas `Pedro e Kath`) não casavam com o `full_name` cadastrado; inconsistente entre abas, sobretudo o dropdown "Todos os responsáveis". Roteado via `/samuel-ceo-proxy` → diagnosticado como **integridade de dados + consistência de UI**, resolvível num único ponto, sem conselho completo.
+- **Solução (cirúrgica, 3 arquivos):**
+  - `shared/domain/index.ts` (**módulo ativo** — consumido por todas as views + `app/(app)/page.tsx`): novo resolver. `ownerKey` (NFD + remove diacríticos `̀–ͯ` via `COMBINING_DIACRITICS` + lowercase + collapse de espaços); registry de módulo `setCanonicalOwners`/`getCanonicalOwners`; `splitOwners` (quebra `e`/`&`/`/`); `canonicalizeOwner` com **6 tiers conservadores** (T1 igualdade normalizada → T2 canonical startsWith `"token "` → T3 firstWord === token → T4 firstWord startsWith → T5 qualquer palavra === token → T6 qualquer palavra startsWith). **Cada tier só resolve em match único; em ambiguidade mantém o token cru** (nunca funde humanos distintos). `ownersOf` reescrito = `splitOwners` → `canonicalizeOwner` → dedup.
+  - `lib/domain/index.ts` (**dormante**, só tipos em `app/admin/users/client.tsx`): espelho idêntico anti-drift.
+  - `app/(app)/page.tsx`: import de `setCanonicalOwners` + `useMemo(() => setCanonicalOwners(userProfiles.map(u => u.full_name)), [userProfiles])` antes dos derivados. Dropdown (`uniqueOwnerList`) e filtro de responsável já chamam `ownersOf` → canonizam por construção, **zero mudança em arquivos de view**.
+- **Padrão arquitetural:** chokepoint único (`ownersOf`) + registry de módulo estilo i18n (`setLocale`/`t()`) — evita threading de `userProfiles` por ~8 telas.
+- **Nota de qualidade de dados (4 tokens mantidos crus por segurança):** **Carlos**, **Augusto**, **Victor** (sem usuário cadastrado) e **"Diego Silva do Nascimento"** (o `Diego` cadastrado é **Diego Luna Pereira Peixoto** — pessoa diferente; não fundir). Decisão de dado, não de código — Samuel pode cadastrar/renomear se forem reais.
+- **Gate (evidência objetiva):** `tsc --noEmit` (strict, `noUncheckedIndexedAccess`, zero `any`) **exit 0**; `npm run build` **✓ 10.8s**, 12/12 páginas. Commit **`d83f78d`** (`feat: padroniza nomes de responsáveis…`, 3 files +165/−3), pre-commit/eslint OK. Push `3cb3e86..d83f78d` → **CI ✓ 43s** (Lint+Typecheck+Build) · **Deploy Vercel ✓ 1m20s** (smoke no login). Health de produção: HTTP 200, `supabase: connected`, `version 0.3.0`, `environment: production`.
+- **Status final:** **concluído e ao vivo.** Árvore limpa, `main` em sync com `origin/main`, último commit `d83f78d`.
+
 ### 2026-06-02 — Fechamento das 9 pendências: deploy autorizado, Itens 2–9 ao vivo, Item 1 auditado
 
 - **Autorização de dono:** Samuel concedeu **"autorização completa"** — commit + push dos Itens 2–9, deploy de produção e aplicação da migration `014` no Supabase remoto. Supera o bloqueio "NÃO COMMITADO" registrado na entrada de 2026-06-01 (que ainda apontava `5679beb` como último commit).
