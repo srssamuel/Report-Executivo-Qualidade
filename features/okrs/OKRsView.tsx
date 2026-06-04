@@ -32,7 +32,7 @@ interface OKRsViewProps {
   isFallback?: boolean
 }
 
-type TabId = 'dashboard' | 'measurements' | 'recontracting'
+type TabId = 'dashboard' | 'measurements' | 'approvals' | 'recontracting'
 
 const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson', 'Aleff']
 
@@ -134,6 +134,21 @@ export function OKRsView({
     })
     return map
   }, [measurements])
+
+  // Fila global de homologação: lançamentos COM valor que ainda aguardam aprovação da superintendência.
+  const pendingApprovals = useMemo(() => {
+    const tById = new Map(targets.map(t => [t.id, t]))
+    const order = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    return measurements
+      .filter(m => m.resultado_apurado !== null && m.resultado_apurado !== undefined && !m.audited)
+      .map(m => ({ m, t: tById.get(m.okr_id) }))
+      .filter((x): x is { m: OKRMeasurement; t: OKRTarget } => !!x.t)
+      .sort((a, b) =>
+        a.t.responsavel.localeCompare(b.t.responsavel, 'pt-BR') ||
+        a.t.id_okr.localeCompare(b.t.id_okr, 'pt-BR') ||
+        order.indexOf(a.m.mes) - order.indexOf(b.m.mes)
+      )
+  }, [measurements, targets])
 
   // Calculate scores and stats
   const okrStats = useMemo(() => {
@@ -283,6 +298,30 @@ export function OKRsView({
     }
   }
 
+  // Homologação na fila: 1-clique e em lote.
+  const [approvingAll, setApprovingAll] = useState(false)
+  const handleApproveOne = async (measurementId: string) => {
+    try {
+      await onAuditMeasurement(measurementId, true, '')
+    } catch (err) {
+      console.error(err)
+    }
+  }
+  const handleApproveAll = async () => {
+    if (pendingApprovals.length === 0 || approvingAll) return
+    if (!confirm(`Homologar de uma vez os ${pendingApprovals.length} lançamento(s) pendente(s)?`)) return
+    setApprovingAll(true)
+    try {
+      for (const { m } of pendingApprovals) {
+        await onAuditMeasurement(m.id, true, '')
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setApprovingAll(false)
+    }
+  }
+
 
   return (
     <div className="okr-workspace animate-fade-up">
@@ -367,6 +406,17 @@ export function OKRsView({
         >
           <TrendingUp size={15} /> Lançamento &amp; Auditoria
         </button>
+        {isSuperOrAdmin && (
+          <button
+            className={`tab ${activeTab === 'approvals' ? 'active' : ''}`}
+            onClick={() => setActiveTab('approvals')}
+          >
+            <CheckCircle size={15} /> Homologações
+            {pendingApprovals.length > 0 && (
+              <span className="badge tone-amber" style={{ marginLeft: 6 }}>{pendingApprovals.length}</span>
+            )}
+          </button>
+        )}
         <button
           className={`tab ${activeTab === 'recontracting' ? 'active' : ''}`}
           onClick={() => {
@@ -401,7 +451,7 @@ export function OKRsView({
             <div className={`status-tile ${okrStats.countNotAudited > 0 ? 'warn' : 'good'}`}>
               <span>Auditoria Superintendência</span>
               <strong>{okrStats.countAudited} / {okrStats.countAudited + okrStats.countNotAudited}</strong>
-              <small>{okrStats.countNotAudited} pendentes de checagem</small>
+              <small>{okrStats.countNotAudited} a homologar · já contam no resultado</small>
             </div>
             <div className="status-tile">
               <span>Total de Metas</span>
@@ -677,7 +727,11 @@ export function OKRsView({
                                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                                     <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <span>Apuração do mês de <strong>{m.mes}</strong></span>
-                                      {m.audited ? <Badge label="Auditado" tone="tone-green" /> : <Badge label="Pendente de auditoria" tone="tone-amber" />}
+                                      {m.audited
+                                        ? <Badge label="Homologado" tone="tone-green" />
+                                        : (m.resultado_apurado !== null && m.resultado_apurado !== undefined)
+                                          ? <Badge label="A homologar" tone="tone-amber" />
+                                          : <Badge label="Pendente de lançamento" tone="tone-gray" />}
                                     </h4>
                                     <button className="btn small square ghost" onClick={() => setExpandedOkrId(null)}>✕</button>
                                   </div>
@@ -695,7 +749,7 @@ export function OKRsView({
                                               placeholder={`Ex: 0.90, 320000, 5`}
                                               value={measurementForm.resultado}
                                               onChange={e => setMeasurementForm(f => ({ ...f, resultado: e.target.value }))}
-                                              disabled={m.audited && !isSuperOrAdmin}
+                                              disabled={!canLaunch}
                                             />
                                           </label>
                                           <div style={{ flex: 1, alignSelf: 'end', paddingBottom: 6 }}>
@@ -712,7 +766,7 @@ export function OKRsView({
                                             placeholder="Cole o link do SharePoint ou descreva onde a evidência foi registrada..."
                                             value={measurementForm.comentario}
                                             onChange={e => setMeasurementForm(f => ({ ...f, comentario: e.target.value }))}
-                                            disabled={m.audited && !isSuperOrAdmin}
+                                            disabled={!canLaunch}
                                           />
                                         </label>
 
@@ -724,19 +778,24 @@ export function OKRsView({
                                               placeholder="O que será feito para reverter este resultado?"
                                               value={measurementForm.acaoSugerida}
                                               onChange={e => setMeasurementForm(f => ({ ...f, acaoSugerida: e.target.value }))}
-                                              disabled={m.audited && !isSuperOrAdmin}
+                                              disabled={!canLaunch}
                                             />
                                           </label>
                                         )}
 
-                                        {canLaunch && (!m.audited || isSuperOrAdmin) && (
-                                          <div style={{ display: 'flex', gap: 8, marginTop: 5 }}>
+                                        {canLaunch && (
+                                          <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center' }}>
                                             <button
                                               className="btn primary small"
                                               onClick={() => handleSaveResult(t.id, m.mes)}
                                             >
                                               Salvar Lançamento
                                             </button>
+                                            {m.audited && (
+                                              <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                                                Editar e salvar reabre para nova homologação.
+                                              </span>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -784,7 +843,7 @@ export function OKRsView({
                                                 <CheckCircle size={14} /> Metas Auditadas com Sucesso
                                               </div>
                                               <p style={{ margin: '0 0 6px 0' }}><strong>Feedback Superintendência:</strong> {m.audit_feedback || 'Nenhuma ressalva cadastrada.'}</p>
-                                              <p style={{ margin: 0, fontSize: 10, color: 'var(--muted)' }}>Alterações bloqueadas para o Gerente. Solicite o destrave com a Superintendência se houver correções.</p>
+                                              <p style={{ margin: 0, fontSize: 10, color: 'var(--muted)' }}>O valor já conta no resultado. Se precisar corrigir, edite e salve — o lançamento volta automaticamente para homologação.</p>
                                             </div>
                                           ) : (
                                             <div>
@@ -809,6 +868,97 @@ export function OKRsView({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Aba: Homologações pendentes (Superintendência) */}
+      {activeTab === 'approvals' && isSuperOrAdmin && (
+        <div className="okr-approvals-tab">
+          <div style={{
+            padding: '10px 14px',
+            background: 'rgba(16, 185, 129, 0.05)',
+            borderLeft: '3px solid #10b981',
+            borderRadius: 4,
+            fontSize: 12,
+            lineHeight: '1.5em',
+            marginBottom: 15,
+            color: 'var(--text-title)'
+          }}>
+            <strong>Fila de Homologação.</strong> Todo lançamento dos gerentes cai aqui para sua aprovação. O valor <strong>já conta no resultado</strong> no instante em que é lançado — homologar é o selo de governança, não um portão. Lançamentos alterados voltam <strong>automaticamente</strong> para esta fila.
+          </div>
+
+          {pendingApprovals.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', background: 'rgba(0,0,0,0.01)', borderRadius: 6, border: '1px dashed rgba(0,0,0,0.1)' }}>
+              <CheckCircle size={36} style={{ color: '#10b981', marginBottom: 12, opacity: 0.8 }} />
+              <h3>Tudo homologado</h3>
+              <p style={{ maxWidth: 460, margin: '6px auto 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                Nenhum lançamento aguardando homologação. Assim que um gerente lançar ou alterar uma apuração, ela aparece aqui.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="toolbar" style={{ padding: 10, background: 'rgba(245, 158, 11, 0.05)', borderRadius: 6, marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>
+                  {pendingApprovals.length} lançamento(s) aguardando homologação
+                </span>
+                <button className="btn small" style={{ background: '#10b981', color: 'white' }} disabled={approvingAll} onClick={handleApproveAll}>
+                  <Check size={14} /> {approvingAll ? 'Homologando…' : `Homologar todos (${pendingApprovals.length})`}
+                </button>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>OKR</th>
+                      <th>Responsável</th>
+                      <th>Período</th>
+                      <th>Resultado</th>
+                      <th>Atingimento</th>
+                      <th>Evidência</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingApprovals.map(({ m, t }) => {
+                      const rating = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
+                      const status = resolveOkrStatus(rating)
+                      return (
+                        <tr key={m.id}>
+                          <td>
+                            <div style={{ fontWeight: 700 }}>{t.id_okr}</div>
+                            <Badge label={t.perspectiva} tone={okrPerspectiveTone(t.perspectiva)} />
+                          </td>
+                          <td><strong>{t.responsavel}</strong></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <span style={{ fontWeight: 600 }}>{m.mes}</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}> · {m.trimestre}</span>
+                          </td>
+                          <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {formatOkrValue(m.resultado_apurado, t.unidade)}
+                            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Meta: {t.meta_exibida}</div>
+                          </td>
+                          <td>
+                            <Badge label={rating !== null ? `${Math.round(rating * 100)}%` : '—'} tone={okrStatusTone(status)} />
+                          </td>
+                          <td style={{ maxWidth: 220, fontSize: 11, color: 'var(--text-muted)' }}>
+                            {m.evidencia_comentario
+                              ? <span title={m.evidencia_comentario}>{m.evidencia_comentario.length > 90 ? m.evidencia_comentario.slice(0, 90) + '…' : m.evidencia_comentario}</span>
+                              : <span style={{ color: '#d97706' }}>Sem evidência anexada</span>}
+                          </td>
+                          <td>
+                            <button className="btn small" style={{ background: '#10b981', color: 'white' }} onClick={() => handleApproveOne(m.id)}>
+                              <Check size={12} /> Homologar
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 

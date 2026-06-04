@@ -5,12 +5,14 @@ import { Copy, Printer } from 'lucide-react'
 import {
   Item,
   Filters,
+  Role,
   UserProfile,
   executiveLines,
   isDone,
   riskOf,
   countsBy,
   ownersOf,
+  dataGaps,
   dateFmt,
   ROLE_LABELS,
 } from '@/shared/domain'
@@ -18,6 +20,7 @@ import {
 interface ExecutiveViewProps {
   filtered: Item[]
   filters: Filters
+  items: Item[] // todos os itens (não filtrados) — base do painel de aderência de uso
   userProfiles: UserProfile[]
   profile: UserProfile | null
 }
@@ -173,6 +176,185 @@ function buildManagerGroups(userProfiles: UserProfile[], stats: ResourceStat[]):
   return groups
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Aderência de USO por usuário — mede TODOS os papéis operacionais (inclusive quem
+// tem zero frente), por nível, com farol. Denominador = pessoas cadastradas, não
+// "itens que existem". É isto que transforma o report em cobrança e não em vitrine.
+//
+// Parâmetros ajustáveis (calibre aqui a cadência esperada do time):
+const USAGE_LEVELS: Role[] = ['gerente', 'coordenador', 'consultor', 'analista', 'lider']
+const FRESH_DAYS = 3 // 🟢 atualizou nos últimos N dias
+const ATTENTION_DAYS = 7 // 🟡 entre FRESH_DAYS e N; acima disso → 🔴
+// Pesos do índice de uso (somam 1): frescor pesa mais (é o sinal de "uso vivo").
+const W_FRESCOR = 0.45
+const W_GOVERNANCA = 0.3
+const W_PRAZO = 0.25
+
+type Farol = 'verde' | 'amarelo' | 'vermelho'
+const FAROL_EMOJI: Record<Farol, string> = { verde: '🟢', amarelo: '🟡', vermelho: '🔴' }
+const FAROL_TONE: Record<Farol, string> = { verde: 'tone-green', amarelo: 'tone-amber', vermelho: 'tone-red' }
+const FAROL_HEX: Record<Farol, string> = { verde: '#10b981', amarelo: '#f59e0b', vermelho: '#ef4444' }
+const ROLE_PLURAL: Partial<Record<Role, string>> = {
+  gerente: 'Gerentes',
+  coordenador: 'Coordenadores',
+  consultor: 'Consultores',
+  analista: 'Analistas',
+  lider: 'Líderes',
+}
+
+interface UserUsage {
+  person: UserProfile
+  carteira: number
+  ativos: number
+  completos: number
+  criticasSemAcao: number
+  diasDesdeUpdate: number | null
+  governanca: number
+  indice: number
+  farol: Farol
+  motivo: string
+}
+
+function normUsageName(s?: string): string {
+  return String(s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildUsage(allItems: Item[], userProfiles: UserProfile[], nowMs: number): UserUsage[] {
+  // ownersOf() já canoniza os donos para os full_name cadastrados (setCanonicalOwners na page).
+  const byOwner = new Map<string, Item[]>()
+  for (const it of allItems) {
+    for (const owner of ownersOf(it.owner)) {
+      const k = normUsageName(owner)
+      const arr = byOwner.get(k) ?? []
+      arr.push(it)
+      byOwner.set(k, arr)
+    }
+  }
+
+  return userProfiles
+    .filter(u => USAGE_LEVELS.includes(u.role))
+    .map(person => {
+      const list = byOwner.get(normUsageName(person.full_name)) ?? []
+      const carteira = list.length
+      const ativosList = list.filter(i => !i.archived && !isDone(i))
+      const ativos = ativosList.length
+
+      let lastMs = -Infinity
+      for (const i of list) {
+        if (!i.lastUpdate) continue
+        const ms = new Date(i.lastUpdate).getTime()
+        if (Number.isFinite(ms) && ms > lastMs) lastMs = ms
+      }
+      const diasDesdeUpdate = lastMs > -Infinity ? Math.max(0, Math.floor((nowMs - lastMs) / 86400000)) : null
+
+      const completos = ativosList.filter(i => dataGaps(i).length === 0).length
+      const criticasSemAcao = ativosList.filter(i => CRITICAL_RISKS.includes(riskOf(i)) && !i.nextAction).length
+      const governanca = ativos ? Math.round((completos / ativos) * 100) : carteira ? 100 : 0
+      const aderenciaPrazo = carteira ? Math.round((list.filter(isAdherent).length / carteira) * 100) : 0
+
+      let indice: number
+      let farol: Farol
+      let motivo: string
+      if (carteira === 0) {
+        indice = 0
+        farol = 'vermelho'
+        motivo = 'sem carteira cadastrada'
+      } else {
+        const frescorScore =
+          diasDesdeUpdate === null
+            ? 0
+            : diasDesdeUpdate <= FRESH_DAYS
+              ? 100
+              : diasDesdeUpdate <= ATTENTION_DAYS
+                ? 65
+                : diasDesdeUpdate <= 30
+                  ? 25
+                  : 0
+        indice = Math.round(W_FRESCOR * frescorScore + W_GOVERNANCA * governanca + W_PRAZO * aderenciaPrazo)
+        if (diasDesdeUpdate === null || diasDesdeUpdate > ATTENTION_DAYS || indice < 50) {
+          farol = 'vermelho'
+          motivo =
+            diasDesdeUpdate === null
+              ? 'nunca atualizou as frentes'
+              : diasDesdeUpdate > ATTENTION_DAYS
+                ? `sem atualização há ${diasDesdeUpdate} dias`
+                : `índice de uso baixo (${indice}%)`
+        } else if (indice < 75 || diasDesdeUpdate > FRESH_DAYS || governanca < 70 || criticasSemAcao > 0) {
+          farol = 'amarelo'
+          motivo =
+            criticasSemAcao > 0
+              ? `${criticasSemAcao} frente(s) crítica(s) sem próxima ação`
+              : governanca < 70
+                ? `governança ${governanca}% (${ativos - completos} item(ns) incompletos)`
+                : diasDesdeUpdate > FRESH_DAYS
+                  ? `última atualização há ${diasDesdeUpdate} dias`
+                  : `índice ${indice}%`
+        } else {
+          farol = 'verde'
+          motivo = ''
+        }
+      }
+
+      return { person, carteira, ativos, completos, criticasSemAcao, diasDesdeUpdate, governanca, indice, farol, motivo }
+    })
+}
+
+interface LevelSummary {
+  key: string
+  label: string
+  count: number
+  comUso: number
+  cobertura: number
+  verdes: number
+  amarelos: number
+  vermelhos: number
+  indiceMedio: number
+  farol: Farol
+}
+
+function summarizeUsage(list: UserUsage[], key: string, label: string): LevelSummary {
+  const count = list.length
+  const comUso = list.filter(u => u.carteira > 0).length
+  const cobertura = count ? Math.round((comUso / count) * 100) : 0
+  const verdes = list.filter(u => u.farol === 'verde').length
+  const amarelos = list.filter(u => u.farol === 'amarelo').length
+  const vermelhos = list.filter(u => u.farol === 'vermelho').length
+  const indiceMedio = count ? Math.round(list.reduce((s, u) => s + u.indice, 0) / count) : 0
+  let farol: Farol = 'verde'
+  if (count === 0) farol = 'amarelo'
+  else if (cobertura < 60 || vermelhos > verdes) farol = 'vermelho'
+  else if (amarelos + vermelhos >= verdes) farol = 'amarelo'
+  return { key, label, count, comUso, cobertura, verdes, amarelos, vermelhos, indiceMedio, farol }
+}
+
+function buildUsageReport(total: LevelSummary, levels: LevelSummary[], usage: UserUsage[], dateLabel: string): string {
+  const out: string[] = [`*Cobrança de uso — Report Executivo — ${dateLabel}*`, '']
+  out.push(
+    `*GERAL (${total.count})* — ${FAROL_EMOJI.verde}${total.verdes} ${FAROL_EMOJI.amarelo}${total.amarelos} ${FAROL_EMOJI.vermelho}${total.vermelhos} · cobertura ${total.cobertura}% · índice médio ${total.indiceMedio}%`,
+    '',
+  )
+  for (const lv of levels) {
+    out.push(
+      `*${lv.label.toUpperCase()} (${lv.count})* — ${FAROL_EMOJI.verde}${lv.verdes} ${FAROL_EMOJI.amarelo}${lv.amarelos} ${FAROL_EMOJI.vermelho}${lv.vermelhos} · cobertura ${lv.cobertura}% · índice ${lv.indiceMedio}%`,
+    )
+    const pend = usage
+      .filter(u => u.person.role === lv.key && u.farol !== 'verde')
+      .sort((a, b) => (a.farol === 'vermelho' ? 0 : 1) - (b.farol === 'vermelho' ? 0 : 1) || a.indice - b.indice)
+    for (const u of pend) {
+      out.push(`  ${FAROL_EMOJI[u.farol]} ${u.person.full_name || u.person.email} — ${u.motivo}`)
+    }
+    if (!pend.length) out.push('  ✅ Time todo em dia.')
+    out.push('')
+  }
+  out.push('_Atualizem hoje o status das frentes: prazo, próxima ação, status e evidência. O que não está no sistema não existe na gestão._')
+  return out.join('\n')
+}
+
 function lastUpdateLabel(iso: string | null): string {
   if (!iso) return '—'
   const formatted = dateFmt(iso)
@@ -276,8 +458,9 @@ function ReportPreview({ text }: { text: string }) {
   return <div className="report-preview">{blocks}</div>
 }
 
-export function ExecutiveView({ filtered, filters, userProfiles, profile }: ExecutiveViewProps) {
+export function ExecutiveView({ filtered, filters, items, userProfiles, profile }: ExecutiveViewProps) {
   const [copied, setCopied] = useState(false)
+  const [copiedUsage, setCopiedUsage] = useState(false)
   const [generatedAt, setGeneratedAt] = useState('')
 
   useEffect(() => {
@@ -291,6 +474,30 @@ export function ExecutiveView({ filtered, filters, userProfiles, profile }: Exec
     () => buildManagerGroups(userProfiles, resourceStats),
     [userProfiles, resourceStats],
   )
+
+  // ── Aderência de uso (todos os papéis operacionais, sobre TODOS os itens, não o recorte) ──
+  const usage = useMemo(() => buildUsage(items, userProfiles, Date.now()), [items, userProfiles])
+  const levelSummaries = useMemo(
+    () =>
+      USAGE_LEVELS.map(role =>
+        summarizeUsage(usage.filter(u => u.person.role === role), role, ROLE_PLURAL[role] ?? role),
+      ).filter(l => l.count > 0),
+    [usage],
+  )
+  const totalUsage = useMemo(() => summarizeUsage(usage, 'all', 'Geral'), [usage])
+  const usageReport = useMemo(
+    () => buildUsageReport(totalUsage, levelSummaries, usage, generatedAt || new Date().toLocaleDateString('pt-BR')),
+    [totalUsage, levelSummaries, usage, generatedAt],
+  )
+  const usageByLevel = useMemo(
+    () => levelSummaries.map(lv => ({ lv, people: usage.filter(u => u.person.role === lv.key).sort((a, b) => a.indice - b.indice) })),
+    [levelSummaries, usage],
+  )
+  const copyUsage = () => {
+    navigator.clipboard?.writeText(usageReport)
+    setCopiedUsage(true)
+    setTimeout(() => setCopiedUsage(false), 2000)
+  }
 
   // KPIs globais do recorte filtrado.
   const totalFrentes = filtered.length
@@ -370,6 +577,101 @@ export function ExecutiveView({ filtered, filters, userProfiles, profile }: Exec
           </div>
         </div>
       </div>
+
+      {/* ── Faróis de uso por nível (mede TODOS, inclusive quem tem zero) ── */}
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Faróis de uso por nível</h3>
+            <small style={{ color: 'var(--muted)' }}>
+              Cobertura e disciplina de uso de todos os cadastrados — inclui quem tem zero frente. Atualizou ≤ {FRESH_DAYS}d = em dia · ≤ {ATTENTION_DAYS}d = atenção · acima = crítico.
+            </small>
+          </div>
+          <button className="btn small primary" onClick={copyUsage}>
+            <Copy size={14} /> {copiedUsage ? 'Copiado' : 'Copiar cobrança de uso'}
+          </button>
+        </div>
+        <div className="card-body">
+          {usage.length === 0 ? (
+            <p style={{ color: 'var(--muted)' }}>Nenhum colaborador operacional (gerente/coordenador/consultor/analista) cadastrado.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+              <div className="kpi" style={{ borderLeft: `4px solid ${FAROL_HEX[totalUsage.farol]}` }}>
+                <span>Geral · {totalUsage.count} pessoas</span>
+                <strong>{FAROL_EMOJI[totalUsage.farol]} {totalUsage.indiceMedio}%</strong>
+                <small>🟢{totalUsage.verdes} 🟡{totalUsage.amarelos} 🔴{totalUsage.vermelhos} · cobertura {totalUsage.cobertura}%</small>
+              </div>
+              {levelSummaries.map(lv => (
+                <div key={lv.key} className="kpi" style={{ borderLeft: `4px solid ${FAROL_HEX[lv.farol]}` }}>
+                  <span>{lv.label} · {lv.count}</span>
+                  <strong>{FAROL_EMOJI[lv.farol]} {lv.indiceMedio}%</strong>
+                  <small>🟢{lv.verdes} 🟡{lv.amarelos} 🔴{lv.vermelhos} · cobertura {lv.cobertura}%</small>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Aderência de uso por usuário (agrupado por nível) ── */}
+      {usageByLevel.length > 0 && (
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Aderência de uso por usuário</h3>
+            <span className="badge tone-gray">{usage.length} pessoa(s)</span>
+          </div>
+          <div className="card-body" style={{ display: 'grid', gap: 18 }}>
+            {usageByLevel.map(({ lv, people }) => (
+              <div key={lv.key} style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <strong>
+                    {lv.label}{' '}
+                    <span className={`badge ${FAROL_TONE[lv.farol]}`}>{FAROL_EMOJI[lv.farol]} índice {lv.indiceMedio}%</span>
+                  </strong>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    🟢{lv.verdes} 🟡{lv.amarelos} 🔴{lv.vermelhos} · cobertura {lv.cobertura}% ({lv.comUso}/{lv.count} usam)
+                  </span>
+                </div>
+                <div className="table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Colaborador</th>
+                        <th style={{ textAlign: 'center' }}>Carteira</th>
+                        <th style={{ textAlign: 'center' }}>Ativas</th>
+                        <th style={{ textAlign: 'center' }}>Últ. atualização</th>
+                        <th style={{ textAlign: 'center' }}>Governança</th>
+                        <th style={{ textAlign: 'center' }}>Índice</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {people.map(u => (
+                        <tr key={u.person.id}>
+                          <td><strong>{u.person.full_name || u.person.email}</strong></td>
+                          <td style={{ textAlign: 'center' }}>{u.carteira}</td>
+                          <td style={{ textAlign: 'center' }}>{u.ativos}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            {u.diasDesdeUpdate === null ? '—' : u.diasDesdeUpdate === 0 ? 'hoje' : `${u.diasDesdeUpdate}d`}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{u.carteira ? `${u.governanca}%` : '—'}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`badge ${FAROL_TONE[u.farol]}`}>{u.indice}%</span>
+                          </td>
+                          <td>
+                            <span className={`badge ${FAROL_TONE[u.farol]}`}>{FAROL_EMOJI[u.farol]}</span>{' '}
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.motivo || 'em dia'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-head">
