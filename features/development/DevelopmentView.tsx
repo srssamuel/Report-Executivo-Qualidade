@@ -35,6 +35,30 @@ function mapCellStyle(score: number): { background: string; color: string } {
   return { background: '#fee2e2', color: '#b91c1c' }
 }
 
+// Prévia ILUSTRATIVA do Mapa de Perfil (dados de exemplo, nunca persistidos) — só para o usuário
+// validar o formato do dashboard enquanto o time ainda não concluiu as avaliações reais.
+const SAMPLE_PROFILE_MAP: {
+  rows: { name: string; domains: { slug: string; name: string; score: number }[]; media: number; consistency: number | null; consistencyLabel: string | null }[]
+  domainAverages: { slug: string; name: string; avg: number }[]
+  avgConsistency: number
+  count: number
+  escopoTotal: number
+} = (() => {
+  const names = ['Ana Souza (exemplo)', 'Bruno Lima (exemplo)', 'Carla Dias (exemplo)', 'Diego Reis (exemplo)']
+  const scoreSets = [[88, 72, 80, 66, 78], [70, 86, 60, 90, 74], [54, 62, 48, 58, 68], [92, 80, 88, 84, 90]]
+  const cons = [90, 78, 63, 86]
+  const rows = names.map((name, i) => {
+    const set = scoreSets[i]!
+    const domains = DOMAINS.map((d, j) => ({ slug: d.slug, name: d.name, score: set[j]! }))
+    const media = Math.round(domains.reduce((s, d) => s + d.score, 0) / domains.length)
+    const c = cons[i]!
+    return { name, domains, media, consistency: c, consistencyLabel: c >= 80 ? 'alta' : c >= 60 ? 'média' : 'baixa' }
+  }).sort((a, b) => b.media - a.media)
+  const domainAverages = DOMAINS.map((d, j) => ({ slug: d.slug, name: d.name, avg: Math.round(scoreSets.reduce((s, set) => s + set[j]!, 0) / scoreSets.length) }))
+  const avgConsistency = Math.round(cons.reduce((s, c) => s + c, 0) / cons.length)
+  return { rows, domainAverages, avgConsistency, count: names.length, escopoTotal: 6 }
+})()
+
 // Renderiza markdown inline simples (negrito **x**) como nós React — sem
 // dangerouslySetInnerHTML. Usado no laudo para destacar nomes de competência.
 function renderInlineMd(text: string): React.ReactNode {
@@ -290,6 +314,10 @@ export function DevelopmentView({
     const avgConsistency = scoped.length ? Math.round(scoped.reduce((s, e) => s + (e.consistency_index ?? 0), 0) / scoped.length) : 0
     return { rows, domainAverages, avgConsistency, count: scoped.length, escopoTotal: viewableCollaborators.length }
   }, [evaluations, isSuperOrAdmin, viewableCollaborators])
+
+  // Prévia ilustrativa quando ainda não há avaliação real concluída no escopo.
+  const [showSample, setShowSample] = useState(false)
+  const mapData = profileMap.count === 0 && showSample ? SAMPLE_PROFILE_MAP : profileMap
 
   // OKR measurements for the collaborator's targets
   const collaboratorOkrMeasurements = useMemo(() => {
@@ -904,30 +932,39 @@ export function DevelopmentView({
             </p>
           </div>
 
-          {profileMap.count === 0 ? (
+          {mapData.count === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', background: 'rgba(0,0,0,0.01)', borderRadius: 8, border: '1px dashed rgba(0,0,0,0.1)' }}>
               <Users size={40} style={{ color: 'var(--text-muted)', opacity: 0.6, marginBottom: 12 }} />
               <h4 style={{ margin: 0 }}>Nenhuma avaliação concluída ainda</h4>
-              <p style={{ maxWidth: 460, margin: '8px auto 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                Assim que o time concluir o Perfil Científico Vértice, o mapa comparativo de domínios aparece aqui automaticamente.
+              <p style={{ maxWidth: 480, margin: '8px auto 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+                Cada pessoa responde a sua própria Avaliação Científica Vértice. Assim que concluírem, o mapa comparativo aparece aqui automaticamente.
                 {profileMap.escopoTotal > 0 ? ` Escopo atual: ${profileMap.escopoTotal} pessoa(s).` : ''}
               </p>
+              <button className="btn small" onClick={() => setShowSample(true)}>
+                <Sparkles size={14} /> Ver prévia com dados de exemplo
+              </button>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 16 }}>
+              {showSample && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 8, fontSize: 12, color: '#b45309' }}>
+                  <span><strong>Prévia ilustrativa</strong> — dados de exemplo (não são reais). É só para você ver como o dashboard fica quando o time concluir as avaliações.</span>
+                  <button className="btn small ghost" onClick={() => setShowSample(false)}>Ocultar prévia</button>
+                </div>
+              )}
               {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
                 <div className="kpi blue">
                   <span>Avaliados</span>
-                  <strong>{profileMap.count}{profileMap.escopoTotal ? ` / ${profileMap.escopoTotal}` : ''}</strong>
-                  <small>{profileMap.escopoTotal ? `${Math.round((profileMap.count / profileMap.escopoTotal) * 100)}% de cobertura` : 'no escopo'}</small>
+                  <strong>{mapData.count}{mapData.escopoTotal ? ` / ${mapData.escopoTotal}` : ''}</strong>
+                  <small>{mapData.escopoTotal ? `${Math.round((mapData.count / mapData.escopoTotal) * 100)}% de cobertura` : 'no escopo'}</small>
                 </div>
                 <div className="kpi">
                   <span>Consistência média</span>
-                  <strong>{profileMap.avgConsistency}%</strong>
+                  <strong>{mapData.avgConsistency}%</strong>
                   <small>qualidade das respostas</small>
                 </div>
-                {profileMap.domainAverages.map(d => (
+                {mapData.domainAverages.map(d => (
                   <div key={d.slug} className="kpi" style={{ borderLeft: `4px solid ${mapCellStyle(d.avg).color}` }}>
                     <span style={{ fontSize: 10 }}>{d.name}</span>
                     <strong>{d.avg}</strong>
@@ -951,7 +988,7 @@ export function DevelopmentView({
                         </tr>
                       </thead>
                       <tbody>
-                        {profileMap.rows.map((r, i) => (
+                        {mapData.rows.map((r, i) => (
                           <tr key={i}>
                             <td><strong>{r.name}</strong></td>
                             {r.domains.map(d => {
@@ -970,9 +1007,9 @@ export function DevelopmentView({
                         ))}
                         <tr style={{ borderTop: '2px solid rgba(0,0,0,0.1)', background: 'rgba(0,0,0,0.015)' }}>
                           <td><strong>Média do time</strong></td>
-                          {profileMap.domainAverages.map(d => <td key={d.slug} style={{ textAlign: 'center', fontWeight: 700 }}>{d.avg}</td>)}
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{Math.round(profileMap.domainAverages.reduce((s, d) => s + d.avg, 0) / (profileMap.domainAverages.length || 1))}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{profileMap.avgConsistency}%</td>
+                          {mapData.domainAverages.map(d => <td key={d.slug} style={{ textAlign: 'center', fontWeight: 700 }}>{d.avg}</td>)}
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{Math.round(mapData.domainAverages.reduce((s, d) => s + d.avg, 0) / (mapData.domainAverages.length || 1))}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{mapData.avgConsistency}%</td>
                         </tr>
                       </tbody>
                     </table>
@@ -991,7 +1028,7 @@ export function DevelopmentView({
                 <div className="card-head"><h3 className="card-title">Radar médio do time</h3></div>
                 <div className="card-body" style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={profileMap.domainAverages.map(d => ({ domain: d.name, score: d.avg }))} outerRadius="70%">
+                    <RadarChart data={mapData.domainAverages.map(d => ({ domain: d.name, score: d.avg }))} outerRadius="70%">
                       <PolarGrid />
                       <PolarAngleAxis dataKey="domain" tick={{ fontSize: 10 }} />
                       <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} />

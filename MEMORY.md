@@ -15,6 +15,14 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-04 (f) — Prévia ilustrativa do Mapa de Perfil (validar formato com dashboard vazio)
+
+- **Samuel:** confirmou que a avaliação científica é **auto-administrada** (só a própria pessoa responde — não estender escrita do gestor) e que o pedido é a **visualização dos resultados em dashboard** (o "Mapa de Perfil do Time" já entregue em d).
+- **Problema:** dashboard está **vazio** (0 avaliações concluídas) → Samuel não consegue ver o formato funcionando.
+- **Entrega:** botão **"Ver prévia com dados de exemplo"** no empty state do Mapa de Perfil — renderiza o dashboard com 4 colaboradores fictícios (`SAMPLE_PROFILE_MAP`, client-side, **nunca persistido**), com banner âmbar "Prévia ilustrativa — dados não reais" e botão "Ocultar prévia". `mapData = (count===0 && showSample) ? SAMPLE : profileMap`. Badge da aba e escopo do empty state seguem usando o count REAL.
+- **Decisão:** escrita das tabelas de Desenvolvimento **não alterada** (avaliação = self; PDI/ata = self+admin/super por ora).
+- **Validação:** `tsc` 0 · `eslint` 0 · `next build` ✓ 12/12. Deploy em produção.
+
 ### 2026-06-04 (e) — Hierarquia do Desenvolvimento enforçada no BANCO (RLS por manager_id) — ao vivo
 
 - **Pedro (Samuel):** "Desenvolvimento deve respeitar a hierarquia — superintendente vê tudo, cada um só vê o seu e dos seus liderados."
