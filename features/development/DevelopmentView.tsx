@@ -27,6 +27,14 @@ import {
 } from '@/lib/assessment/perfilCientificoScoring'
 import { Item, Role, OKRFeedback, OKRTarget, OKRMeasurement, UserPDI, ProfileEvaluation, UserProfile, isQuarter, periodoCoversQuarter } from '@/shared/domain'
 
+// Cor de célula do Mapa de Perfil por score 0-100 (espelha os thresholds do Perfil: >=80 forte, >=60 médio).
+function mapCellStyle(score: number): { background: string; color: string } {
+  if (score >= 80) return { background: '#dcfce7', color: '#15803d' }
+  if (score >= 60) return { background: '#fef9c3', color: '#a16207' }
+  if (score >= 40) return { background: '#ffedd5', color: '#c2410c' }
+  return { background: '#fee2e2', color: '#b91c1c' }
+}
+
 // Renderiza markdown inline simples (negrito **x**) como nós React — sem
 // dangerouslySetInnerHTML. Usado no laudo para destacar nomes de competência.
 function renderInlineMd(text: string): React.ReactNode {
@@ -78,7 +86,7 @@ interface DevelopmentViewProps {
   isFallback?: boolean
 }
 
-type TabId = 'perfil' | 'feedbacks' | 'pdi'
+type TabId = 'perfil' | 'feedbacks' | 'pdi' | 'mapa'
 
 export function DevelopmentView({
   items,
@@ -154,19 +162,32 @@ export function DevelopmentView({
       return Array.from(new Set([currentUserFullName, ...profileNames].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     }
     
-    // Subordinates list based on role
-    const subordinates = userProfiles.filter(u => {
-      if (role === 'gerente') {
-        return ['coordenador', 'lider', 'analista', 'viewer'].includes(u.role)
+    // Time REAL do gestor logado: ele + todos os reports transitivos via manager_id (não por papel).
+    // É isto que "desdobra com o time dele" de verdade — cada gestor só vê sua própria árvore.
+    const childrenByManager = new Map<string, UserProfile[]>()
+    for (const u of userProfiles) {
+      if (u.manager_id) {
+        const arr = childrenByManager.get(u.manager_id) ?? []
+        arr.push(u)
+        childrenByManager.set(u.manager_id, arr)
       }
-      if (role === 'coordenador' || role === 'lider') {
-        return ['analista', 'viewer'].includes(u.role)
+    }
+    const teamNames: string[] = []
+    const seen = new Set<string>()
+    const queue: string[] = currentUserId ? [currentUserId] : []
+    while (queue.length) {
+      const cur = queue.shift()!
+      for (const child of childrenByManager.get(cur) ?? []) {
+        if (!seen.has(child.id)) {
+          seen.add(child.id)
+          teamNames.push(child.full_name || child.email)
+          queue.push(child.id)
+        }
       }
-      return false
-    }).map(u => u.full_name || u.email).filter(Boolean)
+    }
 
-    return Array.from(new Set([currentUserFullName, ...subordinates])).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [role, currentUserFullName, userProfiles, isSuperOrAdmin])
+    return Array.from(new Set([currentUserFullName, ...teamNames].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [currentUserFullName, currentUserId, userProfiles, isSuperOrAdmin])
 
   // Select first available viewable collaborator if current selection is not viewable
   useEffect(() => {
@@ -231,6 +252,44 @@ export function DevelopmentView({
       return resp === selectedCollaborator.toLowerCase() || nameParts.some(part => resp.includes(part))
     })
   }, [okrTargets, selectedCollaborator, selectedCollaboratorId])
+
+  // ── Mapa de Perfil do time — todos que CONCLUÍRAM a Avaliação Científica, no escopo visível ──
+  // (admin/super veem todos; gestor vê só o próprio time via viewableCollaborators)
+  const profileMap = useMemo(() => {
+    const viewableSet = new Set(viewableCollaborators.map(n => n.toLowerCase()))
+    const completed = evaluations.filter(e => e.status === 'completed')
+    const scopedRaw = isSuperOrAdmin
+      ? completed
+      : completed.filter(e => viewableSet.has((e.collaborator_name || '').toLowerCase()))
+    // Dedup por colaborador — mantém a avaliação mais recente.
+    const byCollab = new Map<string, ProfileEvaluation>()
+    for (const e of scopedRaw) {
+      const key = (e.collaborator_name || e.user_id || '').toLowerCase()
+      const prev = byCollab.get(key)
+      if (!prev || new Date(e.updated_at || e.created_at || '').getTime() > new Date(prev.updated_at || prev.created_at || '').getTime()) {
+        byCollab.set(key, e)
+      }
+    }
+    const scoped = Array.from(byCollab.values())
+    const rows = scoped.map(e => {
+      const ds = (e.domain_scores ?? {}) as Record<string, number>
+      const domains = DOMAINS.map(d => ({ slug: d.slug, name: d.name, score: Math.round(ds[d.slug] ?? 0) }))
+      const media = domains.length ? Math.round(domains.reduce((s, d) => s + d.score, 0) / domains.length) : 0
+      return {
+        name: e.collaborator_name || 'Sem nome',
+        domains,
+        media,
+        consistency: e.consistency_index ?? null,
+        consistencyLabel: e.consistency_label ?? null,
+      }
+    }).sort((a, b) => b.media - a.media)
+    const domainAverages = DOMAINS.map(d => {
+      const vals = scoped.map(e => ((e.domain_scores ?? {}) as Record<string, number>)[d.slug] ?? 0)
+      return { slug: d.slug, name: d.name, avg: vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0 }
+    })
+    const avgConsistency = scoped.length ? Math.round(scoped.reduce((s, e) => s + (e.consistency_index ?? 0), 0) / scoped.length) : 0
+    return { rows, domainAverages, avgConsistency, count: scoped.length, escopoTotal: viewableCollaborators.length }
+  }, [evaluations, isSuperOrAdmin, viewableCollaborators])
 
   // OKR measurements for the collaborator's targets
   const collaboratorOkrMeasurements = useMemo(() => {
@@ -822,9 +881,130 @@ export function DevelopmentView({
         >
           <Target size={15} /> Plano de Desenvolvimento (PDI)
         </button>
+        <button
+          className={`tab ${activeTab === 'mapa' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('mapa'); setIsSurveyActive(false); }}
+        >
+          <Users size={15} /> Mapa de Perfil do Time
+          {profileMap.count > 0 && (
+            <span className="badge tone-indigo" style={{ marginLeft: 6 }}>{profileMap.count}</span>
+          )}
+        </button>
       </div>
 
       {/* TAB CONTENTS */}
+
+      {/* 0. MAPA DE PERFIL DO TIME */}
+      {activeTab === 'mapa' && (
+        <div className="tab-pane">
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Mapa de Perfil Científico do Time</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+              Panorama de todos que concluíram a Avaliação Científica Vértice {isSuperOrAdmin ? '(toda a empresa)' : '(seu time)'}. Score 0–100 por domínio executivo.
+            </p>
+          </div>
+
+          {profileMap.count === 0 ? (
+            <div style={{ padding: '48px 20px', textAlign: 'center', background: 'rgba(0,0,0,0.01)', borderRadius: 8, border: '1px dashed rgba(0,0,0,0.1)' }}>
+              <Users size={40} style={{ color: 'var(--text-muted)', opacity: 0.6, marginBottom: 12 }} />
+              <h4 style={{ margin: 0 }}>Nenhuma avaliação concluída ainda</h4>
+              <p style={{ maxWidth: 460, margin: '8px auto 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                Assim que o time concluir o Perfil Científico Vértice, o mapa comparativo de domínios aparece aqui automaticamente.
+                {profileMap.escopoTotal > 0 ? ` Escopo atual: ${profileMap.escopoTotal} pessoa(s).` : ''}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 16 }}>
+              {/* KPIs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+                <div className="kpi blue">
+                  <span>Avaliados</span>
+                  <strong>{profileMap.count}{profileMap.escopoTotal ? ` / ${profileMap.escopoTotal}` : ''}</strong>
+                  <small>{profileMap.escopoTotal ? `${Math.round((profileMap.count / profileMap.escopoTotal) * 100)}% de cobertura` : 'no escopo'}</small>
+                </div>
+                <div className="kpi">
+                  <span>Consistência média</span>
+                  <strong>{profileMap.avgConsistency}%</strong>
+                  <small>qualidade das respostas</small>
+                </div>
+                {profileMap.domainAverages.map(d => (
+                  <div key={d.slug} className="kpi" style={{ borderLeft: `4px solid ${mapCellStyle(d.avg).color}` }}>
+                    <span style={{ fontSize: 10 }}>{d.name}</span>
+                    <strong>{d.avg}</strong>
+                    <small>média do time</small>
+                  </div>
+                ))}
+              </div>
+
+              {/* Heatmap: colaborador x domínios */}
+              <div className="card">
+                <div className="card-head"><h3 className="card-title">Mapa comparativo por domínio</h3></div>
+                <div className="card-body">
+                  <div className="table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Colaborador</th>
+                          {DOMAINS.map(d => <th key={d.slug} style={{ textAlign: 'center', fontSize: 10 }}>{d.name}</th>)}
+                          <th style={{ textAlign: 'center' }}>Média</th>
+                          <th style={{ textAlign: 'center' }}>Consistência</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {profileMap.rows.map((r, i) => (
+                          <tr key={i}>
+                            <td><strong>{r.name}</strong></td>
+                            {r.domains.map(d => {
+                              const st = mapCellStyle(d.score)
+                              return (
+                                <td key={d.slug} style={{ textAlign: 'center' }}>
+                                  <span style={{ display: 'inline-block', minWidth: 38, padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 12, background: st.background, color: st.color }}>{d.score}</span>
+                                </td>
+                              )
+                            })}
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.media}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {r.consistency !== null ? <span style={{ fontSize: 11, fontWeight: 600, color: r.consistency >= 80 ? '#15803d' : r.consistency >= 60 ? '#a16207' : '#b91c1c' }}>{r.consistency}%</span> : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr style={{ borderTop: '2px solid rgba(0,0,0,0.1)', background: 'rgba(0,0,0,0.015)' }}>
+                          <td><strong>Média do time</strong></td>
+                          {profileMap.domainAverages.map(d => <td key={d.slug} style={{ textAlign: 'center', fontWeight: 700 }}>{d.avg}</td>)}
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{Math.round(profileMap.domainAverages.reduce((s, d) => s + d.avg, 0) / (profileMap.domainAverages.length || 1))}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{profileMap.avgConsistency}%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dcfce7', borderRadius: 2, marginRight: 4 }}></span>≥80 forte</span>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#fef9c3', borderRadius: 2, marginRight: 4 }}></span>60–79 médio</span>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ffedd5', borderRadius: 2, marginRight: 4 }}></span>40–59 baixo</span>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#fee2e2', borderRadius: 2, marginRight: 4 }}></span>&lt;40 crítico</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Radar agregado do time */}
+              <div className="card">
+                <div className="card-head"><h3 className="card-title">Radar médio do time</h3></div>
+                <div className="card-body" style={{ height: 320 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={profileMap.domainAverages.map(d => ({ domain: d.name, score: d.avg }))} outerRadius="70%">
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="domain" tick={{ fontSize: 10 }} />
+                      <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
+                      <Radar name="Média do time" dataKey="score" stroke="var(--color-primary)" fill="var(--color-primary)" fillOpacity={0.35} />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 1. PERFIL CIENTÍFICO */}
       {activeTab === 'perfil' && (
