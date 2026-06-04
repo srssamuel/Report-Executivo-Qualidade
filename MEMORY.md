@@ -15,6 +15,15 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-04 (e) — Hierarquia do Desenvolvimento enforçada no BANCO (RLS por manager_id) — ao vivo
+
+- **Pedro (Samuel):** "Desenvolvimento deve respeitar a hierarquia — superintendente vê tudo, cada um só vê o seu e dos seus liderados."
+- **Causa-raiz:** as policies de `profile_evaluations`/`user_pdis`/`okr_feedbacks` já tinham hierarquia, mas via `is_team_member()` **POR PAPEL** (gerente via _todos_ os coordenadores/analistas da empresa, não só o time dele). A UI já tinha sido corrigida (entrada d); faltava o **banco** (sem ele, dava pra burlar por fora da tela).
+- **Migration 021 (aplicada, arquivo no repo):** nova função `is_subordinate_or_self(uuid)` — **manager_id transitivo** (`WITH RECURSIVE`), admin/super → true. `is_team_member(nome)` reescrita: resolve nome→id→`is_subordinate_or_self` (mantém assinatura p/ a policy de `okr_feedbacks`). SELECT de `profile_evaluations` e `user_pdis` reapontados para `is_subordinate_or_self(user_id)` (id-based, robusto). `GRANT EXECUTE ... TO authenticated` (funções de policy — lição da 018).
+- **Provado em prod (transação+rollback):** como **Kathelleen** — self=t, coordenador do **time dela** (Gustavo)=t, coordenador do **Luiz** (Andre Pedro)=f, **gerente par** (Luiz)=f, **chefe** (Samuel)=f. Como **Samuel (admin)** — tudo=t.
+- **Escrita não alterada:** avaliação científica é auto-administrada (`user_id=auth.uid()`); admin/super controle total. Extensão de escrita do gestor → PDI/ata do time fica como **decisão à parte** (flag ao Samuel).
+- **Sem mudança de código** — UI já estava manager_id-based (d). Migração só de DB; arquivo versionado no repo.
+
 ### 2026-06-04 (d) — Desdobramento por time real (manager_id) + Dashboard "Mapa de Perfil do Time"
 
 - **Pedro (Samuel):** (1) confirmar que só usuário cadastrado aparece (sim) e perguntou se "gerentes conseguem desdobrar com os times deles"; (2) incluir na aba Desenvolvimento um **dashboard com o mapa de perfil de todos que fizeram a avaliação científica**.
