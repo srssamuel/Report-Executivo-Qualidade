@@ -15,6 +15,16 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-04 (d) — Desdobramento por time real (manager_id) + Dashboard "Mapa de Perfil do Time"
+
+- **Pedro (Samuel):** (1) confirmar que só usuário cadastrado aparece (sim) e perguntou se "gerentes conseguem desdobrar com os times deles"; (2) incluir na aba Desenvolvimento um **dashboard com o mapa de perfil de todos que fizeram a avaliação científica**.
+- **Verificação:** `manager_id` está **preenchido** (gerentes→Samuel; coordenadores→Kathelleen/Luiz/Pedro; consultores→Aleff/Samuel) — 10/14. Mas a aba Desenvolvimento montava a lista de subordinados **por PAPEL** (gerente via _todos_ coordenadores), não pelo time real. `profile_evaluations` **vazia** (0 concluídas) → dashboard nasce com empty state. Domínios = 5 (Cognição&Análise, Negócio&Cliente, Energia&Equilíbrio, Relação&Influência, Crescimento&Propósito); scores 0–100.
+- **Fix do desdobramento (DevelopmentView):** `viewableCollaborators` (não-super) agora faz **fechamento transitivo via `manager_id`** a partir do `currentUserId` — cada gestor vê só a própria árvore (ele + reports diretos/indiretos), não mais por papel. Admin/super veem todos os cadastrados.
+- **Dashboard "Mapa de Perfil do Time" (nova aba 'mapa'):** `profileMap` agrega avaliações **concluídas** no escopo (super=todas; gestor=seu time), dedup por colaborador (mais recente). Render: KPIs (avaliados/cobertura, consistência média, média por domínio) + **heatmap colaborador × 5 domínios** (células 0–100: ≥80 verde/60–79 âmbar/40–59 laranja/<40 vermelho) + linha "Média do time" + **radar agregado** (recharts). Empty state quando 0. Helper `mapCellStyle`.
+- **Validação:** `tsc` exit 0 · `eslint` exit 0 · `next build` ✓ 12/12.
+- **Pendente (opcional):** campo "nome de exibição" no perfil para nomes curtos nos seletores.
+- **Status:** código pronto; deploy em produção.
+
 ### 2026-06-04 (c) — Seletores de OKR e Desenvolvimento conectados ao cadastro real (fim dos nomes poluídos)
 
 - **Pedro (Samuel):** prints mostraram (1) OKRs com lista de gerente hardcoded (apelidos) e (2) **Desenvolvimento** com dropdown de Colaborador **poluído** — texto livre ("Kath e Pedro", "Pedro, Kath e Victor"), apelidos ("Kath") e **duplicata por caixa** ("Luiz … dos Santos" vs "Dos Santos"). "Padronizar pelos nomes reais do cadastro; senão um gerente novo não aparece e a mesma falha está no módulo de Desenvolvimento."
