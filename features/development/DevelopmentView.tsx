@@ -25,7 +25,7 @@ import {
 import {
   computePerfilCientificoScores
 } from '@/lib/assessment/perfilCientificoScoring'
-import { Item, Role, OKRFeedback, OKRTarget, OKRMeasurement, UserPDI, ProfileEvaluation, UserProfile } from '@/shared/domain'
+import { Item, Role, OKRFeedback, OKRTarget, OKRMeasurement, UserPDI, ProfileEvaluation, UserProfile, isQuarter, periodoCoversQuarter } from '@/shared/domain'
 
 // Renderiza markdown inline simples (negrito **x**) como nós React — sem
 // dangerouslySetInnerHTML. Usado no laudo para destacar nomes de competência.
@@ -1481,11 +1481,10 @@ export function DevelopmentView({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
               {collaboratorFeedbacks.map(f => {
-                // OKRs active during this feedback's quarter
-                const periodOkrs = collaboratorOkrTargets.filter(t => {
-                  if (f.trimestre === 'Q3') return t.periodo === 'Q3'
-                  return t.periodo === 'Jan-Jun'
-                })
+                // OKRs active during this feedback's quarter (compatível com legado Jan-Jun)
+                const periodOkrs = collaboratorOkrTargets.filter(t =>
+                  isQuarter(f.trimestre) ? periodoCoversQuarter(t.periodo, f.trimestre) : true
+                )
 
                 return (
                   <div key={f.id} className="card" style={{ padding: 20, position: 'relative' }}>

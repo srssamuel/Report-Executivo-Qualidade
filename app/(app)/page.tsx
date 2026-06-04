@@ -20,6 +20,7 @@ import {
   urgencyCandidateScore, recommendationType,
   nextId, clamp, canEdit, canDelete, isAdmin,
   OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus,
+  quarterForMonth, monthsForPeriodo, periodoCoversQuarter, Quarter,
   UserPDI, ProfileEvaluation
 } from '@/shared/domain'
 
@@ -476,13 +477,14 @@ export default function AppPage() {
     const text = String(form.commentText ?? '').trim()
     if (!text) { showToast('Escreva um comentário antes de adicionar.'); return }
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('item_comments').insert({
+    const { error } = await supabase.from('item_comments').insert({
       item_id: modalId,
       author_id: user?.id,
       author_name: form.commentAuthor || profile?.email || 'Usuário',
       comment_type: form.commentType || 'Comentário',
       text,
     })
+    if (error) { showToast(`Erro ao registrar comentário: ${error.message}`); return }
     await updateField(modalId as string, 'executiveComment', text)
     setForm(f => ({ ...f, commentText: '' }))
     showToast('Comentário registrado.')
@@ -596,7 +598,7 @@ export default function AppPage() {
     const payload = {
       okr_id: okrId,
       mes,
-      trimestre: ['Jan', 'Fev', 'Mar'].includes(mes) ? 'Q1' : (['Abr', 'Mai', 'Jun'].includes(mes) ? 'Q2' : 'Q3'),
+      trimestre: quarterForMonth(mes),
       resultado_apurado: resultado,
       atingimento,
       status,
@@ -627,7 +629,7 @@ export default function AppPage() {
 
     const { data, error } = await supabase
       .from('okr_measurements')
-      .upsert(upsertPayload)
+      .upsert(upsertPayload, { onConflict: 'okr_id,mes' })
       .select()
       .single()
 
@@ -714,12 +716,12 @@ export default function AppPage() {
 
       // Generate pending measurements automatically
       if (isNew) {
-        const months = newTarget.periodo === 'Q3' ? ['Jul', 'Ago', 'Set'] : (newTarget.periodo === 'Jan-Jun' ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'] : [])
+        const months = monthsForPeriodo(newTarget.periodo)
         const newMeasures = months.map((m, idx) => ({
           id: `mock-measure-uuid-new-${Date.now()}-${idx}`,
           okr_id: mockId,
           mes: m,
-          trimestre: newTarget.periodo === 'Q3' ? 'Q3' : (['Jan', 'Fev', 'Mar'].includes(m) ? 'Q1' : 'Q2'),
+          trimestre: quarterForMonth(m),
           resultado_apurado: null,
           atingimento: null,
           status: 'Pendente' as OKRStatus,
@@ -736,8 +738,16 @@ export default function AppPage() {
       return
     }
 
+    // Resolve o dono real (responsavel_user_id) pelo apelido, derivando do vínculo já existente.
+    // Cobre criação e reatribuição (apelido trocado no formulário de edição).
+    const resolvedOwnerId =
+      okrTargets.find(t => t.responsavel === target.responsavel && t.responsavel_user_id)?.responsavel_user_id
+      ?? target.responsavel_user_id
+      ?? null
+
     const payload = {
       ...target,
+      responsavel_user_id: resolvedOwnerId,
       updated_at: new Date().toISOString()
     }
 
@@ -761,11 +771,11 @@ export default function AppPage() {
 
       // Generate pending measurements automatically
       if (isNew) {
-        const months = newTarget.periodo === 'Q3' ? ['Jul', 'Ago', 'Set'] : (newTarget.periodo === 'Jan-Jun' ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'] : [])
+        const months = monthsForPeriodo(newTarget.periodo)
         const newMeasures = months.map(m => ({
           okr_id: newTarget.id,
           mes: m,
-          trimestre: newTarget.periodo === 'Q3' ? 'Q3' : (['Jan', 'Fev', 'Mar'].includes(m) ? 'Q1' : 'Q2'),
+          trimestre: quarterForMonth(m),
           status: 'Pendente' as OKRStatus,
           audited: false
         }))
@@ -803,18 +813,14 @@ export default function AppPage() {
   }
 
   async function handleCloneToQ3(managerName: string, sourcePeriod: string = 'Q1', targetPeriod: string = 'Q2') {
-    const sourceOKRs = okrTargets.filter(t => t.responsavel === managerName && t.periodo === sourcePeriod)
+    const sourceOKRs = okrTargets.filter(t => t.responsavel === managerName && periodoCoversQuarter(t.periodo, sourcePeriod as Quarter))
     if (sourceOKRs.length === 0) {
       showToast(`Nenhum OKR encontrado no período ${sourcePeriod} para clonar.`)
       return
     }
 
-    // Map target period to months
-    let months: string[] = []
-    if (targetPeriod === 'Q2') months = ['Abr', 'Mai', 'Jun']
-    else if (targetPeriod === 'Q3') months = ['Jul', 'Ago', 'Set']
-    else if (targetPeriod === 'Q4') months = ['Out', 'Nov', 'Dez']
-    else if (targetPeriod === 'Q1') months = ['Jan', 'Fev', 'Mar']
+    // Months of the destination quarter
+    const months: string[] = monthsForPeriodo(targetPeriod)
 
     if (isOkrFallback) {
       const newTargets = sourceOKRs.map((t, idx) => {
@@ -861,6 +867,7 @@ export default function AppPage() {
       return {
         id_okr: `${baseId}-${targetPeriod}`,
         responsavel: t.responsavel,
+        responsavel_user_id: t.responsavel_user_id ?? null,
         conta_diretoria: t.conta_diretoria,
         papel: t.papel,
         periodo: targetPeriod,
@@ -1263,7 +1270,7 @@ export default function AppPage() {
           measurements={okrMeasurements}
           feedbacks={okrFeedbacks}
           role={role}
-          _currentUserId={profile?.id || ''}
+          currentUserId={profile?.id || ''}
           currentUserFullName={profile?.full_name || profile?.email || ''}
           onSaveMeasurement={handleSaveMeasurement}
           onAuditMeasurement={handleAuditMeasurement}

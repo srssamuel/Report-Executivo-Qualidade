@@ -9,7 +9,9 @@ import {
 } from 'lucide-react'
 import {
   OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role, PERSPECTIVES,
-  okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue
+  okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue,
+  Quarter, QUARTERS, QUARTER_LABELS, QUARTER_MONTHS,
+  periodoCoversQuarter, previousQuarter, quarterFromMonthIndex, canEdit
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
 
@@ -18,7 +20,7 @@ interface OKRsViewProps {
   measurements: OKRMeasurement[]
   feedbacks: OKRFeedback[]
   role: Role
-  _currentUserId: string
+  currentUserId: string
   currentUserFullName: string
   onSaveMeasurement: (okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) => Promise<void>
   onAuditMeasurement: (measurementId: string, audited: boolean, feedback: string) => Promise<void>
@@ -32,11 +34,6 @@ interface OKRsViewProps {
 
 type TabId = 'dashboard' | 'measurements' | 'recontracting'
 
-const PERIODS = [
-  { id: 'Jan-Jun', label: '1º Semestre (Jan–Jun)' },
-  { id: 'Jul-Dez', label: '2º Semestre (Jul–Dez)' }
-]
-
 const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson', 'Aleff']
 
 export function OKRsView({
@@ -44,7 +41,7 @@ export function OKRsView({
   measurements,
   feedbacks: _feedbacks,
   role,
-  _currentUserId,
+  currentUserId,
   currentUserFullName,
   onSaveMeasurement,
   onAuditMeasurement,
@@ -56,13 +53,19 @@ export function OKRsView({
   isFallback = false
 }: OKRsViewProps) {
   const isSuperOrAdmin = ['admin', 'superintendente'].includes(role)
+  const canLaunch = canEdit(role) // quem pode lançar apuração (exclui viewer)
 
-  // Find if current user name matches any manager
+  // Tenancy confiável: deriva o gerente do vínculo de dono (responsavel_user_id), não de match por nome.
   const matchedManager = useMemo(() => {
+    if (currentUserId) {
+      const owned = targets.find(t => t.responsavel_user_id === currentUserId)
+      if (owned) return owned.responsavel
+    }
+    // Fallback defensivo (target legado sem vínculo): match por nome.
     if (!currentUserFullName) return null
     const name = currentUserFullName.toLowerCase()
     return MANAGERS.find(m => name.includes(m.toLowerCase()) || m.toLowerCase().includes(name)) || null
-  }, [currentUserFullName])
+  }, [targets, currentUserId, currentUserFullName])
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const [selectedManager, setSelectedManager] = useState<string>(() => {
@@ -78,9 +81,10 @@ export function OKRsView({
     }
   }, [matchedManager, isSuperOrAdmin, selectedManager])
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('Jan-Jun')
+  const [selectedQuarter, setSelectedQuarter] = useState<Quarter>(() => quarterFromMonthIndex(new Date().getMonth()))
   const [selectedPerspective, setSelectedPerspective] = useState<string>('')
-  const selectedPeriodLabel = PERIODS.find(p => p.id === selectedPeriod)?.label ?? selectedPeriod
+  const selectedPeriodLabel = QUARTER_LABELS[selectedQuarter]
+  const quarterMonths = QUARTER_MONTHS[selectedQuarter]
 
   
   // Lançamento state
@@ -91,7 +95,7 @@ export function OKRsView({
     perspectiva: 'Performance',
     direcao: 'Maior é melhor',
     peso: 1,
-    periodo: 'Jul-Dez',
+    periodo: selectedQuarter,
     periodicidade: 'Mensal'
   })
 
@@ -116,10 +120,10 @@ export function OKRsView({
   // Filtered OKRs for selected manager and period
   const managerTargets = useMemo(() => {
     if (selectedManager === 'Todos') {
-      return targets.filter(t => t.periodo === selectedPeriod)
+      return targets.filter(t => periodoCoversQuarter(t.periodo, selectedQuarter))
     }
-    return targets.filter(t => t.responsavel === selectedManager && t.periodo === selectedPeriod)
-  }, [targets, selectedManager, selectedPeriod])
+    return targets.filter(t => t.responsavel === selectedManager && periodoCoversQuarter(t.periodo, selectedQuarter))
+  }, [targets, selectedManager, selectedQuarter])
 
   // Map okr_targets UUID to array of okr_measurements
   const okrMeasurementsMap = useMemo(() => {
@@ -148,8 +152,8 @@ export function OKRsView({
     ) as Record<Perspective, { score: number; weight: number }>
 
     managerTargets.forEach(t => {
-      const okrMeasures = okrMeasurementsMap[t.id] || []
-      
+      const okrMeasures = (okrMeasurementsMap[t.id] || []).filter(m => quarterMonths.includes(m.mes))
+
       // Calculate average achievement of this KR across all months
       let krAtingimentoSum = 0
       let krAtingimentoCount = 0
@@ -209,7 +213,7 @@ export function OKRsView({
       countNotAudited,
       perspectives: computedPerspectives
     }
-  }, [managerTargets, okrMeasurementsMap])
+  }, [managerTargets, okrMeasurementsMap, quarterMonths])
 
 
   // Action: Save a target
@@ -222,7 +226,7 @@ export function OKRsView({
       const payload = {
         ...targetData,
         responsavel: targetData.responsavel || (selectedManager === 'Todos' ? 'Pedro Almeida' : selectedManager),
-        periodo: selectedPeriod,
+        periodo: isCreatingTarget ? selectedQuarter : (targetData.periodo ?? selectedQuarter),
         meta_numerica: Number(targetData.meta_numerica) || 0,
         peso: Number(targetData.peso) || 1
       }
@@ -234,16 +238,23 @@ export function OKRsView({
     }
   }
 
-  // Action: Clone semester OKRs to the next semester
-  const handleCloneQ3 = async () => {
-    if (selectedManager === 'Todos') {
-      alert('Por favor, selecione um gerente específico no filtro superior para realizar a recontratação.')
+  // Recontratação: trimestre anterior que tem OKRs cobrindo, para clonar no trimestre atual
+  const recontractSourceQuarter = previousQuarter(selectedQuarter)
+  const recontractSourceTargets = useMemo(() => {
+    if (selectedManager === 'Todos' || !recontractSourceQuarter) return []
+    return targets.filter(t => t.responsavel === selectedManager && periodoCoversQuarter(t.periodo, recontractSourceQuarter))
+  }, [targets, selectedManager, recontractSourceQuarter])
+  const canRecontract = isSuperOrAdmin && selectedManager !== 'Todos' && !!recontractSourceQuarter && recontractSourceTargets.length > 0
+
+  // Action: Clone the previous quarter's OKR structure into the selected quarter
+  const handleCloneQuarter = async () => {
+    if (!recontractSourceQuarter || !canRecontract) {
+      alert('Selecione um gerente específico e um trimestre (2º em diante) que tenha um trimestre anterior contratado.')
       return
     }
-    const prev = 'Jan-Jun'
-    if (!confirm(`Deseja mesmo recontratar os OKRs de ${selectedManager} para o 2º Semestre (Jul–Dez)? A estrutura de KRs do 1º Semestre (${prev}) será clonada.`)) return
+    if (!confirm(`Recontratar ${recontractSourceTargets.length} OKR(s) de ${selectedManager} do ${QUARTER_LABELS[recontractSourceQuarter]} para o ${QUARTER_LABELS[selectedQuarter]}? A estrutura de KRs será clonada e as apurações reiniciadas para o novo trimestre.`)) return
     try {
-      await onCloneToQ3(selectedManager, prev, 'Jul-Dez')
+      await onCloneToQ3(selectedManager, recontractSourceQuarter, selectedQuarter)
     } catch (err) {
       console.error(err)
     }
@@ -330,13 +341,13 @@ export function OKRsView({
           </div>
 
           <div className="control-group">
-            <span className="control-label"><Calendar size={12} /> Período</span>
+            <span className="control-label"><Calendar size={12} /> Trimestre</span>
             <select
               className="select small"
-              value={selectedPeriod}
-              onChange={e => setSelectedPeriod(e.target.value)}
+              value={selectedQuarter}
+              onChange={e => setSelectedQuarter(e.target.value as Quarter)}
             >
-              {PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              {QUARTERS.map(q => <option key={q} value={q}>{QUARTER_LABELS[q]}</option>)}
             </select>
           </div>
         </div>
@@ -375,7 +386,7 @@ export function OKRsView({
             <div className={`status-tile ${okrStats.globalScore !== null ? (okrStats.globalScore >= 100 ? 'good' : (okrStats.globalScore >= 70 ? 'warn' : 'danger')) : ''}`}>
               <span>Score Executivo OKRs</span>
               <strong>{okrStats.globalScore !== null ? `${okrStats.globalScore.toFixed(1)}%` : '—'}</strong>
-              <small>Média ponderada do semestre</small>
+              <small>Média ponderada do {selectedPeriodLabel}</small>
             </div>
             <div className="status-tile">
               <span>Resultado KRs</span>
@@ -434,8 +445,8 @@ export function OKRsView({
               <div className="card-body" style={{ fontSize: 12, lineHeight: '1.5em' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ padding: 10, background: 'rgba(99, 102, 241, 0.05)', borderRadius: 6, borderLeft: '3px solid #6366f1' }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4 }}><Sparkles size={12} /> Recontratação Semestral</h4>
-                    Neste módulo você pode recontratar os OKRs para o 2º Semestre (Jul–Dez). A recontratação copia a árvore de objetivos e KRs, mas reinicia as apurações mensais de Julho a Dezembro.
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4 }}><Sparkles size={12} /> Recontratação Trimestral</h4>
+                    Neste módulo você recontrata os OKRs de um trimestre para o seguinte (Q1→Q2→Q3→Q4). A recontratação copia a árvore de objetivos e KRs, mas reinicia as apurações dos três meses do novo trimestre.
                   </div>
                   <div style={{ padding: 10, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 6, borderLeft: '3px solid #10b981' }}>
                     <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}><UserCheck size={12} /> Fluxo de Apuração e Evidências</h4>
@@ -531,17 +542,19 @@ export function OKRsView({
                 {managerTargets.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
-                      <div className="empty">Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} em {selectedPeriod}. Vá para a aba "Contratação" para cadastrar ou recontratar OKRs.</div>
+                      <div className="empty">Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no {selectedPeriodLabel}. Vá para a aba &quot;Contratação&quot; para cadastrar ou recontratar OKRs.</div>
                     </td>
                   </tr>
                 ) : (
                   managerTargets
                     .filter(t => !selectedPerspective || t.perspectiva === selectedPerspective)
                     .map(t => {
-                      const okrMeasures = (okrMeasurementsMap[t.id] || []).sort((a, b) => {
-                        const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-                        return months.indexOf(a.mes) - months.indexOf(b.mes)
-                      })
+                      const okrMeasures = (okrMeasurementsMap[t.id] || [])
+                        .filter(m => quarterMonths.includes(m.mes))
+                        .sort((a, b) => {
+                          const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+                          return months.indexOf(a.mes) - months.indexOf(b.mes)
+                        })
 
                       return (
                         <React.Fragment key={t.id}>
@@ -716,7 +729,7 @@ export function OKRsView({
                                           </label>
                                         )}
 
-                                        {(!m.audited || isSuperOrAdmin) && (
+                                        {canLaunch && (!m.audited || isSuperOrAdmin) && (
                                           <div style={{ display: 'flex', gap: 8, marginTop: 5 }}>
                                             <button
                                               className="btn primary small"
@@ -799,7 +812,7 @@ export function OKRsView({
         </div>
       )}
 
-      {/* Aba 3: Contratação & Recontratação (Q3) */}
+      {/* Aba 3: Contratação & Recontratação Trimestral */}
       {activeTab === 'recontracting' && (
         <div className="okr-recontracting-tab">
           {managerTargets.length === 0 ? (
@@ -807,17 +820,17 @@ export function OKRsView({
               <Copy size={36} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.7 }} />
               <h3>Contrato de OKRs Vazio</h3>
               <p style={{ maxWidth: 460, margin: '6px auto 20px auto', fontSize: 12, color: 'var(--text-muted)' }}>
-                Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no período <strong>{selectedPeriodLabel}</strong>.
-                {selectedManager !== 'Todos' && 'Você pode clonar a estrutura de KRs do 1º Semestre (Jan–Jun) para iniciar as apurações rapidamente e economizar tempo.'}
+                Nenhum OKR cadastrado para {selectedManager === 'Todos' ? 'os gerentes' : selectedManager} no <strong>{selectedPeriodLabel}</strong>.
+                {canRecontract && recontractSourceQuarter && ` Você pode clonar a estrutura de KRs do ${QUARTER_LABELS[recontractSourceQuarter]} para iniciar as apurações deste trimestre rapidamente.`}
               </p>
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                {selectedManager !== 'Todos' && selectedPeriod === 'Jul-Dez' && (
-                  <button className="btn primary" onClick={handleCloneQ3}>
-                    🔄 Recontratar OKRs do 1º Semestre (Jan–Jun) para o 2º Semestre (Jul–Dez)
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {canRecontract && recontractSourceQuarter && (
+                  <button className="btn primary" onClick={handleCloneQuarter}>
+                    🔄 Recontratar OKRs do {QUARTER_LABELS[recontractSourceQuarter]} para o {QUARTER_LABELS[selectedQuarter]}
                   </button>
                 )}
-                {selectedManager !== 'Todos' && (
+                {isSuperOrAdmin && selectedManager !== 'Todos' && (
                   <button className="btn" onClick={() => setIsCreatingTarget(true)}>
                     <Plus size={14} /> Cadastrar Nova KR do Zero
                   </button>
@@ -834,7 +847,7 @@ export function OKRsView({
                       perspectiva: 'Performance',
                       direcao: 'Maior é melhor',
                       peso: 1,
-                      periodo: selectedPeriod,
+                      periodo: selectedQuarter,
                       periodicidade: 'Mensal',
                       responsavel: selectedManager === 'Todos' ? 'Pedro Almeida' : selectedManager
                     })

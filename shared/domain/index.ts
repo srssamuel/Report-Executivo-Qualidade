@@ -605,6 +605,7 @@ export interface OKRTarget {
   id: string
   id_okr: string
   responsavel: string
+  responsavel_user_id?: string | null // FK user_profiles.id — dono real (tenancy confiável)
   conta_diretoria?: string
   papel?: string
   periodo: string // 'Jan-Jun', 'Q3', etc.
@@ -723,6 +724,96 @@ export function formatOkrValue(val: number | null | undefined, unidade: string):
     return `${(val * 100).toFixed(0)}%`
   }
   return val.toLocaleString('pt-BR')
+}
+
+// ── OKR Quarter helpers (apuração trimestral) ───────────────────────────────
+// Fonte única do modelo de trimestre. A apuração mensal é organizada em 4 blocos
+// trimestrais. Mantém compatibilidade com o modelo legado por semestre
+// ('Jan-Jun' = Q1+Q2, 'Jul-Dez' = Q3+Q4) e com contratos anuais.
+
+export const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'] as const
+export type Quarter = (typeof QUARTERS)[number]
+
+export const QUARTER_MONTHS: Record<Quarter, readonly string[]> = {
+  Q1: ['Jan', 'Fev', 'Mar'],
+  Q2: ['Abr', 'Mai', 'Jun'],
+  Q3: ['Jul', 'Ago', 'Set'],
+  Q4: ['Out', 'Nov', 'Dez'],
+}
+
+export const QUARTER_LABELS: Record<Quarter, string> = {
+  Q1: '1º Trimestre · Jan–Mar',
+  Q2: '2º Trimestre · Abr–Jun',
+  Q3: '3º Trimestre · Jul–Set',
+  Q4: '4º Trimestre · Out–Dez',
+}
+
+export const ALL_OKR_MONTHS = [
+  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+] as const
+
+const MONTH_TO_QUARTER: Record<string, Quarter> = {
+  Jan: 'Q1', Fev: 'Q1', Mar: 'Q1',
+  Abr: 'Q2', Mai: 'Q2', Jun: 'Q2',
+  Jul: 'Q3', Ago: 'Q3', Set: 'Q3',
+  Out: 'Q4', Nov: 'Q4', Dez: 'Q4',
+}
+
+/** Type guard: o valor é um trimestre válido (Q1–Q4). */
+export function isQuarter(value: string | undefined | null): value is Quarter {
+  return !!value && (QUARTERS as readonly string[]).includes(value)
+}
+
+/** Trimestre (Q1–Q4) ao qual um mês pertence. Default Q1 para entradas inválidas. */
+export function quarterForMonth(mes: string): Quarter {
+  return MONTH_TO_QUARTER[mes] ?? 'Q1'
+}
+
+/** Trimestre seguinte na sequência cíclica (Q4 → Q1). */
+export function nextQuarter(q: Quarter): Quarter {
+  return QUARTERS[(QUARTERS.indexOf(q) + 1) % QUARTERS.length]!
+}
+
+/** Trimestre anterior (Q1 → null — não há trimestre antes do primeiro do ano). */
+export function previousQuarter(q: Quarter): Quarter | null {
+  const idx = QUARTERS.indexOf(q)
+  return idx <= 0 ? null : QUARTERS[idx - 1]!
+}
+
+/** Trimestre corrente a partir de um índice de mês 0–11 (0 = Jan). */
+export function quarterFromMonthIndex(monthIndex: number): Quarter {
+  return QUARTERS[Math.min(3, Math.max(0, Math.floor(monthIndex / 3)))]!
+}
+
+/**
+ * Decide se um OKR (pelo seu `periodo` contratado) deve aparecer na apuração de um trimestre.
+ * Compatível com o legado por semestre e com contratos anuais. Trimestre explícito
+ * ('Q2') casa apenas com o próprio.
+ */
+export function periodoCoversQuarter(periodo: string | undefined | null, q: Quarter): boolean {
+  const p = String(periodo ?? '').trim()
+  if (!p) return false
+  if (p === q) return true
+  const lp = p.toLowerCase()
+  // Anual: apenas "anual"/"ano" ou um ano isolado (não "Jan-Jun 2025", que é semestre)
+  if (/^(anual|ano)\b/.test(lp) || /^20\d{2}$/.test(p)) return true
+  if (/jan[-/ ]?jun/.test(lp) || /1.?\s*sem/.test(lp)) return q === 'Q1' || q === 'Q2'
+  if (/jul[-/ ]?dez/.test(lp) || /2.?\s*sem/.test(lp)) return q === 'Q3' || q === 'Q4'
+  return false
+}
+
+/**
+ * Meses que um OKR deve apurar conforme seu `periodo`. Usado ao gerar measurements
+ * pendentes na criação/recontratação de um OKR.
+ */
+export function monthsForPeriodo(periodo: string | undefined | null): string[] {
+  const p = String(periodo ?? '').trim()
+  if (isQuarter(p)) return [...QUARTER_MONTHS[p]]
+  const lp = p.toLowerCase()
+  if (/^(anual|ano)\b/.test(lp) || /^20\d{2}$/.test(p)) return [...ALL_OKR_MONTHS]
+  if (/jan[-/ ]?jun/.test(lp) || /1.?\s*sem/.test(lp)) return [...QUARTER_MONTHS.Q1, ...QUARTER_MONTHS.Q2]
+  if (/jul[-/ ]?dez/.test(lp) || /2.?\s*sem/.test(lp)) return [...QUARTER_MONTHS.Q3, ...QUARTER_MONTHS.Q4]
+  return []
 }
 
 export interface UserPDI {

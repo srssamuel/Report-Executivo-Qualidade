@@ -25,7 +25,12 @@ import {
   okrStatusTone,
   OKRTarget,
   OKRMeasurement,
-  OKRStatus
+  OKRStatus,
+  Quarter,
+  quarterFromMonthIndex,
+  periodoCoversQuarter,
+  QUARTER_MONTHS,
+  QUARTER_LABELS
 } from '@/shared/domain'
 import { Badge, ProgressGauge, HBarChart, VBarChart, DonutChart } from '@/shared/components'
 
@@ -107,25 +112,15 @@ export function DashboardView({
     if (!okrMeasuresByTarget[m.okr_id]) okrMeasuresByTarget[m.okr_id] = []
     okrMeasuresByTarget[m.okr_id].push(m)
   })
-  /* Período ativo = aquele cujas metas concentram mais resultados apurados (desempate por nº de metas) */
-  const periodResultCount: Record<string, number> = {}
-  const periodTargetCount: Record<string, number> = {}
-  okrTargets.forEach(t => {
-    const ms = okrMeasuresByTarget[t.id] || []
-    const withResult = ms.filter(m => m.resultado_apurado !== null && m.resultado_apurado !== undefined).length
-    periodResultCount[t.periodo] = (periodResultCount[t.periodo] ?? 0) + withResult
-    periodTargetCount[t.periodo] = (periodTargetCount[t.periodo] ?? 0) + 1
-  })
-  const activePeriod = Object.keys(periodResultCount).length
-    ? Object.entries(periodResultCount).sort((a, b) => b[1] - a[1] || (periodTargetCount[b[0]] ?? 0) - (periodTargetCount[a[0]] ?? 0))[0][0]
-    : ''
-  const periodTargets = okrTargets.filter(t => t.periodo === activePeriod)
+  /* Apuração trimestral: usa o trimestre corrente (espelha OKRsView) */
+  const activeQuarter: Quarter = quarterFromMonthIndex(new Date().getMonth())
+  const periodTargets = okrTargets.filter(t => periodoCoversQuarter(t.periodo, activeQuarter))
   let okrTotalWeight = 0
   let okrTotalScore = 0
   const okrStatusCounts: Record<OKRStatus, number> = { Atingido: 0, Parcial: 0, Crítico: 0, Pendente: 0 }
   const perspScore: Record<string, { score: number; weight: number }> = {}
   periodTargets.forEach(t => {
-    const ms = okrMeasuresByTarget[t.id] || []
+    const ms = (okrMeasuresByTarget[t.id] || []).filter(m => QUARTER_MONTHS[activeQuarter].includes(m.mes))
     let sum = 0
     let count = 0
     ms.forEach(m => {
@@ -373,7 +368,7 @@ export function DashboardView({
         <div className="dash-section">
           <div className="section-head">
             <h2 className="section-title"><Target size={18} /> Atingimento de OKRs</h2>
-            {activePeriod && <Badge label={activePeriod} tone="tone-blue" />}
+            <Badge label={QUARTER_LABELS[activeQuarter]} tone="tone-blue" />
           </div>
           {isOkrFallback && (
             <p className="dep-note" style={{ marginBottom: 12 }}>
