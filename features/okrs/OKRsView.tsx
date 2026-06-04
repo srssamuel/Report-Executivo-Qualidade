@@ -8,7 +8,7 @@ import {
   Settings, ShieldAlert
 } from 'lucide-react'
 import {
-  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role, PERSPECTIVES,
+  OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role, UserProfile, PERSPECTIVES,
   okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue,
   Quarter, QUARTERS, QUARTER_LABELS, QUARTER_MONTHS,
   periodoCoversQuarter, previousQuarter, quarterFromMonthIndex, canEdit
@@ -20,6 +20,7 @@ interface OKRsViewProps {
   measurements: OKRMeasurement[]
   feedbacks: OKRFeedback[]
   role: Role
+  userProfiles: UserProfile[]
   currentUserId: string
   currentUserFullName: string
   onSaveMeasurement: (okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) => Promise<void>
@@ -34,13 +35,12 @@ interface OKRsViewProps {
 
 type TabId = 'dashboard' | 'measurements' | 'approvals' | 'recontracting'
 
-const MANAGERS = ['Pedro Almeida', 'Kathellen', 'Luiz Bertoldo', 'Thyyellisson', 'Aleff']
-
 export function OKRsView({
   targets,
   measurements,
   feedbacks: _feedbacks,
   role,
+  userProfiles,
   currentUserId,
   currentUserFullName,
   onSaveMeasurement,
@@ -55,16 +55,25 @@ export function OKRsView({
   const isSuperOrAdmin = ['admin', 'superintendente'].includes(role)
   const canLaunch = canEdit(role) // quem pode lançar apuração (exclui viewer)
 
+  // Lista de gerentes/responsáveis dirigida pelo CADASTRO real (não mais apelidos hardcoded):
+  // perfis com papel gerente/consultor + qualquer responsável já existente em OKRs. Novos gerentes
+  // cadastrados aparecem automaticamente; nomes reais, sem duplicatas nem texto livre.
+  const okrManagerNames = useMemo(() => {
+    const fromProfiles = userProfiles
+      .filter(u => ['gerente', 'consultor'].includes(u.role))
+      .map(u => u.full_name || u.email)
+      .filter(Boolean)
+    const fromTargets = targets.map(t => t.responsavel).filter(Boolean)
+    return Array.from(new Set([...fromProfiles, ...fromTargets])).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [userProfiles, targets])
+
   // Tenancy confiável: deriva o gerente do vínculo de dono (responsavel_user_id), não de match por nome.
   const matchedManager = useMemo(() => {
     if (currentUserId) {
       const owned = targets.find(t => t.responsavel_user_id === currentUserId)
       if (owned) return owned.responsavel
     }
-    // Fallback defensivo (target legado sem vínculo): match por nome.
-    if (!currentUserFullName) return null
-    const name = currentUserFullName.toLowerCase()
-    return MANAGERS.find(m => name.includes(m.toLowerCase()) || m.toLowerCase().includes(name)) || null
+    return currentUserFullName || null
   }, [targets, currentUserId, currentUserFullName])
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
@@ -72,7 +81,7 @@ export function OKRsView({
     if (!isSuperOrAdmin && matchedManager) {
       return matchedManager
     }
-    return isSuperOrAdmin ? 'Todos' : 'Pedro Almeida'
+    return isSuperOrAdmin ? 'Todos' : (currentUserFullName || '')
   })
   
   useEffect(() => {
@@ -375,7 +384,7 @@ export function OKRsView({
               disabled={!isSuperOrAdmin}
             >
               {isSuperOrAdmin && <option value="Todos">Todos os Gerentes</option>}
-              {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
+              {okrManagerNames.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
 
@@ -1085,7 +1094,7 @@ export function OKRsView({
                               else setEditOkrForm(f => f ? ({ ...f, responsavel: val }) : null)
                             }}
                           >
-                            {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
+                            {okrManagerNames.map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
                         </label>
                       )}

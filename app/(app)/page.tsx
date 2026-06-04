@@ -742,6 +742,7 @@ export default function AppPage() {
     // Cobre criação e reatribuição (apelido trocado no formulário de edição).
     const resolvedOwnerId =
       okrTargets.find(t => t.responsavel === target.responsavel && t.responsavel_user_id)?.responsavel_user_id
+      ?? userProfiles.find(u => (u.full_name || u.email) === target.responsavel)?.id
       ?? target.responsavel_user_id
       ?? null
 
@@ -1270,6 +1271,7 @@ export default function AppPage() {
           measurements={okrMeasurements}
           feedbacks={okrFeedbacks}
           role={role}
+          userProfiles={userProfiles}
           currentUserId={profile?.id || ''}
           currentUserFullName={profile?.full_name || profile?.email || ''}
           onSaveMeasurement={handleSaveMeasurement}

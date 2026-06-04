@@ -148,10 +148,10 @@ export function DevelopmentView({
   // Dynamic list of viewable collaborators based on role hierarchy
   const viewableCollaborators = useMemo(() => {
     if (isSuperOrAdmin) {
-      // Admin/Super view anyone
+      // Admin/Super veem qualquer colaborador CADASTRADO. Fonte única: user_profiles — não mais
+      // owners de texto livre dos itens (fim da poluição "Kath e Pedro" e duplicatas por caixa).
       const profileNames = userProfiles.map(u => u.full_name || u.email).filter(Boolean)
-      const itemOwners = [...new Set(items.filter(i => !i.archived && i.owner).map(i => i.owner!))]
-      return Array.from(new Set([currentUserFullName, ...profileNames, ...itemOwners])).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      return Array.from(new Set([currentUserFullName, ...profileNames].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     }
     
     // Subordinates list based on role
@@ -166,7 +166,7 @@ export function DevelopmentView({
     }).map(u => u.full_name || u.email).filter(Boolean)
 
     return Array.from(new Set([currentUserFullName, ...subordinates])).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [role, currentUserFullName, userProfiles, items, isSuperOrAdmin])
+  }, [role, currentUserFullName, userProfiles, isSuperOrAdmin])
 
   // Select first available viewable collaborator if current selection is not viewable
   useEffect(() => {
@@ -213,15 +213,24 @@ export function DevelopmentView({
       .sort((a, b) => new Date(b.updated_at || '').getTime() - new Date(a.updated_at || '').getTime())
   }, [pdis, selectedCollaborator])
 
-  // OKR targets for the selected collaborator (flexible name matching)
+  // Id do colaborador selecionado no cadastro (vínculo confiável, não por nome).
+  const selectedCollaboratorId = useMemo(
+    () => userProfiles.find(u => (u.full_name || u.email) === selectedCollaborator)?.id ?? null,
+    [userProfiles, selectedCollaborator],
+  )
+
+  // OKRs do colaborador: por responsavel_user_id (confiável). Fallback por nome p/ dados legados.
   const collaboratorOkrTargets = useMemo(() => {
+    if (selectedCollaboratorId) {
+      const byId = okrTargets.filter(t => t.responsavel_user_id === selectedCollaboratorId)
+      if (byId.length) return byId
+    }
     const nameParts = selectedCollaborator.toLowerCase().split(' ').filter(p => p.length > 2)
     return okrTargets.filter(t => {
       const resp = t.responsavel.toLowerCase()
-      return resp === selectedCollaborator.toLowerCase() ||
-        nameParts.some(part => resp.includes(part))
+      return resp === selectedCollaborator.toLowerCase() || nameParts.some(part => resp.includes(part))
     })
-  }, [okrTargets, selectedCollaborator])
+  }, [okrTargets, selectedCollaborator, selectedCollaboratorId])
 
   // OKR measurements for the collaborator's targets
   const collaboratorOkrMeasurements = useMemo(() => {
