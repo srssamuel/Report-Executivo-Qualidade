@@ -15,6 +15,17 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-04 (c) — Seletores de OKR e Desenvolvimento conectados ao cadastro real (fim dos nomes poluídos)
+
+- **Pedro (Samuel):** prints mostraram (1) OKRs com lista de gerente hardcoded (apelidos) e (2) **Desenvolvimento** com dropdown de Colaborador **poluído** — texto livre ("Kath e Pedro", "Pedro, Kath e Victor"), apelidos ("Kath") e **duplicata por caixa** ("Luiz … dos Santos" vs "Dos Santos"). "Padronizar pelos nomes reais do cadastro; senão um gerente novo não aparece e a mesma falha está no módulo de Desenvolvimento."
+- **Causa-raiz:** o chokepoint `ownersOf` (d83f78d) padronizou os _itens_, mas **não** estes dois seletores. OKRsView: `MANAGERS` **hardcoded** (5 apelidos). DevelopmentView (linha 153): lista de colaboradores montada de `items.map(i => i.owner)` **cru** (sem `ownersOf`) — fonte da poluição. PDI/feedback/avaliações **vazios** no DB → poluição 100% dos owners crus.
+- **Migration 020 (aplicada, arquivo no repo):** `okr_targets.responsavel` ← `user_profiles.full_name` (via `responsavel_user_id` da 017). Os 5 apelidos viraram nome real (Aleff Azevedo Dias, Kathelleen Heloisa…, Luiz Fernando Bertoldo dos Santos, Pedro Almeida Santos, Thyellison Aslan…), 50/50 com dono. `responsavel_user_id` segue como vínculo autoritativo (RLS).
+- **OKRsView:** removido `MANAGERS` hardcoded; lista de gerente agora **dinâmica do cadastro** (`okrManagerNames` = perfis `gerente/consultor` ∪ responsáveis já existentes, nomes reais, sem duplicata) — gerente novo aparece sozinho. `matchedManager` deriva do `responsavel_user_id` (fallback `currentUserFullName`, sem mais match por apelido). Recebe prop `userProfiles`.
+- **DevelopmentView:** dropdown de Colaborador agora **só de `user_profiles`** (removido `itemOwners` cru → fim da poluição/duplicatas). OKRs do colaborador casam por **`responsavel_user_id`** (`selectedCollaboratorId` resolvido do cadastro; fallback por nome p/ legado).
+- **page.tsx:** passa `userProfiles` ao OKRsView; `handleSaveTarget` resolve `responsavel_user_id` também via `userProfiles` (cobre gerente sem OKR ainda).
+- **Validação:** `tsc` exit 0 · `eslint` exit 0 · `next build` ✓ 12/12.
+- **Status:** código pronto; deploy em sequência (decisão Samuel: promover para produção).
+
 ### 2026-06-04 (b) — Fila de homologação de OKR + re-pendência automática + painel de aderência de uso — ao vivo
 
 - **Pedido (Samuel):** (1) fluxo de aprovação: "quando o gerente lança deveria aparecer pra mim só aprovar; o lançamento já conta no resultado, mas todo lançamento novo fica pendente de aprovação sem bloquear". Opinião + melhor formato. (2) Evoluir a aba **Executivo**: hoje só pressiona quem já cadastrou; quer **métricas de uso** de todos (gerente/coordenador/consultor/analista) com **faróis por nível**.
