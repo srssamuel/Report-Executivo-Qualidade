@@ -53,7 +53,6 @@ export default function AppPage() {
   const [filters, setFilters] = useState<Filters>({
     query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'dueAsc', criticalOnly: false,
   })
-  const [weeklyCapacity, setWeeklyCapacity] = useState(30)
   const [urgentForm, setUrgentForm] = useState({ product: 'Vivo', title: '', owner: '', effort: 16, dueDate: '', reason: '' })
   const [urgentSimulated, setUrgentSimulated] = useState(false)
 
@@ -267,6 +266,17 @@ export default function AppPage() {
     await updateField(modalId as string, 'executiveComment', text)
     setForm(f => ({ ...f, commentText: '' }))
     showToast('Comentário registrado.')
+  }
+
+  async function updatePerson(id: string, patch: { weeklyCapacityHours?: number; active?: boolean }) {
+    const row: Record<string, unknown> = {}
+    if (patch.weeklyCapacityHours !== undefined) row.weekly_capacity_hours = patch.weeklyCapacityHours
+    if (patch.active !== undefined) row.active = patch.active
+    const { error } = await supabase.from('people').update(row).eq('id', id)
+    if (error) { showToast(`Erro: ${error.message}`); return }
+    setPeople(prev => patch.active === false
+      ? prev.filter(p => p.id !== id)
+      : prev.map(p => p.id === id ? { ...p, ...patch } : p))
   }
 
   async function createPerson(name: string): Promise<Person | null> {
@@ -486,7 +496,7 @@ export default function AppPage() {
       {view === 'board' && <BoardView filtered={filtered} allItems={items} onEdit={openModal} canEdit={canEditItems} onFieldChange={updateField} />}
       {view === 'risks' && <RisksView filtered={filtered} allItems={items} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
-      {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
+      {view === 'capacity' && <CapacityView filtered={filtered} people={people} onUpdatePerson={updatePerson} onCreatePerson={createPerson} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
 
       {/* ── ItemDrawer ───────────────────────────────────────── */}
