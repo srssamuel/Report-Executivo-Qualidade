@@ -2,6 +2,16 @@
 
 > Diário de bordo do projeto. Sessão mais recente no topo.
 
+## 2026-06-10 (cont.) — QA visual autenticado + fix crítico de papéis aeC
+
+**PR #3:** https://github.com/srssamuel/Report-Executivo-Qualidade/pull/3 (base `claude/executive-report-auth-vSEmU`). Criado via API com **DNS forçado** — o `gh` está cego porque o DNS local resolve `api.github.com` para um IP morto (`4.228.31.149`); `github.com`/push funcionam. O `GH_TOKEN` é VÁLIDO (o "invalid" do `gh auth status` é falso, efeito do DNS). Workaround reusável: Node `https` com `lookup` fixo em `140.82.121.6`.
+
+**QA visual** (sessão admin **passwordless via magic-link** — Admin API `generateLink` + `verifyOtp` num `createServerClient` que captura os cookies `@supabase/ssr`; script `_mint-session.mjs`, não commitado): 7 views OK a 1440 + Dashboard/Carteira a 390px, console limpo (só `favicon.ico` 404), **tracking provado** (`daily_access` + `portfolio_snapshots` criados no 1º login). Gates: tsc 0 · vitest 10/10 · eslint 0 · build limpo.
+
+**🔴 Fix crítico (commit `9e3cfcb`, migration `006`):** produção usa hierarquia **aeC** (`admin > gerente > coordenador > consultor > viewer`). `items`/`comments` já estavam ajustados, mas `people`/`daily_access` (004/005) ficaram com papéis legados → **gerente (4) + coordenador (6), 10/15 usuários, travados** em gestão de pessoas/capacidade e aderência. Reconciliado: constraint + policies + tiers centralizados em `lib/domain` (`WRITE_ROLES`/`MANAGE_ROLES`/`LEADERSHIP_ROLES`) + gates de UI (`canManagePeople`/`isLeadership`) + `VALID_ROLES`/`ASSIGNABLE_ROLES`. Regra: aderência do time = só liderança (admin/gerente); gestão de pessoas/capacidade = admin/gerente/coordenador; contribuição (criar item/pessoa/comentar) = todos menos viewer. Migration 006 aplicada e verificada em produção.
+
+**Contexto novo:** Supabase `rirkdpsyuvhumuhejofv` é **compartilhado** com outros apps (`instai_*`, `cvrg_*`, `okr`) — os erros de RLS do advisor são dessas tabelas, NÃO das nossas. Admin real = `m.samuel.rosa@aec.com.br`; `srssamuel@hotmail.com` virou `viewer`. WARN pré-existente: `clear_must_change_password()` é chamável via REST (usuário poderia limpar o próprio flag sem trocar a senha) — baixo risco.
+
 ## 2026-06-10 — Evolução V2 completa (branch `claude/recursing-meninsky-4b025b`)
 
 **O que mudou (28 commits, spec em `docs/superpowers/specs/2026-06-10-evolucao-v2-design.md`):**
