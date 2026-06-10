@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { Person } from '@/lib/domain'
 import {
   Item, UserProfile, Filters, Role,
   STATUSES, PRODUCT_SUGGESTIONS,
@@ -40,6 +41,7 @@ export default function AppPage() {
   const supabase = createClient()
 
   const [items, setItems] = useState<Item[]>([])
+  const [people, setPeople] = useState<Person[]>([])
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewId>('dashboard')
@@ -71,12 +73,23 @@ export default function AppPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [profileRes, itemsRes] = await Promise.all([
+      const [profileRes, itemsRes, peopleRes] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', user.id).single(),
         supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
+        supabase.from('people').select('*').eq('active', true).order('name'),
       ])
 
       if (profileRes.data) setProfile(profileRes.data as UserProfile)
+
+      if (peopleRes.data) {
+        setPeople(peopleRes.data.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: p.name as string,
+          weeklyCapacityHours: Number(p.weekly_capacity_hours ?? 30),
+          active: Boolean(p.active),
+          userId: (p.user_id as string) ?? null,
+        })))
+      }
 
       if (itemsRes.data) {
         const mapped = itemsRes.data.map((row: Record<string, unknown>) => normalizeItem({
@@ -87,6 +100,7 @@ export default function AppPage() {
           demand: row.demand as string,
           definition: row.definition as string,
           owner: row.owner as string,
+          ownerId: row.owner_id as string,
           status: row.status as string,
           priority: row.priority as string,
           progress: row.progress as number,
@@ -144,6 +158,7 @@ export default function AppPage() {
       demand: payload.demand,
       definition: payload.definition,
       owner: payload.owner,
+      owner_id: payload.ownerId || null,
       status: payload.status,
       priority: payload.priority,
       progress: payload.progress,
@@ -252,6 +267,16 @@ export default function AppPage() {
     await updateField(modalId as string, 'executiveComment', text)
     setForm(f => ({ ...f, commentText: '' }))
     showToast('Comentário registrado.')
+  }
+
+  async function createPerson(name: string): Promise<Person | null> {
+    const trimmed = name.trim()
+    if (!trimmed) return null
+    const { data, error } = await supabase.from('people').insert({ name: trimmed }).select().single()
+    if (error) { showToast(`Erro ao criar pessoa: ${error.message}`); return null }
+    const person: Person = { id: data.id as string, name: data.name as string, weeklyCapacityHours: Number(data.weekly_capacity_hours), active: true, userId: data.user_id as string }
+    setPeople(prev => [...prev, person].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+    return person
   }
 
   // ── Export helpers ────────────────────────────────────────────────────────
@@ -477,6 +502,8 @@ export default function AppPage() {
         onArchive={archiveItem}
         onDuplicate={duplicateItem}
         onAddComment={addComment}
+        people={people}
+        onCreatePerson={createPerson}
       />
 
       {/* ── Toast ────────────────────────────────────────────── */}

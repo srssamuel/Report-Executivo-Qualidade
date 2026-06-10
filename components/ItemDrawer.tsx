@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import type { Item } from '@/lib/domain'
+import type { Item, Person } from '@/lib/domain'
 import {
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS,
   riskScore, riskBandTone, statusTone, priorityTone, productTone, clamp, scoreOf,
@@ -27,11 +27,14 @@ interface ItemDrawerProps {
   onArchive: () => void
   onDuplicate: () => void
   onAddComment: () => void
+  people: Person[]
+  onCreatePerson: (name: string) => Promise<Person | null>
 }
 
 export default function ItemDrawer({
   openId, items, form, setForm, canEdit, canDelete,
   onSubmit, onClose, onArchive, onDuplicate, onAddComment,
+  people, onCreatePerson,
 }: ItemDrawerProps) {
   const isOpen = openId !== null
   const isNew = openId === 'new'
@@ -102,8 +105,27 @@ export default function ItemDrawer({
                   <label>Projeto
                     <input value={form.project ?? ''} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} />
                   </label>
-                  <label>Responsável(eis)
-                    <input value={form.owner ?? ''} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))} placeholder="Nome ou nomes separados por vírgula" />
+                  <label>Responsável
+                    <select
+                      value={form.ownerId ?? ''}
+                      onChange={async e => {
+                        if (e.target.value === '__new__') {
+                          const name = prompt('Nome da nova pessoa:')
+                          if (name) {
+                            const p = await onCreatePerson(name)
+                            if (p) setForm(f => ({ ...f, ownerId: p.id, owner: p.name }))
+                          }
+                          return
+                        }
+                        const p = people.find(x => x.id === e.target.value)
+                        setForm(f => ({ ...f, ownerId: p?.id ?? '', owner: p?.name ?? '' }))
+                      }}
+                    >
+                      <option value="">Sem responsável</option>
+                      {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      <option value="__new__">+ Nova pessoa…</option>
+                    </select>
+                    {!form.ownerId && form.owner ? <small style={{ color: 'var(--muted)' }}>Texto legado: {form.owner}</small> : null}
                   </label>
                   <label>Demanda
                     <input value={form.demand ?? ''} onChange={e => setForm(f => ({ ...f, demand: e.target.value }))} />

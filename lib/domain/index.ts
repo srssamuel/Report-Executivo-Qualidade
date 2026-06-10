@@ -24,6 +24,7 @@ export interface Item {
   demand?: string
   definition?: string
   owner?: string
+  ownerId?: string
   status: string
   priority: string
   progress: number
@@ -49,6 +50,14 @@ export interface UserProfile {
   full_name?: string
   role: Role
   created_at: string
+}
+
+export interface Person {
+  id: string
+  name: string
+  weeklyCapacityHours: number
+  active: boolean
+  userId?: string | null
 }
 
 export const STATUSES = [
@@ -173,6 +182,7 @@ export function normalizeItem(raw: Partial<Item>, idx = 0): Item {
     demand: raw.demand ?? '',
     definition: raw.definition ?? '',
     owner: raw.owner ?? '',
+    ownerId: raw.ownerId ?? '',
     status,
     priority: raw.priority ?? 'Média',
     progress,
