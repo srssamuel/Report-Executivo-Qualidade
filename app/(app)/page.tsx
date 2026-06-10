@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Item, UserProfile, Filters, Role,
-  STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS,
+  STATUSES, PRODUCT_SUGGESTIONS,
   normalizeItem,
   filteredItems, sortItems,
   riskOf, scoreOf, dataGaps, isDone, ownersOf,
@@ -20,6 +20,7 @@ import RisksView from '@/components/views/RisksView'
 import TimelineView from '@/components/views/TimelineView'
 import CapacityView from '@/components/views/CapacityView'
 import ExecutiveView from '@/components/views/ExecutiveView'
+import ItemDrawer, { type DrawerForm } from '@/components/ItemDrawer'
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
@@ -54,8 +55,8 @@ export default function AppPage() {
   const [urgentForm, setUrgentForm] = useState({ product: 'Vivo', title: '', owner: '', effort: 16, dueDate: '', reason: '' })
   const [urgentSimulated, setUrgentSimulated] = useState(false)
 
-  // ── Form state (modal) ────────────────────────────────────────────────────
-  const [form, setForm] = useState<Partial<Item> & { tagsRaw?: string; commentText?: string; commentAuthor?: string; commentType?: string }>({})
+  // ── Form state (drawer) ───────────────────────────────────────────────────
+  const [form, setForm] = useState<DrawerForm>({})
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -315,8 +316,6 @@ export default function AppPage() {
     )
   }
 
-  const modalItem = modalId && modalId !== 'new' ? items.find(x => x.id === modalId) : null
-
   return (
     <div className="app">
       {/* ── Hero ────────────────────────────────────────────── */}
@@ -465,114 +464,21 @@ export default function AppPage() {
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
 
-      {/* ── Modal ────────────────────────────────────────────── */}
-      {modalId !== null && (
-        <div className="modal-backdrop open" onClick={e => { if ((e.target as HTMLElement).classList.contains('modal-backdrop')) closeModal() }}>
-          <div className="modal" role="dialog" aria-modal="true">
-            <div className="modal-head">
-              <div>
-                <h2>{modalId === 'new' ? 'Nova frente' : `Editar ${modalId}`}</h2>
-                <p>{modalItem ? `${modalItem.product ?? 'Sem produto'} · ${modalItem.project ?? ''} · Score ${scoreOf(modalItem)}%` : 'Preencha os dados da nova frente.'}</p>
-              </div>
-              <button className="btn square" onClick={closeModal} aria-label="Fechar">✕</button>
-            </div>
-            <div className="modal-body">
-              <form onSubmit={submitModal}>
-                <div className="form-grid">
-                  <label>Produto/cliente
-                    <input list="productOptions" value={form.product ?? ''} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} />
-                    <datalist id="productOptions">{PRODUCT_SUGGESTIONS.map(p => <option key={p} value={p} />)}</datalist>
-                  </label>
-                  <label>Projeto
-                    <input value={form.project ?? ''} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} />
-                  </label>
-                  <label>Responsável(eis)
-                    <input value={form.owner ?? ''} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))} placeholder="Nome ou nomes separados por vírgula" />
-                  </label>
-                  <label>Demanda
-                    <input value={form.demand ?? ''} onChange={e => setForm(f => ({ ...f, demand: e.target.value }))} />
-                  </label>
-                  <label>Status
-                    <select value={form.status ?? 'A iniciar'} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                      {STATUSES.map(s => <option key={s}>{s}</option>)}
-                    </select>
-                  </label>
-                  <label>Prioridade
-                    <select value={form.priority ?? 'Média'} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
-                      {PRIORITIES.map(p => <option key={p}>{p}</option>)}
-                    </select>
-                  </label>
-                  <label>Prazo
-                    <input type="date" value={form.dueDate ?? ''} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
-                  </label>
-                  <label>Início
-                    <input type="date" value={form.startDate ?? ''} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
-                  </label>
-                  <label>Progresso (%)
-                    <input type="number" min={0} max={100} value={form.progress ?? 0} onChange={e => setForm(f => ({ ...f, progress: clamp(Number(e.target.value), 0, 100) }))} />
-                  </label>
-                  <label>Esforço (h)
-                    <input type="number" min={0} value={form.effortHours ?? ''} onChange={e => setForm(f => ({ ...f, effortHours: Number(e.target.value) }))} />
-                  </label>
-                  <label>Equipe (pessoas)
-                    <input type="number" min={1} value={form.teamSize ?? 1} onChange={e => setForm(f => ({ ...f, teamSize: Number(e.target.value) }))} />
-                  </label>
-                  <label>Tags (vírgula)
-                    <input value={form.tagsRaw ?? ''} onChange={e => setForm(f => ({ ...f, tagsRaw: e.target.value }))} placeholder="IA/Dados, Consultoria…" />
-                  </label>
-                  <label className="full">Definição / escopo
-                    <textarea rows={3} value={form.definition ?? ''} onChange={e => setForm(f => ({ ...f, definition: e.target.value }))} />
-                  </label>
-                  <label className="full">Próxima ação
-                    <textarea rows={2} value={form.nextAction ?? ''} onChange={e => setForm(f => ({ ...f, nextAction: e.target.value }))} />
-                  </label>
-                  <label className="full">Comentário executivo
-                    <textarea rows={2} value={form.executiveComment ?? ''} onChange={e => setForm(f => ({ ...f, executiveComment: e.target.value }))} />
-                  </label>
-                  <label>ID predecessora
-                    <select value={form.predecessorId ?? ''} onChange={e => setForm(f => ({ ...f, predecessorId: e.target.value }))}>
-                      <option value="">Sem predecessora</option>
-                      {items.filter(x => x.id !== modalId && !x.archived).map(x => (
-                        <option key={x.id} value={x.id}>{x.id} · {x.project ?? ''} — {x.demand ?? ''}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="full">Nota de dependência
-                    <input value={form.dependencyNote ?? ''} onChange={e => setForm(f => ({ ...f, dependencyNote: e.target.value }))} />
-                  </label>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 8 }}>
-                  {modalId !== 'new' && canEditItems && <button type="button" className="btn" onClick={duplicateItem}>Duplicar</button>}
-                  {modalId !== 'new' && canDeleteItems && <button type="button" className="btn danger" onClick={archiveItem}>Arquivar</button>}
-                  <button type="button" className="btn ghost" onClick={closeModal}>Cancelar</button>
-                  {canEditItems && <button type="submit" className="btn primary">Salvar</button>}
-                </div>
-              </form>
-
-              {/* Comments */}
-              {modalId !== 'new' && (
-                <div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>Comentários</h3>
-                  {canEditItems && (
-                    <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <input placeholder="Autor" value={form.commentAuthor ?? ''} onChange={e => setForm(f => ({ ...f, commentAuthor: e.target.value }))} />
-                        <select value={form.commentType ?? 'Comentário'} onChange={e => setForm(f => ({ ...f, commentType: e.target.value }))}>
-                          {['Comentário','Decisão','Risco','Atualização','Bloqueio'].map(t => <option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <textarea rows={2} placeholder="Adicionar comentário…" value={form.commentText ?? ''} onChange={e => setForm(f => ({ ...f, commentText: e.target.value }))} />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button className="btn small primary" type="button" onClick={addComment}>Registrar</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── ItemDrawer ───────────────────────────────────────── */}
+      <ItemDrawer
+        openId={modalId}
+        items={items}
+        form={form}
+        setForm={setForm}
+        profile={profile}
+        canEdit={canEditItems}
+        canDelete={canDeleteItems}
+        onSubmit={submitModal}
+        onClose={closeModal}
+        onArchive={archiveItem}
+        onDuplicate={duplicateItem}
+        onAddComment={addComment}
+      />
 
       {/* ── Toast ────────────────────────────────────────────── */}
       <div className={`toast ${toast ? 'show' : ''}`}>{toast}</div>

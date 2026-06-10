@@ -682,3 +682,38 @@ body.table-dense td .mini-textarea { min-height: 44px; }
   .table-wrap { overflow: visible; }
   table { min-width: 0; font-size: 10px; }
 }
+
+/* ── ItemDrawer (V2) ─────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(11, 31, 58, 0.32);
+  z-index: 60; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 96vw);
+  background: var(--surface); border-left: 1px solid var(--line-strong);
+  box-shadow: -18px 0 44px rgba(11, 31, 58, 0.16); z-index: 61;
+  transform: translateX(102%); transition: transform 0.24s cubic-bezier(0.32, 0.72, 0.25, 1);
+  display: flex; flex-direction: column;
+}
+.drawer-backdrop.open .drawer { transform: translateX(0); }
+.drawer-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 10px; }
+.drawer-head h2 { margin: 0; font-size: 17px; }
+.drawer-head .drawer-id { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); }
+.drawer-body { padding: 16px 20px; overflow-y: auto; flex: 1; display: grid; gap: 14px; align-content: start; }
+.drawer-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.score-panel { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; display: grid; gap: 8px; }
+.score-panel.banda-critico { background: var(--surface-red); border-color: #f0c5cb; }
+.score-panel.banda-alto { background: var(--surface-amber); }
+.score-panel.banda-medio { background: var(--gray-soft); }
+.score-panel.banda-baixo { background: var(--surface-green); }
+.score-headline { display: flex; align-items: baseline; gap: 8px; }
+.score-headline strong { font-size: 22px; }
+.score-factor { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.score-factor .factor-track { height: 4px; border-radius: 999px; background: var(--gray-soft); overflow: hidden; }
+.score-factor .factor-track i { display: block; height: 100%; border-radius: 999px; background: var(--muted); }
+.score-factor.alto .factor-track i { background: var(--red); }
+.score-factor.medio .factor-track i { background: var(--amber); }
+@media (prefers-reduced-motion: reduce) {
+  .drawer, .drawer-backdrop { transition: none; }
+}
