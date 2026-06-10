@@ -742,3 +742,15 @@ body.table-dense td .mini-textarea { min-height: 44px; }
 .overdue-flag { background: var(--red-soft); color: var(--red); border-radius: 6px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .wip-alert { background: var(--amber-soft); color: var(--amber); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
 .board-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+
+/* ── Executivo V2 ────────────────────────────────────────── */
+.exec-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.exec-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; }
+.exec-kpi span { font-size: 11px; color: var(--muted); display: block; }
+.exec-kpi strong { font-size: 22px; color: var(--ink); }
+.exec-kpi .delta { font-size: 11px; font-weight: 700; }
+.exec-kpi .delta.up { color: var(--green); }
+.exec-kpi .delta.down { color: var(--red); }
+.adherence-dots { display: inline-flex; gap: 3px; }
+.adherence-dots i { width: 9px; height: 9px; border-radius: 2px; background: var(--gray-soft); }
+.adherence-dots i.on { background: var(--green); }

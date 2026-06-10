@@ -500,7 +500,7 @@ export default function AppPage() {
       {view === 'risks' && <RisksView filtered={filtered} allItems={items} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} people={people} onUpdatePerson={updatePerson} onCreatePerson={createPerson} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} profile={profile} />}
-      {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} />}
+      {view === 'executive' && <ExecutiveView filtered={filtered} allItems={items} filters={filters} profile={profile} />}
 
       {/* ── ItemDrawer ───────────────────────────────────────── */}
       <ItemDrawer
