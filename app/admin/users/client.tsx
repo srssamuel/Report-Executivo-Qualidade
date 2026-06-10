@@ -62,12 +62,13 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
     if (ok) { setUserList(prev => prev.filter(x => x.id !== u.id)); setSuccess(`Usuário ${u.email} excluído.`) }
   }
 
-  async function handlePatch(u: UserProfile, patch: { fullName?: string; role?: Role }) {
+  async function handlePatch(u: UserProfile, patch: { fullName?: string; role?: Role }): Promise<boolean> {
     setError('')
     const { ok } = await api(`/api/admin/users/${u.id}`, 'PATCH', patch)
     if (ok) setUserList(prev => prev.map(x => x.id === u.id
       ? { ...x, full_name: patch.fullName ?? x.full_name, role: patch.role ?? x.role }
       : x))
+    return ok
   }
 
   async function handleInvite() {
@@ -160,7 +161,12 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
                         className="mini-input"
                         defaultValue={u.full_name ?? ''}
                         placeholder="—"
-                        onBlur={e => { if (e.target.value !== (u.full_name ?? '')) handlePatch(u, { fullName: e.target.value }) }}
+                        onBlur={async e => {
+                          const next = e.target.value
+                          if (next === (u.full_name ?? '')) return
+                          const ok = await handlePatch(u, { fullName: next })
+                          if (!ok) e.target.value = u.full_name ?? ''
+                        }}
                       />
                     </td>
                     <td>
