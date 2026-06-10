@@ -22,7 +22,12 @@ function ResetPasswordForm() {
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
     if (error) { setLoading(false); setError(error.message); return }
-    await supabase.rpc('clear_must_change_password')
+    const { error: rpcError } = await supabase.rpc('clear_must_change_password')
+    if (rpcError) {
+      setLoading(false)
+      setError('Senha alterada, mas houve falha ao liberar o acesso. Recarregue a página ou contate o administrador.')
+      return
+    }
     setLoading(false)
     setSuccess('Senha alterada. Redirecionando…')
     setTimeout(() => window.location.href = '/', 2000)

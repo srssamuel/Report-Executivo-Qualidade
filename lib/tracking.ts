@@ -53,6 +53,8 @@ async function ensureDailySnapshot(supabase: SupabaseClient, day: string): Promi
   const activeUsers = new Set((access ?? []).map(a => a.user_id)).size
   const totalUsers = profiles?.length ?? 0
 
+  // Race benigno: dois primeiros-acessos simultâneos podem tentar inserir o mesmo dia;
+  // o segundo falha na PK e é absorvido pelo try/catch externo — resultado idempotente.
   await supabase.from('portfolio_snapshots').insert({
     day,
     total: items.length,
