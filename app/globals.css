@@ -734,3 +734,11 @@ body.table-dense td .mini-textarea { min-height: 44px; }
 .score-chip.tone-amber { background: var(--amber-soft); color: var(--amber); }
 .score-chip.tone-gray { background: var(--gray-soft); color: var(--muted); }
 .score-chip.tone-green { background: var(--green-soft); color: var(--green); }
+
+/* ── Board V2 ────────────────────────────────────────────── */
+.lane.drag-over { outline: 2px dashed var(--line-strong); outline-offset: -4px; }
+.task-card[draggable="true"] { cursor: grab; }
+.task-card.dragging { opacity: 0.5; }
+.overdue-flag { background: var(--red-soft); color: var(--red); border-radius: 6px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.wip-alert { background: var(--amber-soft); color: var(--amber); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+.board-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
