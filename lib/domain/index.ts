@@ -461,7 +461,7 @@ export interface RiskFactor {
   detail: string
   raw: number          // 0–100 antes do peso
   weight: number       // 0–1
-  contribution: number // contribuição final para o score (inclui ajuste de combinação crítica)
+  contribution: number // raw * weight — invariante estrito, sem ajustes externos
 }
 
 export interface RiskScoreResult {
@@ -485,14 +485,24 @@ function factorPrazo(it: Item): { raw: number; detail: string } {
 }
 
 function factorStatus(it: Item): { raw: number; detail: string } {
+  if (it.status === 'Pausado') {
+    const d = daysToDue(it.dueDate)
+    if (d !== null && d <= 7) return { raw: 100, detail: `Pausado com prazo em ${d} dia(s)` }
+    return { raw: 60, detail: 'Pausado' }
+  }
   const map: Record<string, number> = {
-    'Bloqueado': 100, 'Atrasado': 90, 'Pausado': 100,
+    'Bloqueado': 100, 'Atrasado': 90,
     'A iniciar': 30, 'Em validação': 30, 'Em andamento': 20,
   }
   return { raw: map[it.status] ?? 30, detail: it.status }
 }
 
 function factorProgresso(it: Item): { raw: number; detail: string } {
+  const d = daysToDue(it.dueDate)
+  if (d !== null && d < 0) {
+    const gap = clamp(100 - (it.progress ?? 0), 0, 100)
+    return { raw: gap, detail: `Prazo esgotado · ${it.progress ?? 0}% concluído` }
+  }
   const start = parseDate(it.startDate)
   const due = parseDate(it.dueDate)
   if (!start || !due || due.getTime() <= start.getTime()) return { raw: 0, detail: 'Sem janela de datas para comparar' }
@@ -547,17 +557,8 @@ export function riskScore(it: Item, all: Item[]): RiskScoreResult | null {
     { key: 'staleness', label: 'Atualização', ...factorStaleness(it) },
     { key: 'dependencia', label: 'Dependência', ...factorDependencia(it, all) },
   ]
-  // Boost de combinação crítica: Bloqueado/Atrasado + prazo vencido é pior que a soma das partes.
-  // O boost é distribuído proporcionalmente entre os fatores prazo e status para que
-  // score === Math.round(factors.reduce((s, f) => s + f.contribution, 0)) continue verdadeiro.
-  const isCriticalStatus = ['Bloqueado', 'Atrasado'].includes(it.status)
-  const isOverdue = (daysToDue(it.dueDate) ?? 0) < 0
-  const totalBoost = isCriticalStatus && isOverdue ? 10 : 0
-  // Aplica metade do boost no fator prazo e metade no fator status (ambos já em raw=100 neste caso)
-  const boostPerCriticalFactor = totalBoost / 2
   const factors: RiskFactor[] = rawParts.map(p => {
-    const isBoostTarget = totalBoost > 0 && (p.key === 'prazo' || p.key === 'status')
-    const contribution = p.raw * RISK_WEIGHTS[p.key] + (isBoostTarget ? boostPerCriticalFactor : 0)
+    const contribution = p.raw * RISK_WEIGHTS[p.key]
     return { key: p.key, label: p.label, detail: p.detail, raw: p.raw, weight: RISK_WEIGHTS[p.key], contribution }
   })
   const score = Math.round(factors.reduce((s, f) => s + f.contribution, 0))
