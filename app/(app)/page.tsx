@@ -283,8 +283,11 @@ export default function AppPage() {
     const trimmed = name.trim()
     if (!trimmed) return null
     const { data, error } = await supabase.from('people').insert({ name: trimmed }).select().single()
-    if (error) { showToast(`Erro ao criar pessoa: ${error.message}`); return null }
-    const person: Person = { id: data.id as string, name: data.name as string, weeklyCapacityHours: Number(data.weekly_capacity_hours), active: true, userId: data.user_id as string }
+    if (error) {
+      showToast(error.code === '23505' ? 'Já existe uma pessoa com esse nome.' : `Erro ao criar pessoa: ${error.message}`)
+      return null
+    }
+    const person: Person = { id: data.id as string, name: data.name as string, weeklyCapacityHours: Number(data.weekly_capacity_hours ?? 30), active: true, userId: data.user_id as string }
     setPeople(prev => [...prev, person].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
     return person
   }

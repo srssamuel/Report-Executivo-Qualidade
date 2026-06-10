@@ -114,6 +114,9 @@ export default function ItemDrawer({
                           if (name) {
                             const p = await onCreatePerson(name)
                             if (p) setForm(f => ({ ...f, ownerId: p.id, owner: p.name }))
+                            else setForm(f => ({ ...f }))
+                          } else {
+                            setForm(f => ({ ...f }))
                           }
                           return
                         }

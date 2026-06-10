@@ -8,7 +8,7 @@ import {
 } from '@/lib/domain'
 import { Badge } from '@/components/ui'
 
-export default function CapacityView({ filtered, people, onUpdatePerson, onCreatePerson, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast, profile: _profile }: {
+export default function CapacityView({ filtered, people, onUpdatePerson, onCreatePerson, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast, profile }: {
   filtered: Item[]
   people: Person[]
   onUpdatePerson: (id: string, patch: { weeklyCapacityHours?: number; active?: boolean }) => void
@@ -21,6 +21,7 @@ export default function CapacityView({ filtered, people, onUpdatePerson, onCreat
   saveItem: (item: Item) => Promise<void>; setItems: React.Dispatch<React.SetStateAction<Item[]>>
   showToast: (msg: string) => void; profile: UserProfile | null
 }) {
+  const canManage = ['admin', 'superintendente', 'lider'].includes(profile?.role ?? '')
   const activItems = filtered.filter(i => !isDone(i))
   const load = ownerLoad(activItems)
   const loadEntries = Object.entries(load).sort((a, b) => b[1] - a[1])
@@ -70,8 +71,10 @@ export default function CapacityView({ filtered, people, onUpdatePerson, onCreat
         <div className="card-body">
           {loadEntries.length === 0 ? <div className="empty">Sem esforço alocado no recorte atual.</div> : (
             <div className="capacity-bars">
-              {loadEntries.map(([owner, h]) => {
-                const person = people.find(p => p.name.toLowerCase() === owner.toLowerCase())
+              {(() => {
+                const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+                return loadEntries.map(([owner, h]) => {
+                const person = people.find(p => norm(p.name) === norm(owner))
                 const cap = person?.weeklyCapacityHours ?? 30
                 const pct = Math.round((h / cap) * 100)
                 const tone = capacityTone(pct)
@@ -82,7 +85,7 @@ export default function CapacityView({ filtered, people, onUpdatePerson, onCreat
                     <small>{Math.round(h)}h / {cap}h · {pct}%</small>
                   </div>
                 )
-              })}
+              })})()}
             </div>
           )}
         </div>
@@ -107,11 +110,17 @@ export default function CapacityView({ filtered, people, onUpdatePerson, onCreat
                       <tr key={p.id}>
                         <td style={{ fontWeight: 600 }}>{p.name}</td>
                         <td>
-                          <input type="number" min={1} max={168} defaultValue={p.weeklyCapacityHours} style={{ width: 80 }}
-                            onBlur={e => { const v = Number(e.target.value); if (v > 0 && v !== p.weeklyCapacityHours) onUpdatePerson(p.id, { weeklyCapacityHours: v }) }} />
+                          {canManage
+                            ? <input type="number" min={1} max={168} defaultValue={p.weeklyCapacityHours} style={{ width: 80 }}
+                                onBlur={e => { const v = Number(e.target.value); if (v > 0 && v !== p.weeklyCapacityHours) onUpdatePerson(p.id, { weeklyCapacityHours: v }) }} />
+                            : <>{p.weeklyCapacityHours} h</>}
                         </td>
                         <td><span className={`badge ${pct >= 115 ? 'tone-red' : pct >= 85 ? 'tone-amber' : 'tone-green'}`}>{Math.round(h)}h · {pct}%</span></td>
-                        <td><button className="btn small danger" onClick={() => { if (confirm(`Desativar ${p.name}? Sai dos selects e do cálculo de capacidade.`)) onUpdatePerson(p.id, { active: false }) }}>Desativar</button></td>
+                        <td>
+                          {canManage
+                            ? <button className="btn small danger" onClick={() => { if (confirm(`Desativar ${p.name}? Sai dos selects e do cálculo de capacidade.`)) onUpdatePerson(p.id, { active: false }) }}>Desativar</button>
+                            : null}
+                        </td>
                       </tr>
                     )
                   })}
