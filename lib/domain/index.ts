@@ -450,3 +450,116 @@ export function addDays(date: Date, days: number): Date {
   d.setDate(d.getDate() + days)
   return d
 }
+
+// ── Score de risco composto (V2) ─────────────────────────────────────────────
+
+export type RiskBand = 'Crítico' | 'Alto' | 'Médio' | 'Baixo'
+
+export interface RiskFactor {
+  key: 'prazo' | 'status' | 'progresso' | 'staleness' | 'dependencia'
+  label: string
+  detail: string
+  raw: number          // 0–100 antes do peso
+  weight: number       // 0–1
+  contribution: number // contribuição final para o score (inclui ajuste de combinação crítica)
+}
+
+export interface RiskScoreResult {
+  score: number
+  band: RiskBand
+  factors: RiskFactor[]
+  mainReason: string
+}
+
+const RISK_WEIGHTS = { prazo: 0.40, status: 0.20, progresso: 0.15, staleness: 0.15, dependencia: 0.10 } as const
+
+function factorPrazo(it: Item): { raw: number; detail: string } {
+  const d = daysToDue(it.dueDate)
+  if (d === null) return { raw: 50, detail: 'Sem prazo definido' }
+  if (d < 0) return { raw: 100, detail: `Vencido há ${Math.abs(d)} dia(s)` }
+  if (d === 0) return { raw: 85, detail: 'Vence hoje' }
+  if (d <= 3) return { raw: 75, detail: `Vence em ${d} dia(s)` }
+  if (d <= 7) return { raw: 60, detail: `Vence em ${d} dia(s)` }
+  if (d <= 14) return { raw: 35, detail: `Vence em ${d} dias` }
+  return { raw: 10, detail: `Folga de ${d} dias` }
+}
+
+function factorStatus(it: Item): { raw: number; detail: string } {
+  const map: Record<string, number> = {
+    'Bloqueado': 100, 'Atrasado': 90, 'Pausado': 100,
+    'A iniciar': 30, 'Em validação': 30, 'Em andamento': 20,
+  }
+  return { raw: map[it.status] ?? 30, detail: it.status }
+}
+
+function factorProgresso(it: Item): { raw: number; detail: string } {
+  const start = parseDate(it.startDate)
+  const due = parseDate(it.dueDate)
+  if (!start || !due || due.getTime() <= start.getTime()) return { raw: 0, detail: 'Sem janela de datas para comparar' }
+  const span = due.getTime() - start.getTime()
+  const elapsed = clamp(Math.round((today().getTime() - start.getTime()) / span * 100), 0, 100)
+  const gap = clamp(elapsed - (it.progress ?? 0), 0, 100)
+  return { raw: gap, detail: `${elapsed}% do prazo decorrido · ${it.progress ?? 0}% concluído` }
+}
+
+function factorStaleness(it: Item): { raw: number; detail: string } {
+  if (!it.lastUpdate) return { raw: 50, detail: 'Nunca atualizado' }
+  const days = Math.floor((Date.now() - new Date(it.lastUpdate).getTime()) / 86400000)
+  if (days >= 14) return { raw: 100, detail: `Sem atualização há ${days} dias` }
+  if (days >= 7) return { raw: 60, detail: `Sem atualização há ${days} dias` }
+  if (days >= 3) return { raw: 25, detail: `Atualizado há ${days} dias` }
+  return { raw: 0, detail: 'Atualizado recentemente' }
+}
+
+function factorDependencia(it: Item, all: Item[]): { raw: number; detail: string } {
+  if (it.predecessorId) {
+    const pred = all.find(x => x.id === it.predecessorId)
+    if (!pred) return { raw: 60, detail: `Predecessora ${it.predecessorId} não encontrada` }
+    if (isDone(pred)) return { raw: 0, detail: 'Predecessora concluída' }
+    const predLate = ['Bloqueado', 'Atrasado'].includes(pred.status) || ((daysToDue(pred.dueDate) ?? 1) < 0)
+    if (predLate) return { raw: 100, detail: `Predecessora ${pred.id} bloqueada/atrasada` }
+    return { raw: 60, detail: `Aguarda ${pred.id} em andamento` }
+  }
+  if (it.dependencyNote) return { raw: 40, detail: it.dependencyNote }
+  return { raw: 0, detail: 'Sem dependência' }
+}
+
+export function riskBand(score: number): RiskBand {
+  if (score >= 70) return 'Crítico'
+  if (score >= 50) return 'Alto'
+  if (score >= 30) return 'Médio'
+  return 'Baixo'
+}
+
+export function riskBandTone(band: RiskBand): string {
+  if (band === 'Crítico') return 'tone-red'
+  if (band === 'Alto') return 'tone-amber'
+  if (band === 'Médio') return 'tone-gray'
+  return 'tone-green'
+}
+
+export function riskScore(it: Item, all: Item[]): RiskScoreResult | null {
+  if (isDone(it) || it.archived) return null
+  const rawParts: { key: RiskFactor['key']; label: string; raw: number; detail: string }[] = [
+    { key: 'prazo', label: 'Prazo', ...factorPrazo(it) },
+    { key: 'status', label: 'Status', ...factorStatus(it) },
+    { key: 'progresso', label: 'Progresso vs tempo', ...factorProgresso(it) },
+    { key: 'staleness', label: 'Atualização', ...factorStaleness(it) },
+    { key: 'dependencia', label: 'Dependência', ...factorDependencia(it, all) },
+  ]
+  // Boost de combinação crítica: Bloqueado/Atrasado + prazo vencido é pior que a soma das partes.
+  // O boost é distribuído proporcionalmente entre os fatores prazo e status para que
+  // score === Math.round(factors.reduce((s, f) => s + f.contribution, 0)) continue verdadeiro.
+  const isCriticalStatus = ['Bloqueado', 'Atrasado'].includes(it.status)
+  const isOverdue = (daysToDue(it.dueDate) ?? 0) < 0
+  const totalBoost = isCriticalStatus && isOverdue ? 10 : 0
+  // Aplica metade do boost no fator prazo e metade no fator status (ambos já em raw=100 neste caso)
+  const boostPerCriticalFactor = totalBoost / 2
+  const factors: RiskFactor[] = rawParts.map(p => {
+    const isBoostTarget = totalBoost > 0 && (p.key === 'prazo' || p.key === 'status')
+    const contribution = p.raw * RISK_WEIGHTS[p.key] + (isBoostTarget ? boostPerCriticalFactor : 0)
+    return { key: p.key, label: p.label, detail: p.detail, raw: p.raw, weight: RISK_WEIGHTS[p.key], contribution }
+  })
+  const score = Math.round(factors.reduce((s, f) => s + f.contribution, 0))
+  return { score, band: riskBand(score), factors, mainReason: riskOf(it) }
+}
