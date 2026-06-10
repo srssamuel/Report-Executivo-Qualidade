@@ -1,89 +1,87 @@
 'use client'
 
+import { useState } from 'react'
 import type { Item } from '@/lib/domain'
 import {
-  dateFmt, relativeDateText, riskOf, scoreOf,
-  productTone, riskTone, statusTone, priorityTone, STATUSES,
+  isDone, dateFmt, relativeDateText, daysToDue, statusTone, riskScore, riskBandTone,
 } from '@/lib/domain'
 import { Badge } from '@/components/ui'
 
-export default function PortfolioView({ filtered, onEdit, canEdit, onFieldChange }: {
-  filtered: Item[]; onEdit: (id: string) => void; canEdit: boolean; onFieldChange: (id: string, field: keyof Item, value: unknown) => void
+type QuickFilter = 'todos' | 'criticos' | 'atrasados' | 'semAcao'
+
+function initials(owner?: string): string {
+  const parts = String(owner ?? '').trim().split(/\s+/)
+  if (!parts[0]) return '—'
+  return ((parts[0][0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
+}
+
+export default function PortfolioView({ filtered, allItems, onEdit }: {
+  filtered: Item[]; allItems: Item[]; onEdit: (id: string) => void
 }) {
+  const [quick, setQuick] = useState<QuickFilter>('todos')
+
+  const scored = filtered.map(it => ({ it, rs: riskScore(it, allItems) }))
+  const criticos = scored.filter(x => x.rs?.band === 'Crítico').length
+  const atrasados = scored.filter(x => (daysToDue(x.it.dueDate) ?? 1) < 0 && !isDone(x.it)).length
+  const semAcao = scored.filter(x => !isDone(x.it) && !x.it.nextAction).length
+
+  const rows = scored.filter(x => {
+    if (quick === 'criticos') return x.rs?.band === 'Crítico'
+    if (quick === 'atrasados') return (daysToDue(x.it.dueDate) ?? 1) < 0 && !isDone(x.it)
+    if (quick === 'semAcao') return !isDone(x.it) && !x.it.nextAction
+    return true
+  })
+
   return (
     <>
       <div className="section-head">
         <h2>Carteira de projetos</h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Badge label={`${filtered.length} frentes`} />
-        </div>
+        <Badge label={`${rows.length} frentes`} />
+      </div>
+      <div className="chip-row">
+        <button className={`chip ${quick === 'todos' ? 'active' : ''}`} onClick={() => setQuick('todos')}>Todos</button>
+        <button className={`chip red ${quick === 'criticos' ? 'active' : ''}`} onClick={() => setQuick('criticos')}>Críticos {criticos}</button>
+        <button className={`chip amber ${quick === 'atrasados' ? 'active' : ''}`} onClick={() => setQuick('atrasados')}>Atrasados {atrasados}</button>
+        <button className={`chip ${quick === 'semAcao' ? 'active' : ''}`} onClick={() => setQuick('semAcao')}>Sem próx. ação {semAcao}</button>
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>Produto</th><th>Projeto</th><th>Demanda</th>
-              <th>Prazo</th><th>Responsável</th><th>Status</th><th>Prioridade</th>
-              <th>Progresso</th><th>Risco</th><th>Score</th><th>Próxima ação</th>
-              <th>Definição</th><th>Ações</th>
+              <th>Demanda</th><th>Resp.</th><th>Prazo</th><th>Status</th><th>Progresso</th><th>Score</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={14}><div className="empty">Nenhum item no filtro atual.</div></td></tr>
-            ) : filtered.map(it => (
-              <tr key={it.id}>
-                <td style={{ fontWeight: 700 }}>{it.id}</td>
-                <td><Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} /></td>
-                <td className="row-title">{canEdit
-                  ? <input className="mini-input row-title" defaultValue={it.project ?? ''} onBlur={e => onFieldChange(it.id, 'project', e.target.value)} />
-                  : it.project}
-                </td>
-                <td style={{ minWidth: 200 }}>{canEdit
-                  ? <input className="mini-input" defaultValue={it.demand ?? ''} onBlur={e => onFieldChange(it.id, 'demand', e.target.value)} style={{ minWidth: 200 }} />
-                  : it.demand}
-                </td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  {canEdit
-                    ? <input type="date" className="mini-input" defaultValue={it.dueDate ?? ''} onBlur={e => onFieldChange(it.id, 'dueDate', e.target.value)} style={{ minWidth: 130 }} />
-                    : dateFmt(it.dueDate)
-                  }
-                  <div style={{ fontSize: 11, color: '#5f7188', marginTop: 2 }}>{relativeDateText(it.dueDate)}</div>
-                </td>
-                <td>{canEdit
-                  ? <input className="mini-input" defaultValue={it.owner ?? ''} onBlur={e => onFieldChange(it.id, 'owner', e.target.value)} />
-                  : it.owner}
-                </td>
-                <td>
-                  {canEdit
-                    ? <select className="mini-select" value={it.status} onChange={e => onFieldChange(it.id, 'status', e.target.value)}>
-                        {STATUSES.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    : <Badge label={it.status} tone={statusTone(it.status)} />
-                  }
-                </td>
-                <td><Badge label={it.priority ?? 'Média'} tone={priorityTone(it.priority ?? 'Média')} /></td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className="progress-line" style={{ width: 64 }}><i style={{ width: `${it.progress ?? 0}%` }} /></div>
-                    <span style={{ fontSize: 11 }}>{it.progress ?? 0}%</span>
-                  </div>
-                </td>
-                <td><Badge label={riskOf(it)} tone={riskTone(riskOf(it))} /></td>
-                <td style={{ textAlign: 'center', fontWeight: 800, color: '#123e7c' }}>{scoreOf(it)}%</td>
-                <td style={{ minWidth: 180 }}>{canEdit
-                  ? <textarea className="mini-textarea" defaultValue={it.nextAction ?? ''} onBlur={e => onFieldChange(it.id, 'nextAction', e.target.value)} style={{ minWidth: 180 }} />
-                  : it.nextAction}
-                </td>
-                <td style={{ minWidth: 200 }}>{canEdit
-                  ? <textarea className="mini-textarea" defaultValue={it.definition ?? ''} onBlur={e => onFieldChange(it.id, 'definition', e.target.value)} style={{ minWidth: 200 }} />
-                  : it.definition}
-                </td>
-                <td className="row-actions">
-                  <button className="btn small" onClick={() => onEdit(it.id)}>Editar</button>
-                </td>
-              </tr>
-            ))}
+            {rows.length === 0 ? (
+              <tr><td colSpan={6}><div className="empty">Nenhum item no filtro atual.</div></td></tr>
+            ) : rows.map(({ it, rs }) => {
+              const overdue = (daysToDue(it.dueDate) ?? 1) < 0 && !isDone(it)
+              return (
+                <tr key={it.id} className="portfolio-row" onClick={() => onEdit(it.id)}>
+                  <td className="cell-demand">
+                    <strong>{it.demand || 'Sem demanda'}</strong>
+                    <small>{[it.product, it.project].filter(Boolean).join(' · ') || 'Sem projeto'}</small>
+                  </td>
+                  <td><span className="owner-avatar" title={it.owner || 'Sem responsável'}>{initials(it.owner)}</span></td>
+                  <td style={{ whiteSpace: 'nowrap', color: overdue ? 'var(--red)' : undefined, fontWeight: overdue ? 700 : undefined }}>
+                    {dateFmt(it.dueDate)}
+                    <div style={{ fontSize: 11, color: '#5f7188', fontWeight: 400 }}>{relativeDateText(it.dueDate)}</div>
+                  </td>
+                  <td><Badge label={it.status} tone={statusTone(it.status)} /></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div className="progress-line" style={{ width: 64 }}><i style={{ width: `${it.progress ?? 0}%` }} /></div>
+                      <span style={{ fontSize: 11 }}>{it.progress ?? 0}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    {rs
+                      ? <span className={`score-chip ${riskBandTone(rs.band)}`}>{rs.score} {rs.band}</span>
+                      : <span className="score-chip tone-green">Concluído</span>}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

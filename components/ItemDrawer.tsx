@@ -1,6 +1,7 @@
 'use client'
 
-import type { Item, UserProfile } from '@/lib/domain'
+import { useEffect } from 'react'
+import type { Item } from '@/lib/domain'
 import {
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS,
   riskScore, riskBandTone, statusTone, priorityTone, productTone, clamp, scoreOf,
@@ -19,7 +20,6 @@ interface ItemDrawerProps {
   items: Item[]
   form: DrawerForm
   setForm: React.Dispatch<React.SetStateAction<DrawerForm>>
-  profile: UserProfile | null
   canEdit: boolean
   canDelete: boolean
   onSubmit: (e: React.FormEvent) => void
@@ -37,6 +37,13 @@ export default function ItemDrawer({
   const isNew = openId === 'new'
   const item = !isNew && openId ? items.find(x => x.id === openId) ?? null : null
   const score = item ? riskScore(item, items) : null
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
 
   return (
     <div

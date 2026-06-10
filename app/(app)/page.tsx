@@ -457,7 +457,7 @@ export default function AppPage() {
       {/* ── Views ────────────────────────────────────────────── */}
 
       {view === 'dashboard' && <DashboardView filtered={filtered} donutDeg={donutDeg} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} onEdit={openModal} />}
-      {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} canEdit={canEditItems} onFieldChange={updateField} />}
+      {view === 'portfolio' && <PortfolioView filtered={filtered} allItems={items} onEdit={openModal} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
@@ -470,7 +470,6 @@ export default function AppPage() {
         items={items}
         form={form}
         setForm={setForm}
-        profile={profile}
         canEdit={canEditItems}
         canDelete={canDeleteItems}
         onSubmit={submitModal}
