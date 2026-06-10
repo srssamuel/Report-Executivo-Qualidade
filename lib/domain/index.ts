@@ -1,4 +1,6 @@
-export type Role = 'admin' | 'superintendente' | 'lider' | 'analista' | 'viewer'
+export type Role =
+  | 'admin' | 'superintendente' | 'gerente' | 'coordenador'
+  | 'consultor' | 'lider' | 'analista' | 'viewer'
 
 export interface ItemComment {
   id?: string
@@ -70,18 +72,35 @@ export const PRODUCT_SUGGESTIONS = ['Vivo','Nubank','Enel','Athena','Madeira Mad
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrador',
   superintendente: 'Superintendente',
+  gerente: 'Gerente',
+  coordenador: 'Coordenador',
+  consultor: 'Consultor',
   lider: 'Líder',
   analista: 'Analista',
   viewer: 'Visualizador',
 }
 
-export function canEdit(role: Role) {
-  return ['admin','superintendente','lider','analista'].includes(role)
-}
-export function canDelete(role: Role) {
-  return ['admin','superintendente','lider'].includes(role)
-}
-export function isAdmin(role: Role) { return role === 'admin' }
+// Papéis oferecidos em novas atribuições (hierarquia real aeC). Os legados
+// (superintendente/lider/analista) seguem válidos para rótulo/compatibilidade,
+// mas não aparecem na dropdown de atribuição.
+export const ASSIGNABLE_ROLES: Role[] = ['admin', 'gerente', 'coordenador', 'consultor', 'viewer']
+
+// Conjunto aceito pelo banco (constraint user_profiles_role_check) — espelha a migration 006.
+export const VALID_ROLES = [
+  'admin', 'superintendente', 'gerente', 'coordenador', 'consultor', 'lider', 'analista', 'viewer',
+] as const
+
+// Tiers de permissão. ESPELHAM exatamente os papéis das policies RLS (migration 006).
+// Mudou aqui? Refletir no SQL — e vice-versa.
+const WRITE_ROLES = ['admin', 'superintendente', 'gerente', 'coordenador', 'consultor', 'lider', 'analista'] as const // todos menos viewer
+const MANAGE_ROLES = ['admin', 'superintendente', 'gerente', 'coordenador', 'lider'] as const                         // camada de gestão
+const LEADERSHIP_ROLES = ['admin', 'superintendente', 'gerente'] as const                                            // topo (dados de aderência)
+
+export function canEdit(role?: string | null) { return (WRITE_ROLES as readonly string[]).includes(role ?? '') }
+export function canDelete(role?: string | null) { return (MANAGE_ROLES as readonly string[]).includes(role ?? '') }
+export function canManagePeople(role?: string | null) { return (MANAGE_ROLES as readonly string[]).includes(role ?? '') }
+export function isLeadership(role?: string | null) { return (LEADERSHIP_ROLES as readonly string[]).includes(role ?? '') }
+export function isAdmin(role?: string | null) { return role === 'admin' }
 
 export function esc(str: unknown): string {
   return String(str ?? '').replace(/[&<>'"]/g, (c) =>

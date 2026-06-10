@@ -4,7 +4,7 @@ import type { Item, UserProfile, Person } from '@/lib/domain'
 import {
   isDone, ownerLoad, itemRemainingEffort, itemStart,
   capacityTone, normalizeItem, nextId, isoDate, dateFmt, clamp,
-  parseDate, addDays, riskOf, productTone,
+  parseDate, addDays, riskOf, productTone, canManagePeople,
 } from '@/lib/domain'
 import { Badge } from '@/components/ui'
 
@@ -21,7 +21,7 @@ export default function CapacityView({ filtered, people, onUpdatePerson, onCreat
   saveItem: (item: Item) => Promise<void>; setItems: React.Dispatch<React.SetStateAction<Item[]>>
   showToast: (msg: string) => void; profile: UserProfile | null
 }) {
-  const canManage = ['admin', 'superintendente', 'lider'].includes(profile?.role ?? '')
+  const canManage = canManagePeople(profile?.role)
   const activItems = filtered.filter(i => !isDone(i))
   const load = ownerLoad(activItems)
   const loadEntries = Object.entries(load).sort((a, b) => b[1] - a[1])

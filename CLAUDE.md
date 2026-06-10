@@ -63,7 +63,7 @@ supabase/migrations/
 - **CSS:** preservar `app/globals.css` — design system de 500+ linhas portado do HTML original. Não substituir por Tailwind.
 - **Lógica de domínio:** funções puras em `lib/domain/index.ts`. Reusar sempre.
 - **RLS:** todas as tabelas precisam ter RLS ativa. Funções helper SECURITY DEFINER com `SET search_path = public`.
-- **Roles:** `admin` / `superintendente` / `lider` / `analista` / `viewer`
+- **Roles (hierarquia aeC):** `admin` / `gerente` / `coordenador` / `consultor` / `viewer` — legados `superintendente`/`lider`/`analista` aceitos p/ compat. Tiers em `lib/domain` (`WRITE_ROLES`/`MANAGE_ROLES`/`LEADERSHIP_ROLES`) espelham as policies RLS (migration `006`). Aderência do time = só liderança (admin/gerente).
 - **Idioma:** PT-BR em UI e commits.
 
 ## Não fazer

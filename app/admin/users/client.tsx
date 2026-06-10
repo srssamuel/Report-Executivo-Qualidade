@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { UserProfile, Role } from '@/lib/domain'
-import { ROLE_LABELS } from '@/lib/domain'
+import { ROLE_LABELS, ASSIGNABLE_ROLES } from '@/lib/domain'
 
 interface Invitation { id: string; email: string; role: string; created_at: string; accepted_at: string | null }
 
@@ -18,7 +18,7 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
   const [inviteList, setInviteList] = useState(invitations)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('analista')
+  const [role, setRole] = useState<Role>('consultor')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -132,7 +132,7 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
             <div>
               <label style={labelStyle}>Papel</label>
               <select value={role} onChange={e => setRole(e.target.value as Role)}>
-                {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([r, l]) => <option key={r} value={r}>{l}</option>)}
+                {ASSIGNABLE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
             </div>
             <button className="btn primary" type="submit" disabled={loading}>{loading ? 'Criando…' : 'Criar usuário'}</button>
@@ -174,7 +174,7 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
                         ? <span className="badge tone-blue">{ROLE_LABELS[u.role as Role] ?? u.role}</span>
                         : (
                           <select value={u.role} onChange={e => handlePatch(u, { role: e.target.value as Role })} style={{ minWidth: 160 }}>
-                            {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([r, l]) => <option key={r} value={r}>{l}</option>)}
+                            {ASSIGNABLE_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                           </select>
                         )
                       }

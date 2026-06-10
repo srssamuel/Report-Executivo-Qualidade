@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, generateTempPassword } from '@/lib/supabase/admin'
-
-const VALID_ROLES = ['admin', 'superintendente', 'lider', 'analista', 'viewer'] as const
+import { VALID_ROLES } from '@/lib/domain'
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin()

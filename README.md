@@ -55,17 +55,24 @@ supabase/migrations/
   001_schema.sql              # 5 tabelas + triggers
   002_rls.sql                 # Políticas por role
   003_security_hardening.sql  # REVOKE EXECUTE + search_path
+  004_people.sql              # Tabela people + items.owner_id + backfill
+  005_activity.sql            # daily_access + snapshots + must_change_password
+  006_role_model_aec.sql      # Reconciliação do modelo de papéis (hierarquia aeC)
 ```
 
 ### Roles
 
+Hierarquia real (aeC):
+
 | Role | Pode |
 |------|------|
 | `admin` | Tudo + gerenciar usuários |
-| `superintendente` | Ler/escrever todos os itens |
-| `lider` | Ler/escrever + arquivar |
-| `analista` | Ler/escrever |
+| `gerente` | Escrever itens + arquivar + gerir pessoas/capacidade + **ver aderência do time** |
+| `coordenador` | Escrever itens + arquivar + gerir pessoas/capacidade |
+| `consultor` | Escrever itens + comentar + criar pessoa |
 | `viewer` | Apenas ler |
+
+> Papéis legados (`superintendente`, `lider`, `analista`) seguem aceitos para compatibilidade e mapeiam, respectivamente, para liderança / gestão / contribuição. Os tiers de permissão vivem em `lib/domain/index.ts` (`WRITE_ROLES` / `MANAGE_ROLES` / `LEADERSHIP_ROLES`) e espelham as policies RLS da migration `006`.
 
 ### Views
 

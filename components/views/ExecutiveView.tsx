@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Item, Filters, UserProfile } from '@/lib/domain'
 import {
   isDone, daysToDue, riskScore, scoreOf, itemRemainingEffort, executiveLines, isoDate, countsBy, riskOf,
+  isLeadership as isLeadershipRole,
 } from '@/lib/domain'
 
 interface Snapshot { day: string; total: number; active: number; critical: number; high: number; on_time_pct: number; freshness_pct: number; access_adherence_pct: number; health: number; effort_hours: number }
@@ -30,7 +31,7 @@ export default function ExecutiveView({ filtered, allItems, filters, profile }: 
   const [team, setTeam] = useState<ProfileRow[]>([])
   const [updates, setUpdates] = useState<HistoryRow[]>([])
 
-  const isLeadership = profile?.role === 'admin' || profile?.role === 'superintendente'
+  const isLeadership = isLeadershipRole(profile?.role)
 
   // Stable "now" captured at component mount via useState(init fn).
   // Date.now() inside render body is flagged by react-hooks/purity — using state init

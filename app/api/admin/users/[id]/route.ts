@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/supabase/admin'
-
-const VALID_ROLES = ['admin', 'superintendente', 'lider', 'analista', 'viewer'] as const
+import { VALID_ROLES } from '@/lib/domain'
 
 export async function PATCH(
   request: NextRequest,
