@@ -39,7 +39,7 @@ export default function ExecutiveView({ filtered, allItems, filters, profile }: 
 
   useEffect(() => {
     async function loadTracking() {
-      const since = isoDate(new Date(Date.now() - 7 * 86400000))
+      const since = isoDate(new Date(now - 7 * 86400000))
       const [snapRes, accessRes, histRes, teamRes] = await Promise.all([
         supabase.from('portfolio_snapshots').select('*').order('day', { ascending: false }).limit(14),
         supabase.from('daily_access').select('user_id, day').gte('day', since),
@@ -52,8 +52,11 @@ export default function ExecutiveView({ filtered, allItems, filters, profile }: 
       setTeam((teamRes.data as ProfileRow[]) ?? [])
     }
     loadTracking()
+    // `isLeadership` and `supabase` are intentionally omitted: both are stable references
+    // (derived from props/client singleton) and adding them would cause spurious re-fetches.
+    // `now` is included because it seeds the 7-day window boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [now])
 
   const activeItems = filtered.filter(i => !isDone(i))
   const scored = activeItems.map(i => riskScore(i, allItems)).filter((r): r is NonNullable<typeof r> => r !== null)
@@ -64,7 +67,7 @@ export default function ExecutiveView({ filtered, allItems, filters, profile }: 
   const health = filtered.length ? Math.round(filtered.reduce((s, i) => s + scoreOf(i), 0) / filtered.length) : 0
   const effort = Math.round(activeItems.reduce((s, i) => s + itemRemainingEffort(i), 0))
   const accessUsers = new Set(access.map(a => a.user_id))
-  const adherencePct = team.length ? Math.round((accessUsers.size / team.length) * 100) : (accessUsers.size > 0 ? 100 : 0)
+  const adherencePct: number | null = team.length ? Math.round((accessUsers.size / team.length) * 100) : null
 
   const baseline = snapshots.find(s => (now - new Date(`${s.day}T12:00:00Z`).getTime()) / 86400000 >= 6)
 
@@ -94,7 +97,7 @@ export default function ExecutiveView({ filtered, allItems, filters, profile }: 
             <div className="exec-kpi"><span>Frentes críticas</span><strong style={{ color: critical > 0 ? 'var(--red)' : undefined }}>{critical}</strong><br /><Delta now={critical} before={baseline?.critical} invert /></div>
             <div className="exec-kpi"><span>Entregas no prazo</span><strong>{onTimePct}%</strong><br /><Delta now={onTimePct} before={baseline?.on_time_pct} suffix=" pp" /></div>
             <div className="exec-kpi"><span>Freshness ≤ 7d</span><strong style={{ color: freshPct < 60 ? 'var(--amber)' : undefined }}>{freshPct}%</strong><br /><Delta now={freshPct} before={baseline?.freshness_pct} suffix=" pp" /></div>
-            <div className="exec-kpi"><span>Aderência de acesso · 7d</span><strong>{adherencePct}%</strong><br /><Delta now={adherencePct} before={baseline?.access_adherence_pct} suffix=" pp" /></div>
+            <div className="exec-kpi"><span>Aderência de acesso · 7d</span><strong>{adherencePct !== null ? `${adherencePct}%` : '—'}</strong><br />{adherencePct !== null ? <Delta now={adherencePct} before={baseline?.access_adherence_pct} suffix=" pp" /> : <span className="delta" style={{ color: 'var(--muted)' }}>visível para liderança</span>}</div>
             <div className="exec-kpi"><span>Esforço restante</span><strong>{effort}<small style={{ fontSize: 12, color: 'var(--muted)' }}> h</small></strong><br /><Delta now={effort} before={baseline?.effort_hours} invert suffix=" h" /></div>
           </div>
         </div>
