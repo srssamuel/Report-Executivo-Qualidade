@@ -1,45 +1,75 @@
 'use client'
 
+import { useState } from 'react'
 import type { Item } from '@/lib/domain'
 import {
-  dateFmt, relativeDateText, monthLabel, riskOf,
-  productTone, riskTone, statusTone,
+  isDone, dateFmt, relativeDateText, daysToDue, monthLabel,
+  riskOf, riskTone, statusTone, productTone,
 } from '@/lib/domain'
 import { Badge } from '@/components/ui'
 
+function Row({ it, onEdit }: { it: Item; onEdit: (id: string) => void }) {
+  return (
+    <div className="timeline-item">
+      <div>
+        <strong>{dateFmt(it.dueDate)}</strong>
+        <br /><small>{relativeDateText(it.dueDate)}</small>
+      </div>
+      <div>
+        <div className="task-meta">
+          <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
+          <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
+          <Badge label={it.status} tone={statusTone(it.status)} />
+        </div>
+        <strong style={{ display: 'block', marginTop: 4 }}>{it.project ?? 'Sem projeto'}</strong>
+        <span style={{ color: '#5f7188' }}>{it.demand ?? 'Sem demanda'}</span>
+      </div>
+      <button className="btn small" onClick={() => onEdit(it.id)}>Abrir</button>
+    </div>
+  )
+}
+
 export default function TimelineView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string) => void }) {
-  const sorted = [...filtered].sort((a, b) => (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'))
-  const groups = sorted.reduce<Record<string, Item[]>>((acc, it) => {
+  const [showDone, setShowDone] = useState(false)
+
+  const visible = filtered.filter(it => showDone || !isDone(it))
+  const overdue = visible
+    .filter(it => !isDone(it) && (daysToDue(it.dueDate) ?? 1) < 0)
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+  const upcoming = visible
+    .filter(it => !overdue.includes(it))
+    .sort((a, b) => (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'))
+
+  const groups = upcoming.reduce<Record<string, Item[]>>((acc, it) => {
     const k = monthLabel(it.dueDate); (acc[k] ??= []).push(it); return acc
   }, {})
 
-  if (Object.keys(groups).length === 0) return <div className="empty">Sem itens na timeline.</div>
-
   return (
-    <div className="timeline">
-      {Object.entries(groups).map(([month, rows]) => (
-        <article key={month} className="card timeline-month">
-          <h3>{month} <Badge label={String(rows.length)} /></h3>
-          {rows.map(it => (
-            <div key={it.id} className="timeline-item">
-              <div>
-                <strong>{dateFmt(it.dueDate)}</strong>
-                <br /><small>{relativeDateText(it.dueDate)}</small>
-              </div>
-              <div>
-                <div className="task-meta">
-                  <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
-                  <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
-                  <Badge label={it.status} tone={statusTone(it.status)} />
-                </div>
-                <strong style={{ display: 'block', marginTop: 4 }}>{it.project ?? 'Sem projeto'}</strong>
-                <span style={{ color: '#5f7188' }}>{it.demand ?? 'Sem demanda'}</span>
-              </div>
-              <button className="btn small" onClick={() => onEdit(it.id)}>Editar</button>
-            </div>
-          ))}
-        </article>
-      ))}
-    </div>
+    <>
+      <div className="section-head">
+        <h2>Timeline</h2>
+        <label className="board-toggle">
+          <input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} />
+          Mostrar concluídos
+        </label>
+      </div>
+      <div className="timeline">
+        {overdue.length > 0 && (
+          <article className="card timeline-month" style={{ borderColor: '#f0c5cb', background: 'var(--surface-red)' }}>
+            <h3>Vencidos e abertos <Badge label={String(overdue.length)} tone="tone-red" /></h3>
+            {overdue.map(it => <Row key={it.id} it={it} onEdit={onEdit} />)}
+          </article>
+        )}
+        {Object.entries(groups).map(([month, rows]) => (
+          <article key={month} className="card timeline-month">
+            <h3>{month} <Badge label={String(rows.length)} /></h3>
+            {rows.map(it => <Row key={it.id} it={it} onEdit={onEdit} />)}
+          </article>
+        ))}
+        {overdue.length === 0 && Object.keys(groups).length === 0 && (
+          <div className="empty">Sem itens abertos na timeline. {`Ative "Mostrar concluídos" para ver o histórico.`}</div>
+        )}
+      </div>
+    </>
   )
 }
