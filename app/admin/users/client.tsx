@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { UserProfile, ROLE_LABELS, Role } from '@/lib/domain'
 
@@ -26,13 +27,7 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
     const { error: invErr } = await supabase.from('invitations').upsert({ email, role })
     if (invErr) { setError(invErr.message); setLoading(false); return }
 
-    // 2. Send Supabase magic link (user will set their password on first login)
-    const { error: authErr } = await supabase.auth.admin
-      ? // Admin API not available client-side; use password invite via server route instead
-        { error: null }
-      : { error: null }
-
-    // Use resend magic link as the invite mechanism
+    // Use server route to send invite (Admin API not available client-side)
     const res = await fetch('/api/admin/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,7 +66,7 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <a className="btn" href="/">← Voltar ao painel</a>
+            <Link className="btn" href="/">← Voltar ao painel</Link>
           </div>
         </div>
       </header>

@@ -1,32 +1,24 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Item, UserProfile, Filters, Role,
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS,
-  normalizeItem, normalizeStatus, inferProduct,
+  normalizeItem,
   filteredItems, sortItems, countsBy,
   riskOf, riskSeverity, riskTone, statusTone, priorityTone, productTone,
-  scoreOf, healthOf, dataGaps, isDone, ownersOf,
-  dateFmt, daysToDue, relativeDateText, monthLabel,
-  itemEffort, itemRemainingEffort, itemTeamSize, itemStart,
+  scoreOf, dataGaps, isDone, ownersOf,
+  dateFmt, relativeDateText, monthLabel,
+  itemEffort, itemRemainingEffort, itemStart,
   ownerLoad, capacityTone, urgencyCandidateScore, recommendationType,
   executiveLines, nextId, clamp, isoDate, addDays, parseDate, canEdit, canDelete, isAdmin,
 } from '@/lib/domain'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function esc(s: unknown) {
-  return String(s ?? '')
-}
-
 function Badge({ label, tone = 'tone-gray' }: { label: string; tone?: string }) {
   return <span className={`badge ${tone}`}>{label}</span>
-}
-
-function ProductBadge({ item }: { item: Item }) {
-  return <Badge label={item.product || 'Sem produto'} tone={productTone(item.product)} />
 }
 
 function BarChart({ data, total }: { data: Record<string, number>; total: number }) {
@@ -842,30 +834,30 @@ function BoardView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string
   )
 }
 
+function RiskList({ list, empty, showGaps = false, onEdit }: { list: Item[]; empty: string; showGaps?: boolean; onEdit: (id: string) => void }) {
+  return list.length === 0 ? <div className="empty">{empty}</div> : (
+    <>
+      {list.map(it => (
+        <div key={it.id} className="risk-item">
+          <div className="task-meta">
+            <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
+            <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
+            <Badge label={dateFmt(it.dueDate)} />
+            <Badge label={it.status} tone={statusTone(it.status)} />
+          </div>
+          <strong>{it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}</strong>
+          <span style={{ color: '#5f7188', fontSize: 13 }}>{showGaps ? `Lacunas: ${dataGaps(it).join(', ')}` : it.nextAction || it.executiveComment || it.definition || 'Sem detalhe.'}</span>
+          <button className="btn small" onClick={() => onEdit(it.id)}>Atualizar</button>
+        </div>
+      ))}
+    </>
+  )
+}
+
 function RisksView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string) => void }) {
   const critical = [...filtered].filter(i => ['Bloqueado','Atrasado'].includes(riskOf(i))).sort((a, b) => scoreOf(a) - scoreOf(b))
   const attention = [...filtered].filter(i => ['Vence hoje','Atenção 7 dias'].includes(riskOf(i))).sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
   const gapItems = [...filtered].filter(i => dataGaps(i).length && !isDone(i)).sort((a, b) => dataGaps(b).length - dataGaps(a).length)
-
-  function RiskList({ list, empty, showGaps = false }: { list: Item[]; empty: string; showGaps?: boolean }) {
-    return list.length === 0 ? <div className="empty">{empty}</div> : (
-      <>
-        {list.map(it => (
-          <div key={it.id} className="risk-item">
-            <div className="task-meta">
-              <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
-              <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
-              <Badge label={dateFmt(it.dueDate)} />
-              <Badge label={it.status} tone={statusTone(it.status)} />
-            </div>
-            <strong>{it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}</strong>
-            <span style={{ color: '#5f7188', fontSize: 13 }}>{showGaps ? `Lacunas: ${dataGaps(it).join(', ')}` : it.nextAction || it.executiveComment || it.definition || 'Sem detalhe.'}</span>
-            <button className="btn small" onClick={() => onEdit(it.id)}>Atualizar</button>
-          </div>
-        ))}
-      </>
-    )
-  }
 
   return (
     <>
@@ -877,15 +869,15 @@ function RisksView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string
       <div className="matrix">
         <div className="matrix-col card">
           <div className="card-head"><h3 className="card-title">Críticos / Atrasados</h3><Badge label={String(critical.length)} tone="tone-red" /></div>
-          <div className="card-body"><RiskList list={critical} empty="Nenhum item crítico no filtro atual." /></div>
+          <div className="card-body"><RiskList list={critical} empty="Nenhum item crítico no filtro atual." onEdit={onEdit} /></div>
         </div>
         <div className="matrix-col card">
           <div className="card-head"><h3 className="card-title">Vencimento próximo</h3><Badge label={String(attention.length)} tone="tone-amber" /></div>
-          <div className="card-body"><RiskList list={attention} empty="Nenhum vencimento crítico próximo." /></div>
+          <div className="card-body"><RiskList list={attention} empty="Nenhum vencimento crítico próximo." onEdit={onEdit} /></div>
         </div>
         <div className="matrix-col card">
           <div className="card-head"><h3 className="card-title">Lacunas de dados</h3><Badge label={String(gapItems.length)} tone="tone-amber" /></div>
-          <div className="card-body"><RiskList list={gapItems} empty="Nenhuma lacuna relevante identificada." showGaps /></div>
+          <div className="card-body"><RiskList list={gapItems} empty="Nenhuma lacuna relevante identificada." showGaps onEdit={onEdit} /></div>
         </div>
       </div>
     </>
@@ -929,7 +921,7 @@ function TimelineView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: str
   )
 }
 
-function CapacityView({ filtered, weeklyCapacity, setWeeklyCapacity, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast, profile }: {
+function CapacityView({ filtered, weeklyCapacity, setWeeklyCapacity, urgentForm, setUrgentForm, simulate, simulated, setSimulated, items, onEdit, canEdit, saveItem, setItems, showToast, profile: _profile }: {
   filtered: Item[]; weeklyCapacity: number; setWeeklyCapacity: (n: number) => void
   urgentForm: { product: string; title: string; owner: string; effort: number; dueDate: string; reason: string }
   setUrgentForm: (f: typeof urgentForm) => void
