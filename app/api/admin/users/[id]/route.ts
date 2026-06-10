@@ -9,7 +9,7 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-  const { adminClient } = auth.ctx
+  const { adminClient, callerId } = auth.ctx
   const { id } = await params
 
   const body = (await request.json()) as {
@@ -41,6 +41,9 @@ export async function PATCH(
     const role = String(body.role)
     if (!(VALID_ROLES as readonly string[]).includes(role)) {
       return NextResponse.json({ error: 'Papel inválido.' }, { status: 400 })
+    }
+    if (id === callerId && role !== 'admin') {
+      return NextResponse.json({ error: 'Você não pode rebaixar seu próprio acesso de administrador.' }, { status: 400 })
     }
     updates.role = role
   }
