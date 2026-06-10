@@ -1,57 +1,70 @@
 'use client'
 
-import type { Item } from '@/lib/domain'
+import { useState } from 'react'
+import type { Item, RiskScoreResult } from '@/lib/domain'
 import {
-  riskOf, dateFmt, isDone, dataGaps, scoreOf,
-  productTone, riskTone, statusTone,
+  isDone, dateFmt, statusTone, productTone, riskScore, riskBandTone, dataGaps,
 } from '@/lib/domain'
 import { Badge } from '@/components/ui'
 
-function RiskList({ list, empty, showGaps = false, onEdit }: { list: Item[]; empty: string; showGaps?: boolean; onEdit: (id: string) => void }) {
-  return list.length === 0 ? <div className="empty">{empty}</div> : (
-    <>
-      {list.map(it => (
-        <div key={it.id} className="risk-item">
-          <div className="task-meta">
-            <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
-            <Badge label={riskOf(it)} tone={riskTone(riskOf(it))} />
-            <Badge label={dateFmt(it.dueDate)} />
-            <Badge label={it.status} tone={statusTone(it.status)} />
-          </div>
-          <strong>{it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}</strong>
-          <span style={{ color: '#5f7188', fontSize: 13 }}>{showGaps ? `Lacunas: ${dataGaps(it).join(', ')}` : it.nextAction || it.executiveComment || it.definition || 'Sem detalhe.'}</span>
-          <button className="btn small" onClick={() => onEdit(it.id)}>Atualizar</button>
-        </div>
-      ))}
-    </>
-  )
-}
+export default function RisksView({ filtered, allItems, onEdit }: {
+  filtered: Item[]; allItems: Item[]; onEdit: (id: string) => void
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null)
 
-export default function RisksView({ filtered, onEdit }: { filtered: Item[]; onEdit: (id: string) => void }) {
-  const critical = [...filtered].filter(i => ['Bloqueado','Atrasado'].includes(riskOf(i))).sort((a, b) => scoreOf(a) - scoreOf(b))
-  const attention = [...filtered].filter(i => ['Vence hoje','Atenção 7 dias'].includes(riskOf(i))).sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
-  const gapItems = [...filtered].filter(i => dataGaps(i).length && !isDone(i)).sort((a, b) => dataGaps(b).length - dataGaps(a).length)
+  const queue = filtered
+    .filter(it => !isDone(it) && !it.archived)
+    .map(it => ({ it, rs: riskScore(it, allItems) }))
+    .filter((x): x is { it: Item; rs: RiskScoreResult } => x.rs !== null)
+    .sort((a, b) => b.rs.score - a.rs.score)
+
+  const bands = {
+    Crítico: queue.filter(x => x.rs.band === 'Crítico').length,
+    Alto: queue.filter(x => x.rs.band === 'Alto').length,
+    Médio: queue.filter(x => x.rs.band === 'Médio').length,
+    Baixo: queue.filter(x => x.rs.band === 'Baixo').length,
+  }
 
   return (
     <>
-      <div className="traffic-legend" style={{ marginBottom: 16 }}>
-        <div className="legend-chip critical"><span /><div><strong>Crítico / Bloqueado</strong><small>Ação imediata necessária — destravar na próxima reunião</small></div></div>
-        <div className="legend-chip attention"><span /><div><strong>Atenção / Vence em breve</strong><small>Monitorar diariamente — risco de atraso em até 7 dias</small></div></div>
-        <div className="legend-chip control"><span /><div><strong>Em controle</strong><small>No prazo — manter cadência de acompanhamento</small></div></div>
+      <div className="section-head">
+        <h2>Fila de riscos</h2>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Badge label={`Crítico ${bands['Crítico']}`} tone="tone-red" />
+          <Badge label={`Alto ${bands['Alto']}`} tone="tone-amber" />
+          <Badge label={`Médio ${bands['Médio']}`} tone="tone-gray" />
+          <Badge label={`Baixo ${bands['Baixo']}`} tone="tone-green" />
+        </div>
       </div>
-      <div className="matrix">
-        <div className="matrix-col card">
-          <div className="card-head"><h3 className="card-title">Críticos / Atrasados</h3><Badge label={String(critical.length)} tone="tone-red" /></div>
-          <div className="card-body"><RiskList list={critical} empty="Nenhum item crítico no filtro atual." onEdit={onEdit} /></div>
-        </div>
-        <div className="matrix-col card">
-          <div className="card-head"><h3 className="card-title">Vencimento próximo</h3><Badge label={String(attention.length)} tone="tone-amber" /></div>
-          <div className="card-body"><RiskList list={attention} empty="Nenhum vencimento crítico próximo." onEdit={onEdit} /></div>
-        </div>
-        <div className="matrix-col card">
-          <div className="card-head"><h3 className="card-title">Lacunas de dados</h3><Badge label={String(gapItems.length)} tone="tone-amber" /></div>
-          <div className="card-body"><RiskList list={gapItems} empty="Nenhuma lacuna relevante identificada." showGaps onEdit={onEdit} /></div>
-        </div>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {queue.length === 0 && <div className="empty">Nenhum item aberto no filtro atual.</div>}
+        {queue.map(({ it, rs }) => (
+          <div key={it.id} className="card" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setExpanded(e => (e === it.id ? null : it.id))}>
+              <span className={`score-chip ${riskBandTone(rs.band)}`}>{rs.score} {rs.band}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ fontSize: 13, display: 'block' }}>{it.demand || it.project || it.id}</strong>
+                <small style={{ color: '#5f7188' }}>{rs.mainReason} · {it.owner || 'Sem responsável'} · prazo {dateFmt(it.dueDate)}</small>
+              </div>
+              <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
+              <Badge label={it.status} tone={statusTone(it.status)} />
+              <button className="btn small" onClick={e => { e.stopPropagation(); onEdit(it.id) }}>Abrir</button>
+            </div>
+            {expanded === it.id && (
+              <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+                {rs.factors.map(f => (
+                  <div key={f.key} className={`score-factor ${f.raw >= 70 ? 'alto' : f.raw >= 35 ? 'medio' : ''}`}>
+                    <span>{f.label} — {f.detail} <em style={{ float: 'right' }}>{Math.round(f.contribution)} pts</em></span>
+                    <div className="factor-track"><i style={{ width: `${f.raw}%` }} /></div>
+                  </div>
+                ))}
+                {dataGaps(it).length > 0 && (
+                  <small style={{ color: 'var(--amber)' }}>Lacunas: {dataGaps(it).join(', ')}</small>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </>
   )
