@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { Item } from '@/lib/domain'
 import {
   isDone, dateFmt, daysToDue, priorityTone, productTone, riskScore, riskBandTone, clamp,
@@ -25,11 +25,13 @@ export default function BoardView({ filtered, allItems, onEdit, canEdit, onField
   const [showDone, setShowDone] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overLane, setOverLane] = useState<string | null>(null)
+  const hasDragged = useRef(false)
 
   const lanes: string[] = showDone ? [...LANES, ...DONE_LANES] : [...LANES]
 
   function drop(lane: string) {
-    if (dragId && canEdit) onFieldChange(dragId, 'status', lane)
+    const it = filtered.find(x => x.id === dragId)
+    if (dragId && canEdit && it && it.status !== lane) onFieldChange(dragId, 'status', lane)
     setDragId(null); setOverLane(null)
   }
 
@@ -69,9 +71,9 @@ export default function BoardView({ filtered, allItems, onEdit, canEdit, onField
                     key={it.id}
                     className={`task-card ${dragId === it.id ? 'dragging' : ''}`}
                     draggable={canEdit}
-                    onDragStart={() => setDragId(it.id)}
+                    onDragStart={() => { setDragId(it.id); hasDragged.current = true }}
                     onDragEnd={() => { setDragId(null); setOverLane(null) }}
-                    onClick={() => onEdit(it.id)}
+                    onClick={() => { if (hasDragged.current) { hasDragged.current = false; return } onEdit(it.id) }}
                   >
                     <div className="task-meta" style={{ justifyContent: 'space-between' }}>
                       <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />

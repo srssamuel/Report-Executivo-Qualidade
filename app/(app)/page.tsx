@@ -192,7 +192,7 @@ export default function AppPage() {
     }
     setModalId(id ?? 'new')
   }
-  function closeModal() { setModalId(null) }
+  const closeModal = useCallback(() => setModalId(null), [])
 
   async function submitModal(e: React.FormEvent) {
     e.preventDefault()
