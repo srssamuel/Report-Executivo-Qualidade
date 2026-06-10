@@ -514,7 +514,9 @@ function factorProgresso(it: Item): { raw: number; detail: string } {
 
 function factorStaleness(it: Item): { raw: number; detail: string } {
   if (!it.lastUpdate) return { raw: 50, detail: 'Nunca atualizado' }
-  const days = Math.floor((Date.now() - new Date(it.lastUpdate).getTime()) / 86400000)
+  const ms = new Date(it.lastUpdate).getTime()
+  if (!Number.isFinite(ms)) return { raw: 50, detail: 'Data de atualização inválida' }
+  const days = Math.floor((Date.now() - ms) / 86400000)
   if (days >= 14) return { raw: 100, detail: `Sem atualização há ${days} dias` }
   if (days >= 7) return { raw: 60, detail: `Sem atualização há ${days} dias` }
   if (days >= 3) return { raw: 25, detail: `Atualizado há ${days} dias` }

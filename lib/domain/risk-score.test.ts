@@ -54,11 +54,18 @@ describe('riskScore', () => {
     expect(r.factors.find(f => f.key === 'progresso')!.raw).toBeGreaterThan(60)
   })
 
+  it('sem lastUpdate => staleness neutro 50', () => {
+    const it = mk({ lastUpdate: '' })
+    expect(riskScore(it, [])!.factors.find(f => f.key === 'staleness')!.raw).toBe(50)
+  })
+
   it('score é a soma ponderada arredondada e mainReason vem de riskOf', () => {
     const it = mk({ status: 'Bloqueado', dueDate: isoDate(addDays(new Date(), -1)) })
     const r = riskScore(it, [])!
     const manual = Math.round(r.factors.reduce((s, f) => s + f.contribution, 0))
     expect(r.score).toBe(manual)
+    // 100×0.40 + 100×0.20 + 100×0.15
+    expect(r.score).toBe(75)
     expect(r.mainReason).toBe('Bloqueado')
   })
 })
