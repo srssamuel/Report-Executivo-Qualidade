@@ -31,7 +31,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthRoute) {
+  if (user && !pathname.startsWith('/reset-password')) {
+    const { data: profile } = await supabase
+      .from('user_profiles').select('must_change_password').eq('id', user.id).single()
+    if (profile?.must_change_password) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/reset-password'
+      url.searchParams.set('forced', '1')
+      return NextResponse.redirect(url)
+    }
+  }
+
+  if (user && pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

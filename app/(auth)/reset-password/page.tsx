@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { Suspense, useState, FormEvent } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const forced = searchParams.get('forced') === '1'
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,8 +21,9 @@ export default function ResetPasswordPage() {
     if (password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return }
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
+    if (error) { setLoading(false); setError(error.message); return }
+    await supabase.rpc('clear_must_change_password')
     setLoading(false)
-    if (error) { setError(error.message); return }
     setSuccess('Senha alterada. Redirecionando…')
     setTimeout(() => window.location.href = '/', 2000)
   }
@@ -29,6 +33,11 @@ export default function ResetPasswordPage() {
       <div className="auth-card">
         <h1>Nova senha</h1>
         <p>Defina uma senha segura de pelo menos 8 caracteres.</p>
+        {forced && (
+          <div className="auth-error" style={{ background: '#fff4df', color: '#b86b00' }}>
+            Você está usando uma senha temporária. Defina sua senha definitiva para continuar.
+          </div>
+        )}
         {error && <div className="auth-error">{error}</div>}
         {success && <div className="auth-success">{success}</div>}
         <form onSubmit={handleReset}>
@@ -46,5 +55,13 @@ export default function ResetPasswordPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }
