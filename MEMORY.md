@@ -12,6 +12,8 @@
 
 **Contexto novo:** Supabase `rirkdpsyuvhumuhejofv` é **compartilhado** com outros apps (`instai_*`, `cvrg_*`, `okr`) — os erros de RLS do advisor são dessas tabelas, NÃO das nossas. Admin real = `m.samuel.rosa@aec.com.br`; `srssamuel@hotmail.com` virou `viewer`. WARN pré-existente: `clear_must_change_password()` é chamável via REST (usuário poderia limpar o próprio flag sem trocar a senha) — baixo risco.
 
+**🟢 Deploy preview consertado (commit `72e024a`):** o `Deploy to Vercel` falhava em TODA branch `claude/**` porque o step "Sync env vars" só gravava no ambiente `production`, mas push em `claude/**` faz build de `preview` → `vercel build` quebrava no prerender de `/login` (`@supabase/ssr: URL and API key required`). Fix em `.github/workflows/deploy.yml`: `NEXT_PUBLIC_SUPABASE_*` no `env:` do job + `add_env` sincroniza production+preview+development. **`SUPABASE_SERVICE_ROLE_KEY` gravado como GitHub Secret** (sealed-box via libsodium, valor do `.env.local`) e sincronizado na Vercel (3 ambientes) — endpoints admin funcionam em produção. Preview verde: `report-executivo-qualidade-*.vercel.app` (HTTP 401 público = proteção de preview da Vercel; abre logado no time). Vercel CLI local NÃO autenticado, mas MCP da Vercel sim + token via GitHub Actions; tudo feito sem login manual.
+
 ## 2026-06-10 — Evolução V2 completa (branch `claude/recursing-meninsky-4b025b`)
 
 **O que mudou (28 commits, spec em `docs/superpowers/specs/2026-06-10-evolucao-v2-design.md`):**
