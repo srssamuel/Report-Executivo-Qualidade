@@ -28,7 +28,6 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       SUPABASE_URL: https://rirkdpsyuvhumuhejofv.supabase.co
       SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v5
 
@@ -53,23 +52,9 @@ jobs:
             echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
           fi
 
-      - name: Sync production env vars
-        run: |
-          set +e
-          add_env() {
-            local key=$1
-            local value=$2
-            if [ -z "$value" ]; then
-              echo "skip $key (empty)"
-              return
-            fi
-            vercel env rm "$key" production --token=$VERCEL_TOKEN --yes >/dev/null 2>&1
-            printf "%s" "$value" | vercel env add "$key" production --token=$VERCEL_TOKEN
-          }
-          add_env NEXT_PUBLIC_SUPABASE_URL "$SUPABASE_URL"
-          add_env NEXT_PUBLIC_SUPABASE_ANON_KEY "$SUPABASE_ANON_KEY"
-          add_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
-
+      # Env vars do Supabase são gerenciadas pela integração Supabase↔Vercel
+      # (painel Supabase → Integrações → Vercel). O pipeline não cria/recria
+      # variáveis — apenas builda e deploya.
       - name: Determine target
         id: target
         run: |

@@ -150,12 +150,15 @@ CI (`.github/workflows/ci.yml`): Lint → Typecheck → Test → Build em todo p
 
 ### Secrets necessários no GitHub
 
-| Secret                      | Obrigatório         | Para que serve       |
-| --------------------------- | ------------------- | -------------------- |
-| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel     |
-| `SUPABASE_SERVICE_ROLE_KEY` | Para `/api/admin/*` | Endpoints admin      |
-| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org Vercel     |
-| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto Vercel |
+| Secret              | Obrigatório         | Para que serve       |
+| ------------------- | ------------------- | -------------------- |
+| `VERCEL_TOKEN`      | Sim                 | Deploy na Vercel     |
+| `VERCEL_ORG_ID`     | Auto após 1º deploy | ID da org Vercel     |
+| `VERCEL_PROJECT_ID` | Auto após 1º deploy | ID do projeto Vercel |
+
+> As variáveis do Supabase (URL, anon key, service role) chegam à Vercel pela
+> **integração Supabase↔Vercel** em todos os ambientes — o pipeline não gerencia env vars.
+> `OPENAI_API_KEY` é manual no painel Vercel (Production + Preview).
 
 ---
 
