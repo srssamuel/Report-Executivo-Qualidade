@@ -1209,7 +1209,7 @@ export default function AppPage() {
           <button className="btn small" onClick={exportCSV}><Download size={14} /> CSV</button>
           <button className="btn small" onClick={exportJSON}><Download size={14} /> JSON</button>
           {canEditItems && <label className="btn small" style={{ cursor: 'pointer' }}><Upload size={14} /> Importar <input type="file" accept=".json" className="sr-file-input" onChange={importJSON} /></label>}
-          <button className="btn small ghost" onClick={() => { const o: ('standard'|'wide'|'ultra')[] = ['standard','wide','ultra']; setUiLayout(o[(o.indexOf(uiLayout)+1)%3]) }}>
+          <button className="btn small ghost" aria-label="Alternar largura da tabela" title="Alternar largura da tabela" onClick={() => { const o: ('standard'|'wide'|'ultra')[] = ['standard','wide','ultra']; setUiLayout(o[(o.indexOf(uiLayout)+1)%3]) }}>
             <ArrowUpDown size={14} />
           </button>
           <button className="btn small ghost" onClick={() => setTableDense(d => !d)}>
@@ -1233,23 +1233,23 @@ export default function AppPage() {
       {/* ── Toolbar ─────────────────────────────────────────── */}
       <div className="toolbar">
         <input className="input" placeholder="Buscar frente, demanda, responsável…" value={filters.query} onChange={e => setFilters(f => ({ ...f, query: e.target.value }))} />
-        <select className="select" value={filters.product} onChange={e => setFilters(f => ({ ...f, product: e.target.value, project: '', owner: '' }))}>
+        <select className="select" aria-label="Filtrar por produto" value={filters.product} onChange={e => setFilters(f => ({ ...f, product: e.target.value, project: '', owner: '' }))}>
           <option value="">Todos os produtos</option>
           {uniqueProductList.map(p => <option key={p}>{p}</option>)}
         </select>
-        <select className="select" value={filters.project} onChange={e => setFilters(f => ({ ...f, project: e.target.value }))}>
+        <select className="select" aria-label="Filtrar por projeto" value={filters.project} onChange={e => setFilters(f => ({ ...f, project: e.target.value }))}>
           <option value="">Todos os projetos</option>
           {uniqueProjectList.map(p => <option key={p}>{p}</option>)}
         </select>
-        <select className="select" value={filters.owner} onChange={e => setFilters(f => ({ ...f, owner: e.target.value }))}>
+        <select className="select" aria-label="Filtrar por responsável" value={filters.owner} onChange={e => setFilters(f => ({ ...f, owner: e.target.value }))}>
           <option value="">Todos os responsáveis</option>
           {uniqueOwnerList.map(o => <option key={o}>{o}</option>)}
         </select>
-        <select className="select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+        <select className="select" aria-label="Filtrar por status" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
           <option value="">Todos os status</option>
           {STATUSES.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select className="select" value={filters.sort} onChange={e => setFilters(f => ({ ...f, sort: e.target.value }))}>
+        <select className="select" aria-label="Ordenar por" value={filters.sort} onChange={e => setFilters(f => ({ ...f, sort: e.target.value }))}>
           <option value="dueAsc">Prazo ↑</option>
           <option value="risk">Risco ↑</option>
           <option value="progressAsc">Progresso ↑</option>

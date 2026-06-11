@@ -1,0 +1,57 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ['claude/**', 'integ/**']
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (login + 10 views + a11y)
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://rirkdpsyuvhumuhejofv.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Guard — secret obrigatório
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY ausente nos secrets do GitHub — necessário para criar o usuário QA efêmero."
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: E2E
+        run: npx playwright test
+
+      - name: Upload screenshots + report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidencias
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
