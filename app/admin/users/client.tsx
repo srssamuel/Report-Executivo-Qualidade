@@ -52,6 +52,64 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
   const [results, setResults] = useState<InviteResult[]>([])
   const [mode, setMode] = useState<'single' | 'batch'>('batch')
 
+  // ── Criar usuário direto (sem e-mail) + credencial exibida uma vez ──
+  const [createForm, setCreateForm] = useState({ name: '', email: '', role: 'consultor' as Role })
+  const [creating, setCreating] = useState(false)
+  const [cred, setCred] = useState<{ email: string; name: string; password: string; title: string } | null>(null)
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault()
+    setError(''); setSuccess(''); setCreating(true)
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: createForm.email.trim(), fullName: createForm.name.trim(), role: createForm.role }),
+    })
+    const json = await res.json()
+    setCreating(false)
+    if (!res.ok) { setError(json.error || 'Erro ao criar usuário.'); return }
+    setCred({ email: json.email, name: json.fullName, password: json.tempPassword, title: 'Usuário criado' })
+    setCreateForm({ name: '', email: '', role: 'consultor' })
+    const { data } = await supabase.from('user_profiles').select('*').order('created_at')
+    if (data) setUserList(data as UserProfile[])
+  }
+
+  async function handleReset(u: UserProfile) {
+    if (!confirm(`Gerar nova senha temporária para ${u.email}? A senha atual deixa de funcionar.`)) return
+    const res = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id }),
+    })
+    const json = await res.json()
+    if (!res.ok) { setError(json.error || 'Erro ao resetar senha.'); return }
+    setCred({ email: json.email, name: json.fullName, password: json.tempPassword, title: 'Senha resetada' })
+  }
+
+  async function handleDelete(u: UserProfile) {
+    const typed = prompt(`Excluir DEFINITIVAMENTE ${u.email}?\nDigite o e-mail para confirmar:`)
+    if (typed === null) return
+    if (typed.trim().toLowerCase() !== (u.email ?? '').toLowerCase()) { setError('E-mail digitado não confere — exclusão cancelada.'); return }
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE' })
+    const json = await res.json()
+    if (!res.ok) { setError(json.error || 'Erro ao excluir.'); return }
+    setUserList(prev => prev.filter(x => x.id !== u.id))
+    setSuccess(`${u.email} excluído.`)
+  }
+
+  async function handleRename(u: UserProfile, newName: string): Promise<boolean> {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === (u.full_name ?? '')) return true
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName: trimmed }),
+    })
+    if (!res.ok) { const json = await res.json(); setError(json.error || 'Erro ao renomear.'); return false }
+    setUserList(prev => prev.map(x => x.id === u.id ? { ...x, full_name: trimmed } : x))
+    return true
+  }
+
   async function handleInvite(e: FormEvent) {
     e.preventDefault()
     setError(''); setSuccess(''); setResults([]); setLoading(true)
@@ -119,10 +177,57 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
         </div>
       </header>
 
+      {/* Credencial gerada — exibida UMA vez */}
+      {cred && (
+        <div className="card" style={{ marginBottom: 20, borderColor: '#86efac', background: '#f0fdf4' }}>
+          <div className="card-head">
+            <h3 className="card-title">✅ {cred.title} — anote a senha (não será exibida novamente)</h3>
+            <button className="btn small" onClick={() => setCred(null)}>Fechar</button>
+          </div>
+          <div className="card-body" style={{ display: 'grid', gap: 6 }}>
+            <div><strong>{cred.name || cred.email}</strong> · {cred.email}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <code style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.06em', background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 14px' }}>{cred.password}</code>
+              <button className="btn small" onClick={() => { navigator.clipboard.writeText(cred.password); setSuccess('Senha copiada.') }}>Copiar</button>
+            </div>
+            <small style={{ color: '#166534' }}>O usuário entra com esta senha e é obrigado a trocá-la no primeiro acesso.</small>
+          </div>
+        </div>
+      )}
+
+      {/* Criar usuário direto — caminho primário (sem depender de e-mail) */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-head"><h3 className="card-title">Criar usuário</h3></div>
+        <div className="card-body">
+          <form onSubmit={handleCreate}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 200px auto', gap: 12, alignItems: 'end' }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Nome</label>
+                <input required value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome completo" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>E-mail</label>
+                <input type="email" required value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} placeholder="colaborador@empresa.com" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#5f7188', display: 'block', marginBottom: 6 }}>Papel</label>
+                <select value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value as Role }))}>
+                  {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([r, l]) => <option key={r} value={r}>{l}</option>)}
+                </select>
+              </div>
+              <button className="btn primary" type="submit" disabled={creating}>{creating ? 'Criando…' : 'Criar com senha temporária'}</button>
+            </div>
+          </form>
+          <p style={{ margin: '10px 0 0', color: '#5f7188', fontSize: 13 }}>
+            Cria o acesso na hora, sem depender de e-mail de convite. A senha temporária aparece uma única vez.
+          </p>
+        </div>
+      </div>
+
       {/* Invite form */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-head">
-          <h3 className="card-title">Convidar usuários</h3>
+          <h3 className="card-title">Convidar por e-mail (alternativo)</h3>
           <div style={{ display: 'flex', gap: 4 }}>
             <button className={`btn small ${mode === 'batch' ? 'primary' : ''}`} onClick={() => setMode('batch')} type="button">Em lote</button>
             <button className={`btn small ${mode === 'single' ? 'primary' : ''}`} onClick={() => setMode('single')} type="button">Individual</button>
@@ -229,7 +334,14 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
                 {userList.map(u => (
                   <tr key={u.id}>
                     <td style={{ fontWeight: 600 }}>{u.email}</td>
-                    <td>{u.full_name || '—'}</td>
+                    <td>
+                      <input
+                        defaultValue={u.full_name ?? ''}
+                        placeholder="—"
+                        style={{ minWidth: 140 }}
+                        onBlur={async e => { const ok = await handleRename(u, e.target.value); if (!ok) e.target.value = u.full_name ?? '' }}
+                      />
+                    </td>
                     <td>
                       {u.id === currentUserId
                         ? <span className="badge tone-blue">{ROLE_LABELS[u.role as Role] ?? u.role}</span>
@@ -242,13 +354,12 @@ export default function AdminUsersClient({ users, invitations, currentUserId }: 
                     </td>
                     <td style={{ color: '#5f7188', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
                     <td>
-                      {u.id !== currentUserId && (
-                        <button className="btn small danger" onClick={async () => {
-                          if (!confirm(`Remover acesso de ${u.email}?`)) return
-                          await supabase.from('user_profiles').update({ role: 'viewer' }).eq('id', u.id)
-                          setUserList(prev => prev.map(x => x.id === u.id ? { ...x, role: 'viewer' } : x))
-                        }}>Revogar</button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn small" onClick={() => handleReset(u)}>Resetar senha</button>
+                        {u.id !== currentUserId && (
+                          <button className="btn small danger" onClick={() => handleDelete(u)}>Excluir</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
