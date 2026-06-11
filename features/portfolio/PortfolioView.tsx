@@ -99,6 +99,7 @@ export function PortfolioView({
                         <input
                           className="mini-input"
                           list="portfolioProductOpts"
+                          aria-label={`Produto de ${it.id}`}
                           defaultValue={it.product ?? ''}
                           onBlur={e => onFieldChange(it.id, 'product', e.target.value.trim())}
                           style={{ minWidth: 100 }}
@@ -117,6 +118,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <input
                         className="mini-input"
+                        aria-label={`Projeto de ${it.id}`}
                         defaultValue={it.project ?? ''}
                         onBlur={e => onFieldChange(it.id, 'project', e.target.value)}
                         style={{ minWidth: 130 }}
@@ -131,6 +133,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <textarea
                         className="mini-textarea"
+                        aria-label={`Demanda de ${it.id}`}
                         defaultValue={it.demand ?? ''}
                         onBlur={e => onFieldChange(it.id, 'demand', e.target.value)}
                         style={textareaStyle}
@@ -146,6 +149,7 @@ export function PortfolioView({
                       <input
                         type="date"
                         className="mini-input"
+                        aria-label={`Início de ${it.id}`}
                         defaultValue={it.startDate ?? ''}
                         onBlur={e => onFieldChange(it.id, 'startDate', e.target.value)}
                         style={{ minWidth: 130 }}
@@ -161,6 +165,7 @@ export function PortfolioView({
                       <input
                         type="date"
                         className="mini-input"
+                        aria-label={`Prazo de ${it.id}`}
                         defaultValue={it.dueDate ?? ''}
                         onBlur={e => onFieldChange(it.id, 'dueDate', e.target.value)}
                         style={{ minWidth: 130 }}
@@ -182,6 +187,7 @@ export function PortfolioView({
                             type="number"
                             className="mini-input"
                             min={0}
+                            aria-label={`Esforço em horas de ${it.id}`}
                             defaultValue={it.effortHours ?? ''}
                             placeholder="h"
                             onBlur={e => onFieldChange(it.id, 'effortHours', Number(e.target.value) || 0)}
@@ -194,6 +200,7 @@ export function PortfolioView({
                             type="number"
                             className="mini-input"
                             min={1}
+                            aria-label={`Tamanho da equipe de ${it.id}`}
                             defaultValue={it.teamSize ?? 1}
                             placeholder="eq"
                             onBlur={e => onFieldChange(it.id, 'teamSize', Number(e.target.value) || 1)}
@@ -221,6 +228,7 @@ export function PortfolioView({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <select
                           className="mini-select"
+                          aria-label={`Predecessor de ${it.id}`}
                           value={it.predecessorId ?? ''}
                           onChange={e => onFieldChange(it.id, 'predecessorId', e.target.value)}
                         >
@@ -235,6 +243,7 @@ export function PortfolioView({
                         </select>
                         <textarea
                           className="mini-textarea"
+                          aria-label={`Nota de dependência de ${it.id}`}
                           defaultValue={it.dependencyNote ?? ''}
                           placeholder="Nota de dependência…"
                           onBlur={e => onFieldChange(it.id, 'dependencyNote', e.target.value)}
@@ -258,6 +267,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <input
                         className="mini-input"
+                        aria-label={`Responsável de ${it.id}`}
                         defaultValue={it.owner ?? ''}
                         onBlur={e => onFieldChange(it.id, 'owner', e.target.value)}
                         style={{ minWidth: 110 }}
@@ -272,6 +282,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <select
                         className="mini-select"
+                        aria-label={`Status de ${it.id}`}
                         value={it.status}
                         onChange={e => onFieldChange(it.id, 'status', e.target.value)}
                       >
@@ -287,6 +298,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <select
                         className="mini-select"
+                        aria-label={`Prioridade de ${it.id}`}
                         value={it.priority ?? 'Média'}
                         onChange={e => onFieldChange(it.id, 'priority', e.target.value)}
                       >
@@ -306,6 +318,7 @@ export function PortfolioView({
                           className="mini-input"
                           min={0}
                           max={100}
+                          aria-label={`Progresso de ${it.id}`}
                           defaultValue={it.progress ?? 0}
                           onBlur={e => onFieldChange(it.id, 'progress', clamp(Number(e.target.value), 0, 100))}
                           style={{ width: 48 }}
@@ -334,6 +347,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <textarea
                         className="mini-textarea"
+                        aria-label={`Próxima ação de ${it.id}`}
                         defaultValue={it.nextAction ?? ''}
                         onBlur={e => onFieldChange(it.id, 'nextAction', e.target.value)}
                         style={textareaStyle}
@@ -348,6 +362,7 @@ export function PortfolioView({
                     {canEdit ? (
                       <textarea
                         className="mini-textarea"
+                        aria-label={`Comentário executivo de ${it.id}`}
                         defaultValue={it.executiveComment ?? ''}
                         onBlur={e => onFieldChange(it.id, 'executiveComment', e.target.value)}
                         style={textareaStyle}
@@ -362,6 +377,8 @@ export function PortfolioView({
                     <button className="btn small" onClick={() => onEdit(it.id)}>Abrir</button>
                     <button
                       className="btn small"
+                      aria-label={`Comentários de ${it.id}`}
+                      title="Comentários"
                       onClick={() => onQuickComment(it.id)}
                       style={{ marginLeft: 4 }}
                     >

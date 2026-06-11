@@ -879,6 +879,7 @@ export function DevelopmentView({
             <span className="control-label"><Users size={12} /> Colaborador</span>
             <select
               className="select small"
+              aria-label="Selecionar colaborador"
               value={selectedCollaborator}
               onChange={e => setSelectedCollaborator(e.target.value)}
               disabled={viewableCollaborators.length <= 1}

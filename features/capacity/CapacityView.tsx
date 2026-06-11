@@ -208,7 +208,7 @@ export function CapacityView({
                           <td style={{ fontWeight: 600 }}>{p.name}</td>
                           <td>
                             {canManage
-                              ? <input type="number" min={1} max={168} defaultValue={p.weeklyCapacityHours} style={{ width: 80 }}
+                              ? <input type="number" min={1} max={168} aria-label={`Capacidade semanal de ${p.name} (horas)`} defaultValue={p.weeklyCapacityHours} style={{ width: 80 }}
                                   onBlur={e => { const v = Number(e.target.value); if (v > 0 && v !== p.weeklyCapacityHours) onUpdatePerson(p.id, { weeklyCapacityHours: v }) }} />
                               : <>{p.weeklyCapacityHours} h</>}
                           </td>

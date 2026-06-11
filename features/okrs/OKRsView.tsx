@@ -379,6 +379,7 @@ export function OKRsView({
             <span className="control-label"><Users size={12} /> Gerente</span>
             <select
               className="select small"
+              aria-label="Filtrar por gerente"
               value={selectedManager}
               onChange={e => setSelectedManager(e.target.value)}
               disabled={!isSuperOrAdmin}
@@ -392,6 +393,7 @@ export function OKRsView({
             <span className="control-label"><Calendar size={12} /> Trimestre</span>
             <select
               className="select small"
+              aria-label="Selecionar trimestre"
               value={selectedQuarter}
               onChange={e => setSelectedQuarter(e.target.value as Quarter)}
             >

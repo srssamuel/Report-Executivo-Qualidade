@@ -28,8 +28,13 @@ export async function login(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible({ timeout: 30_000 })
 }
 
-/** Ruído conhecido que não é defeito do app (telemetria da Vercel fora da Vercel, favicon). */
-const IGNORED_ERRORS = [/_vercel\/insights/i, /favicon/i, /Failed to load resource.*_vercel/i]
+/**
+ * Ruído conhecido que não é defeito do app: scripts de telemetria da Vercel
+ * (/_vercel/speed-insights e /_vercel/insights) não existem fora da Vercel,
+ * e o 404 genérico "Failed to load resource" só é identificável pela URL
+ * em msg.location() — por isso o filtro olha texto E origem.
+ */
+const IGNORED_ERRORS = [/_vercel\//i, /favicon/i]
 
 /**
  * Registra erros de runtime (exceções não tratadas + console.error) da página.
@@ -43,8 +48,9 @@ export function collectPageErrors(page: Page): string[] {
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return
     const text = msg.text()
-    if (IGNORED_ERRORS.some((re) => re.test(text))) return
-    errors.push(`console.error: ${text}`)
+    const sourceUrl = msg.location().url ?? ''
+    if (IGNORED_ERRORS.some((re) => re.test(text) || re.test(sourceUrl))) return
+    errors.push(`console.error: ${text}${sourceUrl ? ` (${sourceUrl})` : ''}`)
   })
   return errors
 }
