@@ -29,6 +29,9 @@ jobs:
       SUPABASE_URL: https://rirkdpsyuvhumuhejofv.supabase.co
       SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Disponíveis no runner para `vercel build` → `next build` inlinar (valores públicos)
+      NEXT_PUBLIC_SUPABASE_URL: https://rirkdpsyuvhumuhejofv.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +56,7 @@ jobs:
             echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
           fi
 
-      - name: Sync production env vars
+      - name: Sync env vars (production, preview, development)
         run: |
           set +e
           add_env() {
@@ -63,8 +66,10 @@ jobs:
               echo "skip $key (empty)"
               return
             fi
-            vercel env rm "$key" production --token=$VERCEL_TOKEN --yes >/dev/null 2>&1
-            printf "%s" "$value" | vercel env add "$key" production --token=$VERCEL_TOKEN
+            for envname in production preview development; do
+              vercel env rm "$key" "$envname" --token=$VERCEL_TOKEN --yes >/dev/null 2>&1
+              printf "%s" "$value" | vercel env add "$key" "$envname" --token=$VERCEL_TOKEN
+            done
           }
           add_env NEXT_PUBLIC_SUPABASE_URL "$SUPABASE_URL"
           add_env NEXT_PUBLIC_SUPABASE_ANON_KEY "$SUPABASE_ANON_KEY"
