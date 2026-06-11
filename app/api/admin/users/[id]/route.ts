@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/supabase/admin'
-import { ROLE_LABELS } from '@/lib/domain'
+import { ROLE_LABELS } from '@/shared/domain'
 
 const VALID_ROLES = Object.keys(ROLE_LABELS)
 

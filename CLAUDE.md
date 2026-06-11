@@ -4,9 +4,10 @@
 
 - **Repo:** `srssamuel/Report-Executivo-Qualidade`
 - **Branch ativa:** `main`
-- **Stack:** Next.js 16 (App Router) · React 19 · Supabase Auth · Postgres + RLS · TypeScript strict · Zod
+- **Stack:** Next.js 16 (App Router) · React 19 · Supabase Auth · Postgres + RLS · TypeScript strict · Zod · Vitest
 - **Deploy:** Vercel (auto via GitHub Actions em `main` e `claude/**`)
 - **URL produção:** `report-executivo-qualidade.vercel.app`
+- **Diário de bordo:** `MEMORY.md` — histórico cronológico de decisões e entregas. Consultar antes de mudanças estruturais.
 
 ## Recursos já provisionados — NÃO RECRIAR
 
@@ -17,67 +18,76 @@
 - **Region:** sa-east-1
 - **URL:** `https://rirkdpsyuvhumuhejofv.supabase.co`
 - **Anon key (publishable):** `sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC`
-- **Migrations aplicadas (Supabase remoto):** 001_schema, 002_rls, 003_security_hardening, 004_gains_products, 005_password_changed, 006_fix_password_changed_rpc, 007_fix_items_insert_policy_and_security, 008_expand_gain_types, 009_okrs (2026-05-27), 010_development_pdi (2026-05-27), 011_revoke_trigger_rpc_exposure (2026-05-27 — hardening defensivo, REVOKE EXECUTE em protect_okr_audit_fields e update_updated_at de PUBLIC/anon/authenticated)
-- **Admin pré-cadastrado:** `srssamuel@hotmail.com` (via tabela `invitations` — trigger promove no signup)
-- **14 usuários** cadastrados com roles definidos
-- **31 itens** importados (G6-001 a G6-031)
+- **Migrations:** `supabase/migrations/001 → 022` — espelho do remoto, todas aplicadas. Sequência reproduzível em deploy limpo (idempotentes). Destaques: 009 OKRs · 010 Desenvolvimento/PDI · 013 `manager_id` · 017 tenancy de OKR por dono · 019 re-pendência de homologação · 021 hierarquia por `manager_id` no RLS · 022 people/tracking.
+- **Admin pré-cadastrado:** `srssamuel@hotmail.com` (via tabela `invitations` — trigger promove no signup). `m.samuel.rosa@aec.com.br` também é admin.
+- **14 usuários** cadastrados com roles e `manager_id` definidos
+- **31 itens** importados (G6-001 a G6-031) + 50 OKRs Jan–Jun
 
 ### Vercel
 
 - **Team:** `DataCX-AGI` (slug `srssamueldatacx-agi`, id `team_8fyhRYXjuzjs3ByUQTtPJNbL`)
 - **Projeto:** `report-executivo-qualidade` (id `prj_KgJ92OeoCACarNQzzfLrR5U65zRk`)
-- **Env vars:** 3 configuradas (SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY)
+- **Env vars:** SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY, OPENAI_API_KEY (production)
+- **Atenção:** o ambiente Preview NÃO tem as `NEXT_PUBLIC_SUPABASE_*` — previews da integração git falham no prerender; o deploy via GitHub Actions funciona.
 
 ## CI/CD
 
-### Deploy (`.github/workflows/deploy.yml`)
-
-- Push em `main` → produção
-- Push em `claude/**` → preview
-- `workflow_dispatch` → manual para production ou preview
-- Smoke test automático no login
-
 ### Quality gate (`.github/workflows/ci.yml`)
 
-- Lint → Typecheck → Build
-- Roda em push + PRs para main
+- Lint → Typecheck → **Test (vitest)** → Build
+- Roda em push (`main`, `claude/**`, `integ/**`) + PRs para main
+
+### Deploy (`.github/workflows/deploy.yml`)
+
+- Push em `main` → produção · Push em `claude/**` → preview · `workflow_dispatch` → manual
+- Smoke test automático no `/api/health`
 
 ### Secrets necessários (GitHub Settings → Secrets)
 
-| Secret                      | Obrigatório         | Para que serve      |
-| --------------------------- | ------------------- | ------------------- |
-| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel    |
-| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow    | `/api/admin/invite` |
-| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org           |
-| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto       |
+| Secret                      | Obrigatório         | Para que serve   |
+| --------------------------- | ------------------- | ---------------- |
+| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel |
+| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow    | `/api/admin/*`   |
+| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org        |
+| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto    |
 
-## Estrutura do código
+## Estrutura do código (mapa real)
 
 ```
 app/
   (auth)/login                 # Login + forgot password
-  (auth)/reset-password        # Definir nova senha (+ first-login)
-  (app)/page.tsx               # SPA principal — 8 views
-  admin/users/                 # Gestão de usuários (admin only)
-  api/admin/invite/route.ts    # Convite em lote (Zod + rate limit)
-  api/health/route.ts          # Health check + conectividade Supabase
-  error.tsx                    # Error boundary global
-  layout.tsx                   # Root layout (Analytics + SpeedInsights)
-  globals.css                  # Design system completo (~684 linhas)
+  (auth)/reset-password        # Nova senha (+ first-login, checagem HIBP k-anonymity)
+  (app)/page.tsx               # Orquestrador da SPA — estado, dados Supabase, 10 views
+  admin/users/page.tsx         # Rota de gestão de usuários (UI vive em features/admin)
+  api/admin/invite             # Convite em lote (Zod + rate limit)
+  api/admin/users + [id]       # Criar/editar usuário direto (service role)
+  api/admin/reset-password     # Reset de senha pelo admin
+  api/ai/analyze               # Laudo IA do Perfil Vértice (OpenAI → fallback Ollama)
+  api/ai/ata-summary           # Resumo inteligente das atas de 1:1
+  api/ai/validate              # Detecção de provider de IA disponível
+  api/health                   # Health check + conectividade Supabase
+  error.tsx · layout.tsx · globals.css   # Error boundary, root layout, design system
+features/                      # Uma pasta por view — TODO componente de view mora aqui
+  dashboard/ portfolio/ board/ risks/ timeline/ capacity/
+  executive/ okrs/ development/ archived/ admin/
+shared/
+  domain/index.ts              # ⭐ FONTE ÚNICA da lógica de negócio (tipos, cálculos,
+                               #   filtros, trimestres OKR, canonicalização de nomes)
+  domain/*.test.ts             # Testes de domínio (vitest) — manter ao mudar a lógica
+  components/                  # Badge, ConfirmDialog, charts (recharts)
+  tracking.ts                  # Telemetria de uso (daily_access + snapshots)
 lib/
-  domain/index.ts              # Lógica de negócio em TS puro (tipos, cálculos, filtros)
-  design-tokens.json           # Design tokens exportáveis (cores, tipografia, espaçamento)
-  supabase/{client,server}.ts  # Clientes browser/SSR
-eslint.config.mjs              # ESLint flat config (typescript-eslint)
-.husky/pre-commit              # Pre-commit hook (lint-staged)
-proxy.ts                       # Auth middleware (renomeado de middleware.ts em Next 16)
-supabase/migrations/
-  001_schema.sql               # 7 tabelas + triggers
-  002_rls.sql                  # Políticas RLS por role
-  003_security_hardening.sql   # REVOKE EXECUTE + search_path
-  004_gains_products.sql       # Products + Gains
-  005_password_changed.sql     # Flag first-login
+  supabase/{client,server,admin}.ts   # ⭐ FONTE ÚNICA dos clientes Supabase
+  assessment/                  # Instrumento Perfil Vértice (108 questões + scoring)
+  design-tokens.json           # Design tokens exportáveis
+proxy.ts                       # Auth middleware (renomeado de middleware.ts no Next 16)
+supabase/migrations/           # 001 → 022, espelho do remoto
+scripts/                       # seed-okrs, prepare-mock, test-db (utilitários de dado)
 ```
+
+> História: `lib/domain/` (espelho morto) e `shared/supabase/` (cópia idêntica) foram
+> **removidos em 2026-06-11**. Se encontrar referência a eles em docs antigos, o caminho
+> certo é `shared/domain` para domínio e `lib/supabase` para clientes.
 
 ## Comandos de dev
 
@@ -85,6 +95,7 @@ supabase/migrations/
 npm run dev          # Dev server (Turbopack)
 npm run build        # Build produção
 npm run lint         # ESLint
+npm test             # Vitest (testes de domínio)
 npx tsc --noEmit     # Typecheck
 ```
 
@@ -93,33 +104,36 @@ npx tsc --noEmit     # Typecheck
 ### Geral
 
 - **CSS:** preservar `app/globals.css` — design system custom. NÃO substituir por Tailwind.
-- **Lógica de domínio:** funções puras em `lib/domain/index.ts`. Reusar sempre.
-- **Tipos:** Definidos no domain/index.ts. Usar `z.infer` de Zod quando possível.
+- **Lógica de domínio:** funções puras em `shared/domain/index.ts`. Reusar sempre; nova lógica de cálculo entra lá COM teste em `shared/domain/*.test.ts`.
+- **Nomes de responsáveis:** sempre via chokepoint `ownersOf()` (canonicaliza contra o cadastro via `setCanonicalOwners`). Nunca casar nome por substring ad-hoc.
+- **Tipos:** definidos em `shared/domain`. Usar `z.infer` de Zod quando possível.
 - **Commits:** Conventional commits em PT-BR (`feat:`, `fix:`, `chore:`, etc.)
 - **Idioma:** PT-BR em UI e commits
 
 ### RLS & Segurança
 
-- Todas as tabelas têm RLS ativa
-- Funções helper são SECURITY DEFINER com `SET search_path = public`
-- Validação de input via Zod em todos os endpoints de API
-- Security headers configurados em `next.config.ts`
-- Rate limiting in-memory nos endpoints sensíveis
+- Todas as tabelas têm RLS ativa; hierarquia de visibilidade por `manager_id` transitivo (`is_subordinate_or_self`, migration 021)
+- Tenancy de OKR pelo vínculo `responsavel_user_id` (FK), não por nome
+- Funções helper são SECURITY DEFINER com `SET search_path = public`; funções usadas em expressão de policy precisam de `GRANT EXECUTE TO authenticated` (lição da migration 018)
+- Validação de input via Zod em todos os endpoints de API + rate limiting in-memory
+- Security headers em `next.config.ts`; CSP estrito
 
 ### Roles
 
 `admin` / `superintendente` / `gerente` / `coordenador` / `consultor` / `lider` / `analista` / `viewer`
 
-### Views da SPA
+### Views da SPA (10)
 
-Dashboard · Carteira · Board · Riscos · Timeline · Capacidade · Executivo · Arquivados
+Dashboard · Carteira · Board · Riscos · Timeline · Capacidade · Executivo · OKRs Gerentes · Desenvolvimento · Arquivados
 
 ## Não fazer
 
 - ❌ Recriar projeto Supabase
-- ❌ Tocar nas tabelas do `recanto-maanain` (outro projeto Supabase do usuário)
+- ❌ Tocar nas tabelas de outros projetos no mesmo Supabase (`cvrg_*` do Workshop Convergência, `recanto-maanain`)
 - ❌ Commitar `.env.local`
 - ❌ Substituir o design system por outro framework de UI
 - ❌ Reverter o rename `middleware.ts` → `proxy.ts` (necessário no Next 16)
 - ❌ Adicionar `any` em TypeScript
 - ❌ Usar imports relativos profundos (`../../..`) — usar `@/*`
+- ❌ Recriar módulos duplicados (já houve `lib/domain` + `shared/domain` em paralelo — uma cópia só)
+- ❌ Casar responsável por substring/apelido fora do `ownersOf()`

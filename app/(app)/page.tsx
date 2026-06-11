@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { createClient } from '@/shared/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, FormEvent } from 'react'
-import { createClient } from '@/shared/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { UserProfile, ROLE_LABELS, Role, Product } from '@/shared/domain'
 
 interface Invitation {

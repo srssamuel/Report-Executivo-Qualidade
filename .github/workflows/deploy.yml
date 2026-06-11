@@ -30,9 +30,9 @@ jobs:
       SUPABASE_ANON_KEY: sb_publishable_PPUFHkZ2rbLk5Id0N93DsQ_kHWGQWeC
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -120,6 +120,12 @@ jobs:
           # Health endpoint — no auth required
           HEALTH=$(curl -s -o /dev/null -w "%{http_code}" -L "$URL/api/health")
           echo "Health endpoint returned HTTP $HEALTH"
+          # Preview URLs ficam atrás da Vercel Deployment Protection: 401 prova
+          # que o deploy está no ar (protegido). Smoke completo só em produção.
+          if [ "${{ steps.target.outputs.target }}" != "production" ] && [ "$HEALTH" -eq 401 ]; then
+            echo "Preview protegido (Vercel Deployment Protection) — deploy OK."
+            exit 0
+          fi
           if [ "$HEALTH" -ne 200 ]; then
             echo "::error::Health check failed with status: $HEALTH"
             exit 1
