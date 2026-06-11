@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import {
   Item,
   riskOf,
@@ -11,6 +11,9 @@ import {
   dateFmt,
   dataGaps,
   isDone,
+  riskScore,
+  riskBandTone,
+  type RiskScoreResult,
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
 
@@ -20,6 +23,14 @@ interface RisksViewProps {
 }
 
 export function RisksView({ filtered, onEdit }: RisksViewProps) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  // Fila por score de risco composto (5 fatores ponderados) — itens abertos, desc.
+  const ranked = filtered
+    .map(it => ({ it, rs: riskScore(it, filtered) }))
+    .filter((x): x is { it: Item; rs: RiskScoreResult } => x.rs !== null)
+    .sort((a, b) => b.rs.score - a.rs.score)
+
   const critical = [...filtered]
     .filter(i => ['Bloqueado', 'Atrasado'].includes(riskOf(i)))
     .sort((a, b) => scoreOf(a) - scoreOf(b))
@@ -58,6 +69,60 @@ export function RisksView({ filtered, onEdit }: RisksViewProps) {
 
   return (
     <>
+      {/* Fila por score de risco composto — clique no card expande o "por quê" (5 fatores) */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3 className="card-title">Fila por score de risco</h3>
+          <Badge label={String(ranked.length)} tone="tone-red" />
+        </div>
+        <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+          {ranked.length === 0 ? (
+            <div className="empty">Sem itens abertos para pontuar.</div>
+          ) : (
+            ranked.map(({ it, rs }) => {
+              const open = expanded === it.id
+              return (
+                <div
+                  key={it.id}
+                  className="risk-item"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setExpanded(open ? null : it.id)}
+                >
+                  <div className="task-meta">
+                    <Badge label={`${rs.score} · ${rs.band}`} tone={riskBandTone(rs.band)} />
+                    <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
+                    <Badge label={rs.mainReason} tone={riskTone(rs.mainReason)} />
+                    <Badge label={dateFmt(it.dueDate)} />
+                    <Badge label={it.status} tone={statusTone(it.status)} />
+                  </div>
+                  <strong>{it.project ?? 'Sem projeto'} — {it.demand ?? 'Sem demanda'}</strong>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                    {open ? 'Fatores do score (peso × intensidade):' : `Toque para ver o porquê · responsável: ${it.owner || '—'}`}
+                  </span>
+                  {open && (
+                    <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
+                      {rs.factors.map(f => (
+                        <div
+                          key={f.key}
+                          style={{ display: 'grid', gridTemplateColumns: '128px 1fr auto', gap: 10, alignItems: 'center', fontSize: 12 }}
+                        >
+                          <span style={{ color: 'var(--muted)' }}>{f.label} · {Math.round(f.weight * 100)}%</span>
+                          <span style={{ position: 'relative', height: 6, background: 'var(--line, #e5e9f0)', borderRadius: 4, overflow: 'hidden' }}>
+                            <span style={{ position: 'absolute', inset: 0, width: `${f.raw}%`, background: 'var(--ink, #0b1f3a)', borderRadius: 4 }} />
+                          </span>
+                          <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>{f.detail} · +{Math.round(f.contribution)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button className="btn small" onClick={e => { e.stopPropagation(); onEdit(it.id) }}>Atualizar</button>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
       <div className="traffic-legend" style={{ marginBottom: 16 }}>
         <div className="legend-chip critical">
           <span />
