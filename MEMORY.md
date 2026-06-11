@@ -15,6 +15,16 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-11 (b) — Operação InstAI: migração para recanto-maanain + saneamento do banco · docs técnicos atualizados
+
+- **Achado dos advisors (entrada anterior) resolvido de ponta a ponta.** Samuel confirmou: app InstAI é dele → "altere ele para o projeto do recanto maanain".
+- **Migração (via MCP Supabase, sem downtime):** 15 enums + 24 tabelas `instai_*` recriadas no projeto `recanto-maanain` (`mudwlimkhjlcnimmadnt`) como espelho fiel (mesmos nomes de constraints/índices, padrão Drizzle) e **com RLS desde a criação**; 19 linhas copiadas via `jsonb_populate_recordset` — **checksums md5 idênticos** nas 9 tabelas com dados. RLS habilitada também na origem (fechou na hora a exposição pública de `access_token`/`session_token`/`verification_token` via anon key).
+- **Cutover (Samuel):** `instai-web` (Vercel) reapontado para o banco novo. Verificação pré-drop: contagens da origem inalteradas (nenhuma linha nova durante o cutover).
+- **Limpeza:** 24 tabelas + 15 enums **dropados** do banco do Report. `get_advisors` pós-operação: **zero ERROR** — restam apenas os WARNs pré-existentes documentados (cvrg\_\* de outro projeto · helpers SECURITY DEFINER, trade-off consciente · `auth_leaked_password_protection` ainda desabilitado, toggle do painel pendente).
+- **Decisão de método:** mudanças nas tabelas instai feitas via `execute_sql` (não `apply_migration`) no projeto do Report de propósito — schema estrangeiro não entra na história de migrations 001→022.
+- **Docs técnicos (este commit):** `docs/api.md` reescrito (8 endpoints com auth/rate limit/payloads — antes só 2) e `docs/architecture.md` atualizado (lib/supabase como fonte única, RLS em 3 mecanismos: papel + tenancy por dono + hierarquia `manager_id`, lições das migrations 011/015/018, observabilidade).
+- **Próximos (ordem de valor):** E2E Playwright (login, lançamento OKR, homologação) · passe a11y nos modais profundos (1:1/PDI/capacidade) · toggle leaked password (1 clique, painel).
+
 ### 2026-06-11 — Auditoria de consultoria: fontes únicas + testes + docs reais · integração Supabase↔Vercel vira dona das env vars
 
 - **Pedido (Samuel):** "consultor full desenvolvedor — avalie todo o projeto, decida por mim e vá até o final" (sessão remota Claude Code web).
