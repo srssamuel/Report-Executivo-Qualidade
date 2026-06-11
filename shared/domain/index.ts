@@ -127,7 +127,20 @@ export function canEdit(role: Role) {
 export function canDelete(role: Role) {
   return ['admin','superintendente','gerente','coordenador','lider'].includes(role)
 }
+// Gestão de pessoas/capacidade — espelha as policies RLS de `people` (migration 022)
+export function canManagePeople(role?: string | null) {
+  return ['admin','superintendente','gerente','coordenador','lider'].includes(role ?? '')
+}
 export function isAdmin(role: Role) { return role === 'admin' }
+
+// Responsável real com capacidade semanal individual (tabela `people`, migration 022)
+export interface Person {
+  id: string
+  name: string
+  weeklyCapacityHours: number
+  active: boolean
+  userId?: string | null
+}
 
 export function esc(str: unknown): string {
   return String(str ?? '').replace(/[&<>'"]/g, (c) =>

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, 'claude/**']
+    branches: [main, 'claude/**', 'integ/**']
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -30,6 +30,9 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build

@@ -16,6 +16,7 @@ import {
   isoDate,
   parseDate,
   addDays,
+  type Person,
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
 
@@ -23,6 +24,10 @@ interface CapacityViewProps {
   filtered: Item[]
   weeklyCapacity: number
   setWeeklyCapacity: (n: number) => void
+  people: Person[]
+  onUpdatePerson: (id: string, patch: { weeklyCapacityHours?: number; active?: boolean }) => void
+  onCreatePerson: (name: string) => Promise<Person | null>
+  canManage: boolean
   urgentForm: { product: string; title: string; owner: string; effort: number; dueDate: string; reason: string }
   setUrgentForm: React.Dispatch<React.SetStateAction<{ product: string; title: string; owner: string; effort: number; dueDate: string; reason: string }>>
   simulate: () => { it: Item; score: number; free: number; type: string }[]
@@ -40,6 +45,10 @@ export function CapacityView({
   filtered,
   weeklyCapacity,
   setWeeklyCapacity,
+  people,
+  onUpdatePerson,
+  onCreatePerson,
+  canManage,
   urgentForm,
   setUrgentForm,
   simulate,
@@ -155,13 +164,17 @@ export function CapacityView({
           ) : (
             <div className="capacity-bars">
               {loadEntries.map(([owner, h]) => {
-                const pct = Math.round((h / weeklyCapacity) * 100)
+                // Capacidade individual (tabela people) com fallback no valor global
+                const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+                const person = people.find(p => norm(p.name) === norm(owner))
+                const cap = person?.weeklyCapacityHours ?? weeklyCapacity
+                const pct = Math.round((h / cap) * 100)
                 const tone = capacityTone(pct)
                 return (
                   <div key={owner} className="capacity-row">
                     <b title={owner}>{owner}</b>
                     <div className={`capacity-track ${tone}`}><i style={{ width: `${Math.min(160, pct)}%` }} /></div>
-                    <small>{Math.round(h)}h / {pct}%</small>
+                    <small>{Math.round(h)}h / {cap}h · {pct}%</small>
                   </div>
                 )
               })}
@@ -170,6 +183,52 @@ export function CapacityView({
         </div>
       </div>
 
+      {/* People management — capacidade semanal individual */}
+      {canEdit && (
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Pessoas e capacidades</h3>
+            {canManage && (
+              <button className="btn small" onClick={async () => { const n = prompt('Nome da nova pessoa:'); if (n) await onCreatePerson(n) }}>+ Pessoa</button>
+            )}
+          </div>
+          <div className="card-body">
+            {people.length === 0 ? (
+              <div className="empty">Nenhuma pessoa cadastrada — a alocação usa a capacidade global de {weeklyCapacity}h.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="admin-table">
+                  <thead><tr><th>Nome</th><th>Capacidade semanal (h)</th><th>Carga atual</th>{canManage && <th>Ações</th>}</tr></thead>
+                  <tbody>
+                    {people.map(p => {
+                      const h = load[p.name] ?? 0
+                      const pct = Math.round((h / p.weeklyCapacityHours) * 100)
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 600 }}>{p.name}</td>
+                          <td>
+                            {canManage
+                              ? <input type="number" min={1} max={168} defaultValue={p.weeklyCapacityHours} style={{ width: 80 }}
+                                  onBlur={e => { const v = Number(e.target.value); if (v > 0 && v !== p.weeklyCapacityHours) onUpdatePerson(p.id, { weeklyCapacityHours: v }) }} />
+                              : <>{p.weeklyCapacityHours} h</>}
+                          </td>
+                          <td><span className={`badge ${pct >= 115 ? 'tone-red' : pct >= 85 ? 'tone-amber' : 'tone-green'}`}>{Math.round(h)}h · {pct}%</span></td>
+                          {canManage && (
+                            <td>
+                              <button className="btn small danger" onClick={() => { if (confirm(`Desativar ${p.name}? Sai dos selects e do cálculo de capacidade.`)) onUpdatePerson(p.id, { active: false }) }}>Desativar</button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Urgent Simulator */}
       {canEdit && (
         <div className="card">
@@ -177,7 +236,17 @@ export function CapacityView({
           <div className="card-body">
             <div className="sim-grid">
               <label>Produto/cliente <input value={urgentForm.product} onChange={e => setUrgentForm({ ...urgentForm, product: e.target.value })} /></label>
-              <label>Responsável crítico <input value={urgentForm.owner} onChange={e => setUrgentForm({ ...urgentForm, owner: e.target.value })} placeholder="Ex.: Pedro, Kath" /></label>
+              <label>Responsável crítico
+                {people.length > 0 ? (
+                  <select value={urgentForm.owner} onChange={e => setUrgentForm({ ...urgentForm, owner: e.target.value })}>
+                    <option value="">Selecione…</option>
+                    {urgentForm.owner && !people.some(p => p.name === urgentForm.owner) && <option value={urgentForm.owner}>{urgentForm.owner}</option>}
+                    {people.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                ) : (
+                  <input value={urgentForm.owner} onChange={e => setUrgentForm({ ...urgentForm, owner: e.target.value })} placeholder="Ex.: Pedro, Kath" />
+                )}
+              </label>
               <label className="full">Demanda urgente <input value={urgentForm.title} onChange={e => setUrgentForm({ ...urgentForm, title: e.target.value })} placeholder="Ex.: Material emergencial para VP" /></label>
               <label>Esforço estimado (h) <input type="number" min={1} value={urgentForm.effort} onChange={e => setUrgentForm({ ...urgentForm, effort: Number(e.target.value) })} /></label>
               <label>Prazo desejado <input type="date" value={urgentForm.dueDate} onChange={e => setUrgentForm({ ...urgentForm, dueDate: e.target.value })} /></label>

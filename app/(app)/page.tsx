@@ -18,7 +18,8 @@ import {
   dateFmt,
   itemEffort, itemRemainingEffort, itemStart,
   urgencyCandidateScore, recommendationType,
-  nextId, clamp, canEdit, canDelete, isAdmin,
+  nextId, clamp, canEdit, canDelete, isAdmin, canManagePeople, Person,
+  riskScore, riskBandTone,
   OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus,
   quarterForMonth, monthsForPeriodo, periodoCoversQuarter, Quarter,
   UserPDI, ProfileEvaluation
@@ -67,6 +68,7 @@ export default function AppPage() {
     query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'dueAsc', criticalOnly: false,
   })
   const [weeklyCapacity, setWeeklyCapacity] = useState(30)
+  const [people, setPeople] = useState<Person[]>([])
   const [urgentForm, setUrgentForm] = useState({ product: 'Vivo', title: '', owner: '', effort: 16, dueDate: '', reason: '' })
   const [urgentSimulated, setUrgentSimulated] = useState(false)
   const [gains, setGains] = useState<Gain[]>([])
@@ -159,11 +161,12 @@ export default function AppPage() {
           return
         }
 
-        const [profileRes, itemsRes, gainsRes, productsRes] = await Promise.all([
+        const [profileRes, itemsRes, gainsRes, productsRes, peopleRes] = await Promise.all([
           supabase.from('user_profiles').select('*').eq('id', user.id).single(),
           supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
           supabase.from('gains').select('*').order('created_at', { ascending: false }),
           supabase.from('products').select('*').order('name'),
+          supabase.from('people').select('*').eq('active', true).order('name'),
         ])
 
         if (profileRes.data) {
@@ -179,6 +182,11 @@ export default function AppPage() {
         }
         if (gainsRes.data) setGains(gainsRes.data as Gain[])
         if (productsRes.data) setProducts(productsRes.data as Product[])
+        if (peopleRes.data) setPeople(peopleRes.data.map((p: Record<string, unknown>) => ({
+          id: p.id as string, name: p.name as string,
+          weeklyCapacityHours: Number(p.weekly_capacity_hours ?? 30),
+          active: Boolean(p.active), userId: (p.user_id as string) ?? null,
+        })))
 
         if (itemsRes.data) {
           const mapped = itemsRes.data.map((row: Record<string, unknown>, i: number) => normalizeItem(mapRow(row), i))
@@ -352,6 +360,32 @@ export default function AppPage() {
       if (data) setItems(data.map((r: Record<string, unknown>, i: number) => normalizeItem(mapRow(r), i)))
       throw error
     }
+  }
+
+  // ── People (capacidade individual) ─────────────────────────────────────────
+  async function updatePerson(id: string, patch: { weeklyCapacityHours?: number; active?: boolean }) {
+    const row: Record<string, unknown> = {}
+    if (patch.weeklyCapacityHours !== undefined) row.weekly_capacity_hours = patch.weeklyCapacityHours
+    if (patch.active !== undefined) row.active = patch.active
+    const { error } = await supabase.from('people').update(row).eq('id', id)
+    if (error) { showToast(`Erro ao atualizar pessoa: ${error.message}`); return }
+    setPeople(prev => patch.active === false
+      ? prev.filter(p => p.id !== id)
+      : prev.map(p => p.id === id ? { ...p, ...patch } : p))
+  }
+
+  async function createPerson(name: string): Promise<Person | null> {
+    const trimmed = name.trim()
+    if (!trimmed) return null
+    const { data, error } = await supabase.from('people').insert({ name: trimmed }).select().single()
+    if (error || !data) { showToast(`Erro ao criar pessoa: ${error?.message ?? 'sem retorno'}`); return null }
+    const person: Person = {
+      id: data.id as string, name: data.name as string,
+      weeklyCapacityHours: Number(data.weekly_capacity_hours ?? 30),
+      active: true, userId: (data.user_id as string) ?? null,
+    }
+    setPeople(prev => [...prev, person].sort((a, b) => a.name.localeCompare(b.name)))
+    return person
   }
 
   /** Map snake_case DB row to camelCase Item */
@@ -1263,7 +1297,7 @@ export default function AppPage() {
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
-      {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
+      {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} people={people} onUpdatePerson={updatePerson} onCreatePerson={createPerson} canManage={canManagePeople(profile?.role)} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} items={items} userProfiles={userProfiles} profile={profile} />}
       {view === 'okrs' && (
         <OKRsView
@@ -1319,6 +1353,30 @@ export default function AppPage() {
               <button className="btn square" onClick={closeModal} aria-label="Fechar"><X size={18} /></button>
             </div>
             <div className="modal-body">
+              {/* Por quê do risco — decomposição do score composto (5 fatores ponderados) */}
+              {modalItem && (() => {
+                const rs = riskScore(modalItem, items)
+                if (!rs) return null
+                return (
+                  <div className="card" style={{ marginBottom: 14 }}>
+                    <div className="card-body" style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Badge label={`Risco ${rs.score} · ${rs.band}`} tone={riskBandTone(rs.band)} />
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{rs.mainReason}</span>
+                      </div>
+                      {rs.factors.map(f => (
+                        <div key={f.key} style={{ display: 'grid', gridTemplateColumns: '128px 1fr auto', gap: 10, alignItems: 'center', fontSize: 12 }}>
+                          <span style={{ color: 'var(--muted)' }}>{f.label} · {Math.round(f.weight * 100)}%</span>
+                          <span style={{ position: 'relative', height: 6, background: 'var(--line, #e5e9f0)', borderRadius: 4, overflow: 'hidden' }}>
+                            <span style={{ position: 'absolute', inset: 0, width: `${f.raw}%`, background: 'var(--ink, #0b1f3a)', borderRadius: 4 }} />
+                          </span>
+                          <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>{f.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
               <form onSubmit={submitModal}>
                 <div className="form-grid">
                   <label>Produto/cliente
