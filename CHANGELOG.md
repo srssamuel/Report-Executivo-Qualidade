@@ -4,6 +4,40 @@ Todas as mudanças relevantes do Report Executivo Qualidade são documentadas aq
 Formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.4.0] - 2026-06-11
+
+> Consolida tudo o que foi entregue desde 0.3.0 (detalhe por entrega em `MEMORY.md`).
+
+### Adicionado
+
+- Módulo de OKRs dos gerentes: apuração trimestral (Q1–Q4), fila de homologação com
+  re-pendência automática, recontratação de trimestre e 1:1 Hub
+- Bloco Desenvolvimento: avaliação Perfil Vértice (108 questões + laudo emitido por IA),
+  atas de 1:1 com resumo inteligente, PDI com workspace de contexto e Mapa de Perfil do Time
+- Gestão completa de usuários: criação direta, edição, reset de senha pelo admin e
+  hierarquia por gestor imediato (`manager_id`)
+- Capacidade individual por pessoa (tabela `people`) + telemetria de uso (aderência
+  com faróis por nível na aba Executivo)
+- Score de risco composto de 5 fatores explicáveis (prazo, status, progresso,
+  atualização, dependência)
+- Testes de domínio (Vitest) para canonicalização de nomes, trimestres OKR, cálculo de
+  atingimento e governança de itens — etapa `Test` no CI
+- Proteção contra senha vazada (HIBP k-anonymity) no fluxo de definição de senha
+
+### Corrigido
+
+- RLS de lançamento de OKR (escrita pelo dono via `responsavel_user_id`, não por nome)
+- Policy de INSERT de `item_comments` alinhada aos papéis com permissão de edição
+- Padronização de nomes de responsáveis pelo cadastro real (chokepoint `ownersOf`)
+
+### Removido
+
+- Código morto e duplicado: `lib/domain` (espelho defasado de `shared/domain`),
+  `shared/supabase` (cópia idêntica de `lib/supabase`), `app/(app)/charts.tsx` e
+  `app/admin/users/client.tsx` (órfãos) e scripts forenses de máquina local
+- Migration `011_revoke_trigger_rpc_exposure.sql` restaurada no repositório
+  (sequência 001 → 022 novamente reproduzível)
+
 ## [0.3.0] - 2026-05-20
 
 ### Adicionado

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/shared/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { AdminUsersClient } from '@/features/admin'
 
 export default async function AdminUsersPage() {
