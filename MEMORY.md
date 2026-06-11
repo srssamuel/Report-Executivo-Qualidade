@@ -15,6 +15,16 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-11 — Auditoria de consultoria: fontes únicas + testes + docs reais · integração Supabase↔Vercel vira dona das env vars
+
+- **Pedido (Samuel):** "consultor full desenvolvedor — avalie todo o projeto, decida por mim e vá até o final" (sessão remota Claude Code web).
+- **Causa-raiz diagnosticada do "parece que não entendeu":** CLAUDE.md/README descreviam estrutura inexistente (lib/domain como canon, 8 views, migrations até 011, links file:///D:/) + 4 duplicações de módulo confundindo cada sessão.
+- **PR #8 (squash `1912204`, produção):** remove código morto/duplicado (−1.832 linhas: `lib/domain` espelho defasado, `shared/supabase` byte-idêntico, `app/(app)/charts.tsx` e `app/admin/users/client.tsx` órfãos, 3 scripts forenses de máquina Windows); **migration 011 restaurada** (sequência 001→022 reproduzível); **+61 testes de domínio** (73 no CI: owners/quarters/okr/items); CLAUDE.md/README reescritos; CHANGELOG 0.4.0 + bump (aparece no `/api/health`). Inclui fix do smoke de preview (Deployment Protection responde 401 — agora aceito como "deploy vivo" só em preview) e actions checkout/setup-node v4→v5 (GitHub força Node 24 em 16/06).
+- **PR #9 (squash `577186b`, produção):** Samuel apontou o anti-padrão — o passo `Sync production env vars` do deploy.yml **recriava as env vars a cada deploy** e foi o que travou a integração Supabase↔Vercel ("variável já existe"). Passo removido por completo; pipeline só builda/deploya; `SUPABASE_SERVICE_ROLE_KEY` deixa de ser secret do GitHub. Docs atualizadas para o novo modelo.
+- **Painel (Samuel):** conectou a integração Supabase↔Vercel (projeto↔projeto), excluiu as 3 vars manuais de Production, marcou Preview na `OPENAI_API_KEY` e rodou o resync.
+- **Advisors pós-mudança (via MCP):** ⚠️ **ACHADO CRÍTICO NOVO — fora deste app:** ~24 tabelas `instai_*` no MESMO projeto Supabase estão **sem RLS** (nível ERROR), incluindo `instai_accounts` (expõe `access_token`/`refresh_token`), `instai_sessions` (`session_token`) e `instai_verification_tokens` (`token`) legíveis com a anon key pública. Regra vigente: não tocar em tabelas de outros projetos — **decisão pendente do Samuel** (é dele? habilitar RLS pode quebrar o app instai se ele usa anon key sem policies). `auth_leaked_password_protection` ainda constava WARN no advisor no momento da checagem. Demais WARNs (cvrg\_\* e SECURITY DEFINER) pré-existentes/documentados.
+- **Próximos (ordem de valor):** decidir RLS das `instai_*` · E2E Playwright (login, lançamento OKR, homologação) · passe a11y nos modais profundos (1:1/PDI/capacidade) · `docs/architecture.md` e `docs/api.md` no padrão novo.
+
 ### 2026-06-04 (f) — Prévia ilustrativa do Mapa de Perfil (validar formato com dashboard vazio)
 
 - **Samuel:** confirmou que a avaliação científica é **auto-administrada** (só a própria pessoa responde — não estender escrita do gestor) e que o pedido é a **visualização dos resultados em dashboard** (o "Mapa de Perfil do Time" já entregue em d).
