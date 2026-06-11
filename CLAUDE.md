@@ -37,6 +37,12 @@
 - Lint → Typecheck → **Test (vitest)** → Build
 - Roda em push (`main`, `claude/**`, `integ/**`) + PRs para main
 
+### E2E (`.github/workflows/e2e.yml`)
+
+- Playwright contra build local + Supabase real: login, navegação nas 10 views (screenshots como artefatos), varredura a11y (axe-core, falha em violação crítica), /admin/users
+- **Usuário QA efêmero**: criado pelo global-setup via `SUPABASE_SERVICE_ROLE_KEY` (secret) e apagado no teardown — sem credencial fixa
+- Roda em PRs para main + push (`claude/**`, `integ/**`) + manual
+
 ### Deploy (`.github/workflows/deploy.yml`)
 
 - Push em `main` → produção · Push em `claude/**` → preview · `workflow_dispatch` → manual
@@ -97,6 +103,7 @@ npm run dev          # Dev server (Turbopack)
 npm run build        # Build produção
 npm run lint         # ESLint
 npm test             # Vitest (testes de domínio)
+npm run e2e          # Playwright (precisa de SUPABASE_SERVICE_ROLE_KEY no env)
 npx tsc --noEmit     # Typecheck
 ```
 

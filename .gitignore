@@ -34,3 +34,8 @@ npm-debug.log*
 
 # QA visual scratch (screenshots + temp credentials — nunca versionar)
 .playwright-tmp/
+
+# Playwright E2E (artefatos + credencial efêmera do usuário QA)
+/test-results/
+/playwright-report/
+/e2e/.qa-user.json

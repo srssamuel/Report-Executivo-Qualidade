@@ -12,6 +12,13 @@ export default tseslint.config(
     },
   },
   {
+    // E2E roda em Node e usa console.log de propósito (log do CI é o relatório).
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     ignores: ['.next/**', 'node_modules/**', 'scripts/**', 'supabase/**', 'public/**', '*.js', '*.mjs', '*.config.ts'],
   }
 )
