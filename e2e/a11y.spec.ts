@@ -19,6 +19,12 @@ test.describe('Acessibilidade (axe-core)', () => {
         const line = `[${label}] ${v.impact ?? 'n/d'}: ${v.id} — ${v.nodes.length} nó(s) — ${v.help}`
         // Tudo vai para o log do CI (base da crítica completa); só critical bloqueia.
         console.log(line)
+        // Para serious+, detalha seletor e causa — é o endereço da correção.
+        if (v.impact === 'critical' || v.impact === 'serious') {
+          for (const node of v.nodes.slice(0, 10)) {
+            console.log(`    ↳ ${node.target.join(' ')} :: ${node.failureSummary?.replace(/\n\s*/g, ' | ') ?? ''}`)
+          }
+        }
         if (v.impact === 'critical') critical.push(line)
       }
     }
