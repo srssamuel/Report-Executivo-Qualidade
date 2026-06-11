@@ -27,8 +27,8 @@
 
 - **Team:** `DataCX-AGI` (slug `srssamueldatacx-agi`, id `team_8fyhRYXjuzjs3ByUQTtPJNbL`)
 - **Projeto:** `report-executivo-qualidade` (id `prj_KgJ92OeoCACarNQzzfLrR5U65zRk`)
-- **Env vars:** SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY, OPENAI_API_KEY (production)
-- **Atenção:** o ambiente Preview NÃO tem as `NEXT_PUBLIC_SUPABASE_*` — previews da integração git falham no prerender; o deploy via GitHub Actions funciona.
+- **Env vars do Supabase:** gerenciadas pela **integração Supabase↔Vercel** (painel Supabase → Integrações → Vercel) em todos os ambientes. O pipeline NÃO cria/recria variáveis.
+- **OPENAI_API_KEY:** manual no painel Vercel (Production + Preview).
 
 ## CI/CD
 
@@ -44,12 +44,13 @@
 
 ### Secrets necessários (GitHub Settings → Secrets)
 
-| Secret                      | Obrigatório         | Para que serve   |
-| --------------------------- | ------------------- | ---------------- |
-| `VERCEL_TOKEN`              | Sim                 | Deploy na Vercel |
-| `SUPABASE_SERVICE_ROLE_KEY` | Para invite flow    | `/api/admin/*`   |
-| `VERCEL_ORG_ID`             | Auto após 1º deploy | ID da org        |
-| `VERCEL_PROJECT_ID`         | Auto após 1º deploy | ID do projeto    |
+| Secret              | Obrigatório         | Para que serve   |
+| ------------------- | ------------------- | ---------------- |
+| `VERCEL_TOKEN`      | Sim                 | Deploy na Vercel |
+| `VERCEL_ORG_ID`     | Auto após 1º deploy | ID da org        |
+| `VERCEL_PROJECT_ID` | Auto após 1º deploy | ID do projeto    |
+
+> `SUPABASE_SERVICE_ROLE_KEY` não é mais secret do GitHub — chega ao runtime via integração Supabase↔Vercel.
 
 ## Estrutura do código (mapa real)
 
