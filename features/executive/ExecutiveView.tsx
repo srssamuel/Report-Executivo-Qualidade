@@ -15,7 +15,92 @@ import {
   dataGaps,
   dateFmt,
   ROLE_LABELS,
+  riskScore,
+  scoreOf,
+  daysToDue,
+  itemRemainingEffort,
 } from '@/shared/domain'
+import { createClient } from '@/lib/supabase/client'
+
+// ── Faixa de KPIs com tendência (delta vs snapshot ≥6 dias) ─────────────────
+
+interface Snapshot {
+  day: string
+  critical: number
+  on_time_pct: number
+  freshness_pct: number
+  access_adherence_pct: number
+  health: number
+  effort_hours: number
+}
+
+function Delta({ now, then, invert = false, suffix = '' }: { now: number; then: number | null; invert?: boolean; suffix?: string }) {
+  if (then === null) return <small style={{ color: 'var(--muted)' }}>tendência em formação</small>
+  const diff = Math.round(now - then)
+  if (diff === 0) return <small style={{ color: 'var(--muted)' }}>estável vs 7d</small>
+  const good = invert ? diff < 0 : diff > 0
+  return (
+    <small style={{ color: good ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+      {diff > 0 ? '▲' : '▼'} {Math.abs(diff)}{suffix} vs 7d
+    </small>
+  )
+}
+
+function KpiTrendStrip({ items }: { items: Item[] }) {
+  const [baseline, setBaseline] = useState<Snapshot | null>(null)
+  const [todaySnap, setTodaySnap] = useState<Snapshot | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('portfolio_snapshots')
+      .select('day, critical, on_time_pct, freshness_pct, access_adherence_pct, health, effort_hours')
+      .order('day', { ascending: false })
+      .limit(30)
+      .then(({ data }) => {
+        if (!data?.length) return
+        const snaps = data as Snapshot[]
+        setTodaySnap(snaps[0])
+        const cutoff = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
+        // baseline = snapshot mais recente com pelo menos 6 dias de idade
+        const base = snaps.find(s => s.day <= cutoff)
+        if (base) setBaseline(base)
+      })
+  }, [])
+
+  const active = items.filter(it => !it.archived && !isDone(it))
+  const scored = active.map(it => riskScore(it, items)).filter((r): r is NonNullable<typeof r> => r !== null)
+  const critical = scored.filter(r => r.band === 'Crítico').length
+  const overdue = active.filter(it => (daysToDue(it.dueDate) ?? 1) < 0).length
+  const onTimePct = active.length ? Math.round(((active.length - overdue) / active.length) * 100) : 100
+  const fresh = active.filter(it => it.lastUpdate && Date.now() - new Date(it.lastUpdate).getTime() <= 7 * 86400000).length
+  const freshnessPct = active.length ? Math.round((fresh / active.length) * 100) : 100
+  const notArchived = items.filter(it => !it.archived)
+  const health = notArchived.length ? Math.round(notArchived.reduce((s, i) => s + scoreOf(i), 0) / notArchived.length) : 0
+  const effort = Math.round(active.reduce((s, i) => s + itemRemainingEffort(i), 0))
+  const adherence = todaySnap?.access_adherence_pct ?? null
+
+  const kpis: { label: string; value: string; now: number; then: number | null; invert?: boolean; suffix?: string }[] = [
+    { label: 'Saúde da carteira', value: `${health}`, now: health, then: baseline?.health ?? null },
+    { label: 'Frentes críticas', value: `${critical}`, now: critical, then: baseline?.critical ?? null, invert: true },
+    { label: 'No prazo', value: `${onTimePct}%`, now: onTimePct, then: baseline?.on_time_pct ?? null, suffix: 'pp' },
+    { label: 'Freshness ≤7d', value: `${freshnessPct}%`, now: freshnessPct, then: baseline?.freshness_pct ?? null, suffix: 'pp' },
+    { label: 'Aderência de acesso', value: adherence !== null ? `${Math.round(adherence)}%` : '—', now: adherence ?? 0, then: adherence !== null ? (baseline?.access_adherence_pct ?? null) : null, suffix: 'pp' },
+    { label: 'Esforço restante', value: `${effort}h`, now: effort, then: baseline?.effort_hours ?? null, invert: true, suffix: 'h' },
+  ]
+
+  return (
+    <div className="grid three" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+      {kpis.map(k => (
+        <div key={k.label} className="impact-box">
+          <span>{k.label}</span>
+          <strong>{k.value}</strong>
+          <Delta now={k.now} then={k.then} invert={k.invert} suffix={k.suffix} />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 interface ExecutiveViewProps {
   filtered: Item[]
@@ -526,6 +611,9 @@ export function ExecutiveView({ filtered, filters, items, userProfiles, profile 
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      {/* KPIs com tendência — alimentados pelos snapshots diários (lib/tracking) */}
+      <KpiTrendStrip items={items} />
+
       <div className="card">
         <div className="card-head">
           <div>
