@@ -7,6 +7,7 @@ import {
   itemRemainingEffort,
   itemStart,
   ownerLoad,
+  ownersOf,
   capacityTone,
   productTone,
   riskOf,
@@ -66,6 +67,48 @@ export function CapacityView({
   const loadEntries = Object.entries(load).sort((a, b) => b[1] - a[1])
   const totalEffort = activItems.reduce((s, i) => s + itemRemainingEffort(i), 0)
   const deps = filtered.filter(i => i.predecessorId || i.dependencyNote)
+
+  /* ── A foto do time (redesign §6) ────────────────────────────────── */
+  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, ' ').trim()
+  const capOf = (owner: string) =>
+    people.find(pp => norm(pp.name) === norm(owner))?.weeklyCapacityHours ?? (weeklyCapacity > 0 ? weeklyCapacity : 30)
+
+  // Matriz Pessoa × Demandante: o esforço de cada pessoa quebrado por produto/cliente
+  const demandMatrix: Record<string, Record<string, number>> = {}
+  const demandTotals: Record<string, number> = {}
+  activItems.forEach(it => {
+    const owners = ownersOf(it.owner)
+    const targets = owners.length ? owners : ['Sem responsável']
+    const share = itemRemainingEffort(it) / targets.length
+    const prod = it.product ?? 'Sem produto'
+    demandTotals[prod] = (demandTotals[prod] ?? 0) + itemRemainingEffort(it)
+    targets.forEach(o => {
+      if (!demandMatrix[o]) demandMatrix[o] = {}
+      demandMatrix[o][prod] = (demandMatrix[o][prod] ?? 0) + share
+    })
+  })
+  const demandCols = Object.entries(demandTotals).sort((a, b) => b[1] - a[1]).map(([prd]) => prd)
+  const demandMax = Math.max(1, ...Object.values(demandMatrix).flatMap(row => Object.values(row)))
+
+  // Composição por tipo de rotina: as tags do item como taxonomia de atividade
+  const typeLoad: Record<string, number> = {}
+  activItems.forEach(it => {
+    const tipo = it.tags.length ? it.tags[0] : 'Sem tipo'
+    typeLoad[tipo] = (typeLoad[tipo] ?? 0) + itemRemainingEffort(it)
+  })
+  const typeEntries = Object.entries(typeLoad).sort((a, b) => b[1] - a[1])
+  const typeMax = Math.max(1, ...typeEntries.map(([, h]) => h))
+
+  // Semáforo de disponibilidade: quem pode receber demanda nova
+  const availability = loadEntries
+    .filter(([owner]) => owner !== 'Sem responsável')
+    .map(([owner, h]) => {
+      const cap = capOf(owner)
+      const pct = Math.round((h / cap) * 100)
+      const free = Math.max(0, Math.round(cap - h))
+      return { owner, h, cap, pct, free }
+    })
+    .sort((a, b) => a.pct - b.pct)
 
   // Gantt
   const ganttRows = filtered.filter(i => i.dueDate || itemStart(i)).filter(i => !isDone(i)).slice(0, 60)
@@ -180,6 +223,99 @@ export function CapacityView({
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* A foto do time: quem é consumido por quem + tipos + disponibilidade */}
+      <div className="grid two">
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Pessoa × Demandante</h3>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>horas restantes por produto/cliente</span>
+          </div>
+          <div className="card-body" style={{ overflowX: 'auto' }}>
+            {availability.length === 0 ? (
+              <div className="empty">Sem esforço alocado no recorte atual.</div>
+            ) : (
+              <table className="table" style={{ minWidth: 360 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Pessoa</th>
+                    {demandCols.map(prd => <th key={prd} style={{ textAlign: 'center', fontSize: 11 }}>{prd}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {availability.map(({ owner }) => (
+                    <tr key={owner}>
+                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{owner}</td>
+                      {demandCols.map(prd => {
+                        const h = Math.round(demandMatrix[owner]?.[prd] ?? 0)
+                        return (
+                          <td key={prd} style={{ textAlign: 'center', padding: 4 }}>
+                            {h > 0 ? (
+                              <span style={{
+                                display: 'inline-block', minWidth: 38, padding: '4px 6px', borderRadius: 6,
+                                fontWeight: 700, fontSize: 12, color: 'var(--text-title, #0b1f3a)',
+                                background: `rgba(30, 96, 213, ${Math.min(0.5, 0.1 + 0.4 * (h / demandMax))})`,
+                              }}>{h}h</span>
+                            ) : (
+                              <span style={{ color: 'var(--line)', fontSize: 12 }}>·</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              Revela os principais demandantes de cada pessoa — intensidade = horas.
+            </p>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Disponibilidade e tipos de atividade</h3>
+          </div>
+          <div className="card-body" style={{ display: 'grid', gap: 14 }}>
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontSize: 12 }}>Quem pode receber demanda nova</h4>
+              {availability.length === 0 ? (
+                <div className="empty">Sem alocações no recorte.</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 4 }}>
+                  {availability.map(({ owner, pct, free }) => (
+                    <div key={owner} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                      <span aria-hidden="true">{pct >= 115 ? '🔴' : pct >= 85 ? '🟡' : '🟢'}</span>
+                      <b style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{owner}</b>
+                      <span style={{ color: 'var(--muted)' }}>
+                        {pct >= 115 ? `${pct}% — acima do limite` : pct >= 85 ? `${pct}% — no limite` : `${free}h livres na semana`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontSize: 12 }}>Composição por tipo de atividade <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(tags dos itens)</span></h4>
+              <div className="capacity-bars">
+                {typeEntries.map(([tipo, h]) => (
+                  <div key={tipo} className="capacity-row">
+                    <b title={tipo}>{tipo}</b>
+                    <div className="capacity-track"><i style={{ width: `${Math.round((h / typeMax) * 100)}%` }} /></div>
+                    <small>{Math.round(h)}h</small>
+                  </div>
+                ))}
+              </div>
+              {typeEntries.length === 1 && typeEntries[0][0] === 'Sem tipo' && (
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                  Dica: marque os itens com tags como Projeto, Rotina ou Incidente para quebrar a carga por tipo.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
