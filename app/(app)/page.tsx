@@ -15,7 +15,7 @@ import {
   extractMentions,
   filteredItems, sortItems,
   riskOf,
-  scoreOf, dataGaps, isDone, ownersOf, setCanonicalOwners,
+  scoreOf, dataGaps, isDone, ownersOf, setCanonicalOwners, canonicalizeOwner,
   dateFmt,
   itemEffort, itemRemainingEffort, itemStart,
   urgencyCandidateScore, recommendationType,
@@ -72,17 +72,23 @@ export default function AppPage() {
   const [tableDense, setTableDense] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
 
-  // ── Notificações in-app (@menções) ──
+  // ── Notificações in-app (@menções, atribuições, homologações) ──
   interface AppNotification {
     id: string
     kind: string
-    payload: { item_id?: string; author?: string; excerpt?: string } | null
+    payload: { item_id?: string; author?: string; excerpt?: string; okr?: string; mes?: string } | null
     read_at: string | null
     created_at: string
   }
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLSpanElement>(null)
   const unreadCount = notifications.filter(n => !n.read_at).length
+  /** Recarrega ao abrir o sino: notificações novas chegam sem F5. */
+  async function refreshNotifications() {
+    const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(30)
+    if (data) setNotifications(data as AppNotification[])
+  }
   async function markNotifRead(id: string) {
     const now = new Date().toISOString()
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read_at: now } : n))
@@ -95,6 +101,20 @@ export default function AppPage() {
     setNotifications(prev => prev.map(n => n.read_at ? n : { ...n, read_at: now }))
     await supabase.from('notifications').update({ read_at: now }).in('id', ids)
   }
+  // Esc ou clique fora fecham o painel do sino.
+  useEffect(() => {
+    if (!notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNotifOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [notifOpen])
   /** Drill-down dos KPIs: aplica o recorte e leva para a view de detalhe. */
   const drillTo = useCallback((partial: Partial<Filters>, target: ViewId = 'portfolio') => {
     setFilters({ ...EMPTY_FILTERS, ...partial })
@@ -363,6 +383,29 @@ export default function AppPage() {
     [items, filters.product]
   )
 
+  // ── Autocomplete de @menção no comentário ──────────────────────────────────
+  // Sugere nomes do cadastro enquanto o token após "@" é digitado; o clique
+  // insere o MENOR token que resolve sem ambiguidade no canonicalizeOwner
+  // (o extractMentions não captura espaços, então "@Pedro" > "@Pedro Almeida").
+  const mentionQuery = useMemo(() => {
+    const m = String(form.commentText ?? '').match(/@([\p{L}\d._-]*)$/u)
+    return m ? m[1] : null
+  }, [form.commentText])
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return []
+    const q = mentionQuery.toLowerCase()
+    return userProfiles
+      .map(u => u.full_name)
+      .filter((n): n is string => !!n && n.toLowerCase().includes(q))
+      .slice(0, 5)
+  }, [mentionQuery, userProfiles])
+  function applyMention(fullName: string) {
+    const words = fullName.split(/\s+/)
+    const token = words.find(w => canonicalizeOwner(w) === fullName) ?? words[0]
+    setForm(f => ({ ...f, commentText: String(f.commentText ?? '').replace(/@[\p{L}\d._-]*$/u, `@${token} `) }))
+    commentTextareaRef.current?.focus()
+  }
+
   // ── Persist to Supabase ───────────────────────────────────────────────────
   async function saveItem(payload: Item) {
     const { data: { user } } = await supabase.auth.getUser()
@@ -457,6 +500,23 @@ export default function AppPage() {
     }
   }
 
+  /** Notifica no sino quem ENTROU na lista de responsáveis de um item. */
+  async function notifyAssignment(itemId: string, oldOwner: string | undefined, newOwner: string | undefined, actorId: string | undefined) {
+    const before = new Set(ownersOf(oldOwner))
+    const added = ownersOf(newOwner).filter(o => !before.has(o))
+    const targets = added
+      .map(name => userProfiles.find(u => u.full_name === name))
+      .filter((u): u is UserProfile => !!u && u.id !== actorId)
+    if (!targets.length) return
+    const authorName = profile?.full_name || profile?.email || 'Alguém'
+    const { error } = await supabase.from('notifications').insert(targets.map(u => ({
+      user_id: u.id,
+      kind: 'assignment',
+      payload: { item_id: itemId, author: authorName },
+    })))
+    if (error) console.error('[atribuição]', error.message)
+  }
+
   async function updateField(id: string, field: keyof Item, value: unknown) {
     const it = items.find(x => x.id === id)
     if (!it) return
@@ -473,6 +533,7 @@ export default function AppPage() {
         old_value: String(it[field] ?? ''), new_value: String(value ?? ''),
       })
     }
+    if (field === 'owner') await notifyAssignment(id, it.owner, value as string | undefined, user?.id)
   }
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
@@ -499,8 +560,9 @@ export default function AppPage() {
     e.preventDefault()
     const isNew = modalId === 'new'
     const id = isNew ? nextId(items) : modalId as string
+    const before = isNew ? undefined : items.find(x => x.id === id)
     const payload = normalizeItem({
-      ...(isNew ? {} : items.find(x => x.id === id)),
+      ...(before ?? {}),
       ...form,
       id,
       tags: String(form.tagsRaw ?? '').split(',').map(x => x.trim()).filter(Boolean),
@@ -514,6 +576,32 @@ export default function AppPage() {
       setItems(prev => prev.map(i => i.id === id ? payload : i))
     }
     await saveItem(payload)
+
+    // Trilha de auditoria também no caminho do modal: o updateField inline já
+    // gravava item_history, mas a edição pelo formulário (o caminho principal)
+    // pulava o registro — diffs campo a campo entram aqui.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user && before) {
+      const TRACKED: (keyof Item)[] = [
+        'dueDate', 'originalDate', 'startDate', 'project', 'demand', 'definition',
+        'owner', 'status', 'priority', 'progress', 'nextAction', 'executiveComment',
+        'product', 'effortHours', 'teamSize', 'predecessorId', 'dependencyNote', 'tags',
+      ]
+      const changes = TRACKED
+        .filter(f => String(before[f] ?? '') !== String(payload[f] ?? ''))
+        .map(f => ({
+          item_id: id, changed_by: user.id, field: f,
+          old_value: String(before[f] ?? ''), new_value: String(payload[f] ?? ''),
+        }))
+      if (changes.length) {
+        const { error: hErr } = await supabase.from('item_history').insert(changes)
+        if (hErr) console.error('[histórico]', hErr.message)
+      }
+    }
+    if (payload.owner && payload.owner !== before?.owner) {
+      await notifyAssignment(id, before?.owner, payload.owner, user?.id)
+    }
+
     showToast('Atualização salva.')
     closeModal()
   }
@@ -766,6 +854,18 @@ export default function AppPage() {
     if (data) {
       setOkrMeasurements(prev => prev.map(m => m.id === measurementId ? (data as OKRMeasurement) : m))
       showToast(audited ? 'Lançamento homologado.' : 'Auditoria atualizada.')
+
+      // Avisa o dono do OKR no sino quando o lançamento dele é homologado.
+      const m = data as OKRMeasurement
+      const target = okrTargets.find(t => t.id === m.okr_id)
+      if (audited && target?.responsavel_user_id && target.responsavel_user_id !== user?.id) {
+        const authorName = profile?.full_name || profile?.email || 'Superintendência'
+        supabase.from('notifications').insert({
+          user_id: target.responsavel_user_id,
+          kind: 'okr_audited',
+          payload: { okr: target.id_okr, mes: m.mes, author: authorName, excerpt: feedback ? feedback.slice(0, 140) : undefined },
+        }).then(({ error: nErr }) => { if (nErr) console.error('[homologação]', nErr.message) })
+      }
     }
   }
 
@@ -1274,12 +1374,12 @@ export default function AppPage() {
           <button className="btn small ghost theme-toggle" onClick={toggleDarkMode} title={darkMode ? 'Modo claro' : 'Modo escuro'}>
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <span ref={notifRef} style={{ position: 'relative', display: 'inline-flex' }}>
             <button
               className="btn small ghost"
               aria-label={unreadCount ? `Notificações: ${unreadCount} não lida(s)` : 'Notificações'}
               title="Notificações"
-              onClick={() => setNotifOpen(o => !o)}
+              onClick={() => setNotifOpen(o => { if (!o) refreshNotifications(); return !o })}
               style={{ position: 'relative' }}
             >
               <Bell size={16} />
@@ -1297,18 +1397,29 @@ export default function AppPage() {
                 </div>
                 {notifications.length === 0 ? (
                   <p style={{ margin: 0, padding: '8px 6px', fontSize: 12, color: 'var(--muted)' }}>
-                    Nada por aqui — você será avisado quando alguém te mencionar com @ num comentário.
+                    Nada por aqui — você será avisado quando alguém te mencionar com @, te atribuir um item ou homologar seu OKR.
                   </p>
                 ) : (
                   notifications.map(n => (
                     <button
                       key={n.id}
                       type="button"
-                      onClick={() => { markNotifRead(n.id); setNotifOpen(false); if (n.payload?.item_id) openModal(n.payload.item_id) }}
+                      onClick={() => {
+                        markNotifRead(n.id)
+                        setNotifOpen(false)
+                        if (n.payload?.item_id) openModal(n.payload.item_id)
+                        else if (n.kind === 'okr_audited') setView('okrs')
+                      }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', background: n.read_at ? 'transparent' : 'rgba(30,96,213,0.06)', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', font: 'inherit', marginBottom: 2 }}
                     >
                       <span style={{ display: 'block', fontSize: 12 }}>
-                        <strong>{n.payload?.author ?? 'Alguém'}</strong> mencionou você{n.payload?.item_id ? ` em ${n.payload.item_id}` : ''}
+                        {n.kind === 'assignment' ? (
+                          <><strong>{n.payload?.author ?? 'Alguém'}</strong> atribuiu {n.payload?.item_id ?? 'um item'} a você</>
+                        ) : n.kind === 'okr_audited' ? (
+                          <><strong>{n.payload?.author ?? 'Superintendência'}</strong> homologou {n.payload?.okr ?? 'seu OKR'}{n.payload?.mes ? ` (${n.payload.mes})` : ''}</>
+                        ) : (
+                          <><strong>{n.payload?.author ?? 'Alguém'}</strong> mencionou você{n.payload?.item_id ? ` em ${n.payload.item_id}` : ''}</>
+                        )}
                       </span>
                       {n.payload?.excerpt && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>“{n.payload.excerpt}”</span>}
                       <span style={{ display: 'block', fontSize: 10, color: 'var(--muted-2)', marginTop: 2 }}>
@@ -1564,7 +1675,16 @@ export default function AppPage() {
                           {['Comentário','Decisão','Risco','Atualização','Bloqueio'].map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
-                      <textarea ref={commentTextareaRef} rows={2} placeholder="Adicionar comentário…" value={form.commentText ?? ''} onChange={e => setForm(f => ({ ...f, commentText: e.target.value }))} />
+                      <textarea ref={commentTextareaRef} rows={2} placeholder="Adicionar comentário… use @nome para notificar alguém" value={form.commentText ?? ''} onChange={e => setForm(f => ({ ...f, commentText: e.target.value }))} />
+                      {mentionSuggestions.length > 0 && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }} role="group" aria-label="Sugestões de menção">
+                          {mentionSuggestions.map(name => (
+                            <button key={name} type="button" className="btn small ghost" onClick={() => applyMention(name)}>
+                              @{name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="modal-form-actions-end">
                         <button className="btn small primary" type="button" onClick={addComment}>Registrar</button>
                       </div>
