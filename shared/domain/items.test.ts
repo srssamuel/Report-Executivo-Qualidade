@@ -12,7 +12,7 @@ function mk(over: Partial<Item> = {}): Item {
 }
 
 function mkFilters(over: Partial<Filters> = {}): Filters {
-  return { query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'due', criticalOnly: false, ...over }
+  return { query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'due', criticalOnly: false, gapsOnly: false, ...over }
 }
 
 beforeEach(() => setCanonicalOwners([]))
@@ -116,6 +116,17 @@ describe('filteredItems', () => {
   it('busca textual varre projeto/demanda/definição/produto', () => {
     const list = [mk({ id: 'A', demand: 'Migração Nubank' }), mk({ id: 'B', demand: 'Outra coisa' })]
     expect(filteredItems(list, mkFilters({ query: 'nubank' })).map(i => i.id)).toEqual(['A'])
+  })
+
+  it('gapsOnly mantém só itens ativos com lacunas de governança', () => {
+    const completo = mk({
+      id: 'OK', product: 'Vivo', dueDate: isoDate(addDays(new Date(), 10)), owner: 'Ana',
+      definition: 'Definição', nextAction: 'Ação', progress: 40,
+    })
+    const comLacuna = mk({ id: 'GAP', owner: '', dueDate: '' })
+    const concluido = mk({ id: 'DONE', status: 'Concluído', owner: '', dueDate: '' })
+    const out = filteredItems([completo, comLacuna, concluido], mkFilters({ gapsOnly: true }))
+    expect(out.map(i => i.id)).toEqual(['GAP'])
   })
 
   it('foco crítico mantém só Bloqueado/Atrasado/Vence hoje', () => {

@@ -39,6 +39,11 @@ import { DevelopmentView } from '@/features/development'
 
 type ViewId = 'dashboard' | 'portfolio' | 'board' | 'risks' | 'timeline' | 'capacity' | 'executive' | 'okrs' | 'development' | 'archived'
 
+/** Fonte única do estado limpo de filtros (estado inicial, botão Limpar e drill-down). */
+const EMPTY_FILTERS: Filters = {
+  query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'dueAsc', criticalOnly: false, gapsOnly: false,
+}
+
 const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
   { id: 'portfolio', label: 'Carteira', icon: <Briefcase size={16} /> },
@@ -64,9 +69,13 @@ export default function AppPage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [uiLayout, setUiLayout] = useState<'standard' | 'wide' | 'ultra'>('wide')
   const [tableDense, setTableDense] = useState(false)
-  const [filters, setFilters] = useState<Filters>({
-    query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'dueAsc', criticalOnly: false,
-  })
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  /** Drill-down dos KPIs: aplica o recorte e leva para a view de detalhe. */
+  const drillTo = useCallback((partial: Partial<Filters>, target: ViewId = 'portfolio') => {
+    setFilters({ ...EMPTY_FILTERS, ...partial })
+    setView(target)
+  }, [])
+
   const [weeklyCapacity, setWeeklyCapacity] = useState(30)
   const [people, setPeople] = useState<Person[]>([])
   const [urgentForm, setUrgentForm] = useState({ product: 'Vivo', title: '', owner: '', effort: 16, dueDate: '', reason: '' })
@@ -1260,7 +1269,8 @@ export default function AppPage() {
         </select>
         <div className="toolbar-actions">
           <button className={`btn small ${filters.criticalOnly ? 'dark' : ''}`} onClick={() => setFilters(f => ({ ...f, criticalOnly: !f.criticalOnly }))}>🔴 Críticos</button>
-          <button className="btn small ghost" onClick={() => setFilters({ query: '', product: '', project: '', owner: '', status: '', risk: '', sort: 'dueAsc', criticalOnly: false })}>Limpar</button>
+          <button className={`btn small ${filters.gapsOnly ? 'dark' : ''}`} onClick={() => setFilters(f => ({ ...f, gapsOnly: !f.gapsOnly }))}>🟡 Lacunas</button>
+          <button className="btn small ghost" onClick={() => setFilters(EMPTY_FILTERS)}>Limpar</button>
           {canEditItems && <button className="btn small" onClick={bulkSetProduct}>Marcar produto</button>}
         </div>
       </div>
@@ -1292,7 +1302,7 @@ export default function AppPage() {
       </div>
 
       {/* ── Views ────────────────────────────────────────────── */}
-      {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} okrTargets={okrTargets} okrMeasurements={okrMeasurements} isOkrFallback={isOkrFallback} weeklyCapacity={weeklyCapacity} />}
+      {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} okrTargets={okrTargets} okrMeasurements={okrMeasurements} isOkrFallback={isOkrFallback} weeklyCapacity={weeklyCapacity} onDrill={drillTo} />}
       {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProductList} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
       {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}

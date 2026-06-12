@@ -572,6 +572,8 @@ export interface Filters {
   risk: string
   sort: string
   criticalOnly: boolean
+  /** Apenas itens ativos com lacunas de governança (dataGaps > 0). */
+  gapsOnly: boolean
 }
 
 export function filteredItems(items: Item[], filters: Filters): Item[] {
@@ -584,6 +586,7 @@ export function filteredItems(items: Item[], filters: Filters): Item[] {
     if (filters.status && it.status !== filters.status) return false
     if (filters.risk && riskOf(it) !== filters.risk) return false
     if (filters.criticalOnly && !['Bloqueado','Atrasado','Vence hoje'].includes(riskOf(it))) return false
+    if (filters.gapsOnly && (isDone(it) || dataGaps(it).length === 0)) return false
     if (q) {
       const haystack = `${it.project} ${it.demand} ${it.owner} ${it.definition} ${it.nextAction} ${it.product}`.toLowerCase()
       if (!haystack.includes(q)) return false
