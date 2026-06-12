@@ -856,7 +856,7 @@ export function DevelopmentView({
           justifyContent: 'space-between',
           gap: 12,
           fontSize: 12,
-          color: '#d97706'
+          color: '#b45309'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={18} style={{ flexShrink: 0 }} />
@@ -1101,7 +1101,7 @@ export function DevelopmentView({
                           >
                             <span style={{
                               fontWeight: 700,
-                              color: answers[q.code] === opt.value ? 'var(--color-primary)' : '#94a3b8',
+                              color: answers[q.code] === opt.value ? 'var(--color-primary)' : 'var(--muted-2)',
                               backgroundColor: answers[q.code] === opt.value ? '#fff' : '#f1f5f9',
                               width: 22,
                               height: 22,
@@ -1130,7 +1130,7 @@ export function DevelopmentView({
                           <ChevronLeft size={16} /> Voltar
                         </button>
                         
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        <div style={{ fontSize: 11, color: 'var(--muted-2)' }}>
                           Rascunho salvo no navegador automaticamente.
                         </div>
 
@@ -1274,7 +1274,7 @@ export function DevelopmentView({
                         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                           <PolarGrid stroke="#e2e8f0" />
                           <PolarAngleAxis dataKey="domain" tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
-                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--muted-2)', fontSize: 10 }} />
                           <Radar name="Perfil Vértice" dataKey="score" stroke="var(--color-primary, #2563eb)" fill="var(--color-primary, #2563eb)" fillOpacity={0.3} />
                           <Tooltip formatter={(value) => [`${value} / 100`, 'Pontuação']} />
                         </RadarChart>
@@ -1555,7 +1555,7 @@ export function DevelopmentView({
                     >
                       <Play size={14} fill="#fff" /> Iniciar Avaliação de Perfil
                     </button>
-                    <p style={{ textAlign: 'center', margin: '10px 0 0 0', fontSize: 11, color: '#94a3b8' }}>
+                    <p style={{ textAlign: 'center', margin: '10px 0 0 0', fontSize: 11, color: 'var(--muted-2)' }}>
                       Progresso salvo automaticamente no navegador — você pode pausar e retomar.
                     </p>
                   </div>
@@ -1563,7 +1563,7 @@ export function DevelopmentView({
                 </div>
               ) : (
                 <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-                  <User size={32} style={{ color: '#94a3b8', marginBottom: 12 }} />
+                  <User size={32} style={{ color: 'var(--muted-2)', marginBottom: 12 }} />
                   <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: '#334155' }}>
                     Avaliação não realizada
                   </h4>
@@ -1699,7 +1699,7 @@ export function DevelopmentView({
 
           {collaboratorFeedbacks.length === 0 ? (
             <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px dashed #e2e8f0', backgroundColor: '#fafbfc' }}>
-              <Star size={24} style={{ color: '#94a3b8', marginBottom: 10 }} />
+              <Star size={24} style={{ color: 'var(--muted-2)', marginBottom: 10 }} />
               <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#475569' }}>Nenhum feedback registrado</h4>
               <p style={{ margin: '5px 0 0 0', fontSize: 11, color: '#64748b' }}>
                 Nenhuma ata de One-on-One cadastrada para {selectedCollaborator} no trimestre.
@@ -1788,7 +1788,7 @@ export function DevelopmentView({
                                       backgroundColor: pct !== null ? (pct >= 100 ? '#16a34a' : pct >= 70 ? '#2563eb' : '#d97706') : '#d97706'
                                     }} />
                                   </div>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : '#94a3b8' }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : 'var(--muted-2)' }}>
                                     {pct !== null ? `${pct}%` : 'S/M'}
                                   </span>
                                 </div>
@@ -1943,7 +1943,7 @@ export function DevelopmentView({
                 ) : (
                   <div style={{ textAlign: 'center', padding: '10px 0' }}>
                     <User size={20} style={{ color: '#cbd5e1', marginBottom: 6 }} />
-                    <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Avaliação não realizada</p>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted-2)' }}>Avaliação não realizada</p>
                     <button
                       onClick={() => setActiveTab('perfil')}
                       style={{ marginTop: 8, fontSize: 10, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4, margin: '8px auto 0' }}
@@ -1963,11 +1963,11 @@ export function DevelopmentView({
                       Últimas 1:1s
                     </span>
                   </div>
-                  <span style={{ fontSize: 9, color: '#94a3b8' }}>{collaboratorFeedbacks.length} reg.</span>
+                  <span style={{ fontSize: 9, color: 'var(--muted-2)' }}>{collaboratorFeedbacks.length} reg.</span>
                 </div>
 
                 {collaboratorFeedbacks.length === 0 ? (
-                  <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>Nenhuma ata registrada</p>
+                  <p style={{ fontSize: 11, color: 'var(--muted-2)', textAlign: 'center', margin: 0 }}>Nenhuma ata registrada</p>
                 ) : (
                   <>
                     {collaboratorFeedbacks.slice(0, 3).map((f, i) => (
@@ -1981,7 +1981,7 @@ export function DevelopmentView({
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#334155' }}>{f.feedback_type}</span>
-                          <span style={{ fontSize: 9, color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: 4 }}>
+                          <span style={{ fontSize: 9, color: 'var(--muted-2)', whiteSpace: 'nowrap', marginLeft: 4 }}>
                             {f.trimestre}
                           </span>
                         </div>
@@ -2017,7 +2017,7 @@ export function DevelopmentView({
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       OKRs Ativos
                     </span>
-                    <span style={{ marginLeft: 'auto', fontSize: 9, color: '#94a3b8' }}>{collaboratorOkrTargets.length} KRs</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--muted-2)' }}>{collaboratorOkrTargets.length} KRs</span>
                   </div>
                   {collaboratorOkrTargets.slice(0, 5).map(t => {
                     const measForTarget = collaboratorOkrMeasurements.filter(m => m.okr_id === t.id)
@@ -2037,11 +2037,11 @@ export function DevelopmentView({
                               transition: 'width 0.4s ease'
                             }} />
                           </div>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : '#94a3b8', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: pct !== null ? (pct >= 100 ? '#15803d' : pct >= 70 ? '#1d4ed8' : '#92400e') : 'var(--muted-2)', whiteSpace: 'nowrap' }}>
                             {pct !== null ? `${pct}%` : 'S/M'}
                           </span>
                         </div>
-                        <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+                        <div style={{ fontSize: 9, color: 'var(--muted-2)', marginTop: 2 }}>
                           {t.perspectiva} · {t.periodo} · Meta: {t.meta_exibida}
                         </div>
                       </div>
@@ -2099,7 +2099,7 @@ export function DevelopmentView({
                   {collaboratorPdis.map((pdi, idx) => {
                     const isExpanded = expandedPdis.has(pdi.id) || idx === 0
                     const isActive = pdi.status === 'Ativo'
-                    const statusColor = isActive ? 'var(--color-primary)' : pdi.status === 'Concluído' ? '#10b981' : '#94a3b8'
+                    const statusColor = isActive ? 'var(--color-primary)' : pdi.status === 'Concluído' ? '#10b981' : 'var(--muted-2)'
                     const statusBg = isActive ? '#eff6ff' : pdi.status === 'Concluído' ? '#dcfce7' : '#f1f5f9'
                     const statusText = isActive ? '#1d4ed8' : pdi.status === 'Concluído' ? '#15803d' : '#475569'
 
@@ -2163,7 +2163,7 @@ export function DevelopmentView({
                             <ChevronRight
                               size={14}
                               style={{
-                                color: '#94a3b8',
+                                color: 'var(--muted-2)',
                                 transform: isExpanded ? 'rotate(90deg)' : 'none',
                                 transition: 'transform 0.15s ease'
                               }}
@@ -2283,7 +2283,7 @@ export function DevelopmentView({
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>
                     Registrar Reunião de One-on-One
                   </h3>
-                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: 'var(--muted-2)' }}>
                     Ata de desenvolvimento · {selectedCollaborator}
                   </p>
                 </div>
@@ -2293,7 +2293,7 @@ export function DevelopmentView({
                 onClick={() => setIsFeedbackModalOpen(false)}
                 style={{
                   background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8,
-                  color: '#94a3b8', cursor: 'pointer', padding: '6px 8px',
+                  color: 'var(--muted-2)', cursor: 'pointer', padding: '6px 8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'background 0.15s'
                 }}
@@ -2350,7 +2350,7 @@ export function DevelopmentView({
                     Status da Carteira
                   </span>
                   <div style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
-                  <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'nowrap' }}>captura automática</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted-2)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>captura automática</span>
                 </div>
                 <div style={{
                   backgroundColor: '#fffbeb', border: '1px solid #fde68a',

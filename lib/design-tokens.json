@@ -27,9 +27,9 @@
       }
     },
     "semantic": {
-      "green": { "value": "#0b8a5b", "description": "Success, concluído" },
+      "green": { "value": "#0a6e49", "description": "Success, concluído" },
       "green-soft": { "value": "#e8f7f1", "description": "Success background" },
-      "amber": { "value": "#b86b00", "description": "Warning, em andamento" },
+      "amber": { "value": "#8f5200", "description": "Warning, em andamento" },
       "amber-soft": { "value": "#fff4df", "description": "Warning background" },
       "red": {
         "value": "#bd2f3d",
@@ -48,7 +48,7 @@
     "neutral": {
       "ink": { "value": "#0b1f3a", "description": "Primary text" },
       "muted": { "value": "#5f7188", "description": "Secondary text" },
-      "muted-2": { "value": "#8a98aa", "description": "Tertiary text" },
+      "muted-2": { "value": "#647487", "description": "Tertiary text" },
       "line": { "value": "#e3ecf6", "description": "Default border" },
       "line-strong": { "value": "#c8d9ec", "description": "Strong border" },
       "gray-soft": { "value": "#f1f5f9", "description": "Disabled/muted bg" }
