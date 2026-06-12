@@ -10,8 +10,9 @@ import {
 import {
   OKRTarget, OKRMeasurement, OKRFeedback, Perspective, Direcao, Role, UserProfile, PERSPECTIVES,
   okrStatusTone, okrPerspectiveTone, calculateOkrAtingimento, resolveOkrStatus, formatOkrValue,
-  Quarter, QUARTERS, QUARTER_LABELS, QUARTER_MONTHS,
-  periodoCoversQuarter, previousQuarter, quarterFromMonthIndex, canEdit
+  Quarter, QUARTERS, QUARTER_LABELS, QUARTER_MONTHS, ALL_OKR_MONTHS,
+  periodoCoversQuarter, previousQuarter, quarterFromMonthIndex, canEdit,
+  OKRConfidence, OKR_CONFIDENCES, OKR_CONFIDENCE_LABELS, okrConfidenceTone,
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
 
@@ -23,7 +24,7 @@ interface OKRsViewProps {
   userProfiles: UserProfile[]
   currentUserId: string
   currentUserFullName: string
-  onSaveMeasurement: (okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) => Promise<void>
+  onSaveMeasurement: (okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string, confidence: OKRConfidence | null) => Promise<void>
   onAuditMeasurement: (measurementId: string, audited: boolean, feedback: string) => Promise<void>
   onSaveTarget: (target: Partial<OKRTarget>) => Promise<void>
   onDeleteTarget: (id: string) => Promise<void>
@@ -114,7 +115,8 @@ export function OKRsView({
     resultado: string
     comentario: string
     acaoSugerida: string
-  }>({ mes: '', resultado: '', comentario: '', acaoSugerida: '' })
+    confidence: '' | OKRConfidence
+  }>({ mes: '', resultado: '', comentario: '', acaoSugerida: '', confidence: '' })
 
   // Audit form state
   const [auditForm, setAuditForm] = useState<{
@@ -288,8 +290,8 @@ export function OKRsView({
   const handleSaveResult = async (okrId: string, mes: string) => {
     const val = measurementForm.resultado.trim() === '' ? null : Number(measurementForm.resultado.replace(',', '.'))
     try {
-      await onSaveMeasurement(okrId, mes, val, measurementForm.comentario, measurementForm.acaoSugerida)
-      setMeasurementForm({ mes: '', resultado: '', comentario: '', acaoSugerida: '' })
+      await onSaveMeasurement(okrId, mes, val, measurementForm.comentario, measurementForm.acaoSugerida, measurementForm.confidence || null)
+      setMeasurementForm({ mes: '', resultado: '', comentario: '', acaoSugerida: '', confidence: '' })
       setExpandedOkrId(null)
     } catch (err) {
       console.error(err)
@@ -668,7 +670,8 @@ export function OKRsView({
                                           mes: m.mes,
                                           resultado: m.resultado_apurado !== null ? String(m.resultado_apurado) : '',
                                           comentario: m.evidencia_comentario || '',
-                                          acaoSugerida: m.acao_sugerida || ''
+                                          acaoSugerida: m.acao_sugerida || '',
+                                          confidence: m.confidence ?? ''
                                         })
                                         setAuditForm({
                                           id: m.id,
@@ -693,6 +696,18 @@ export function OKRsView({
                                   )
                                 })}
                               </div>
+                              {(() => {
+                                const conf = [...okrMeasures].reverse().find(m => m.confidence)?.confidence
+                                const mesAtual = ALL_OKR_MONTHS[new Date().getMonth()]
+                                const mesAtualPendente = okrMeasures.some(m => m.mes === mesAtual && (m.resultado_apurado === null || m.resultado_apurado === undefined))
+                                if (!conf && !mesAtualPendente) return null
+                                return (
+                                  <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                    {conf && <Badge label={OKR_CONFIDENCE_LABELS[conf]} tone={okrConfidenceTone(conf)} />}
+                                    {mesAtualPendente && <Badge label={`${mesAtual} sem lançamento`} tone="tone-amber" />}
+                                  </div>
+                                )
+                              })()}
                             </td>
                             <td>
                               <button
@@ -779,6 +794,18 @@ export function OKRsView({
                                             onChange={e => setMeasurementForm(f => ({ ...f, comentario: e.target.value }))}
                                             disabled={!canLaunch}
                                           />
+                                        </label>
+
+                                        <label>Confiança em fechar o trimestre
+                                          <select
+                                            className="select"
+                                            value={measurementForm.confidence}
+                                            onChange={e => setMeasurementForm(f => ({ ...f, confidence: e.target.value as '' | OKRConfidence }))}
+                                            disabled={!canLaunch}
+                                          >
+                                            <option value="">— Não informada —</option>
+                                            {OKR_CONFIDENCES.map(c => <option key={c} value={c}>{OKR_CONFIDENCE_LABELS[c]}</option>)}
+                                          </select>
                                         </label>
 
                                         {rating !== null && rating < 1.0 && (

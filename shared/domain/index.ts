@@ -760,6 +760,22 @@ export interface OKRTarget {
   updated_at?: string
 }
 
+// ── Confiança declarada pelo dono na apuração mensal ───────────────────────
+export const OKR_CONFIDENCES = ['alta', 'media', 'baixa'] as const
+export type OKRConfidence = (typeof OKR_CONFIDENCES)[number]
+
+export const OKR_CONFIDENCE_LABELS: Record<OKRConfidence, string> = {
+  alta: 'Alta confiança',
+  media: 'Confiança média',
+  baixa: 'Baixa confiança',
+}
+
+export function okrConfidenceTone(c: OKRConfidence): string {
+  if (c === 'alta') return 'tone-green'
+  if (c === 'media') return 'tone-amber'
+  return 'tone-red'
+}
+
 export interface OKRMeasurement {
   id: string
   okr_id: string
@@ -773,6 +789,8 @@ export interface OKRMeasurement {
   audited: boolean
   audited_by?: string | null
   audit_feedback?: string | null
+  /** Confiança do dono em fechar o trimestre, declarada no lançamento. */
+  confidence?: OKRConfidence | null
   created_at?: string
   updated_at?: string
 }

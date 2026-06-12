@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { calculateOkrAtingimento, resolveOkrStatus, formatOkrValue } from './index'
+import {
+  calculateOkrAtingimento, resolveOkrStatus, formatOkrValue,
+  OKR_CONFIDENCES, OKR_CONFIDENCE_LABELS, okrConfidenceTone,
+} from './index'
 
 describe('calculateOkrAtingimento', () => {
   it('Maior é melhor: razão resultado/meta', () => {
@@ -42,6 +45,15 @@ describe('resolveOkrStatus', () => {
     expect(resolveOkrStatus(0.7)).toBe('Parcial')
     expect(resolveOkrStatus(0.69)).toBe('Crítico')
     expect(resolveOkrStatus(0)).toBe('Crítico')
+  })
+})
+
+describe('confiança de OKR', () => {
+  it('toda confiança tem rótulo e tom semântico', () => {
+    expect(okrConfidenceTone('alta')).toBe('tone-green')
+    expect(okrConfidenceTone('media')).toBe('tone-amber')
+    expect(okrConfidenceTone('baixa')).toBe('tone-red')
+    for (const c of OKR_CONFIDENCES) expect(OKR_CONFIDENCE_LABELS[c]).toBeTruthy()
   })
 })
 
