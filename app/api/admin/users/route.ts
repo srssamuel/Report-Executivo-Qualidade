@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin, generateTempPassword } from '@/lib/supabase/admin'
+import { requireAdmin, generateTempPassword, logAdminAction } from '@/lib/supabase/admin'
 import { ROLE_LABELS } from '@/shared/domain'
 
 const VALID_ROLES = Object.keys(ROLE_LABELS)
@@ -45,6 +45,12 @@ export async function POST(request: NextRequest) {
   if (profileError) {
     return NextResponse.json({ error: `Usuário criado, mas falha no perfil: ${profileError.message}` }, { status: 500 })
   }
+
+  await logAdminAction(auth.adminClient, {
+    actorId: auth.callerId, actorEmail: auth.callerEmail,
+    action: 'user.create', targetId: created.user.id, targetEmail: email.toLowerCase(),
+    details: { role },
+  })
 
   return NextResponse.json({
     ok: true,

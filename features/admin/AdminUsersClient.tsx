@@ -49,14 +49,31 @@ function parseEmailList(raw: string): { email: string; name: string }[] {
 
 const INVITE_ROLES: Role[] = ['superintendente', 'gerente', 'coordenador', 'consultor', 'lider', 'analista', 'viewer']
 
+export interface AdminAuditEntry {
+  id: string
+  actor_email: string | null
+  action: string
+  target_email: string | null
+  created_at: string
+}
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'user.create': 'Criou usuário',
+  'user.update': 'Editou usuário',
+  'user.delete': 'Excluiu usuário',
+  'user.reset_password': 'Resetou senha',
+  'invite.send': 'Enviou convites',
+}
+
 interface AdminUsersClientProps {
   users: UserProfile[]
   invitations: Invitation[]
   products: Product[]
   currentUserId: string
+  auditLog: AdminAuditEntry[]
 }
 
-export function AdminUsersClient({ users, invitations, products, currentUserId }: AdminUsersClientProps) {
+export function AdminUsersClient({ users, invitations, products, currentUserId, auditLog }: AdminUsersClientProps) {
   const supabase = createClient()
   const [userList, setUserList] = useState(users)
   const [inviteList, setInviteList] = useState(invitations)
@@ -593,6 +610,41 @@ export function AdminUsersClient({ users, invitations, products, currentUserId }
           </div>
         </div>
       )}
+
+      {/* ── Trilha de auditoria (admin_audit_log — escrita só via service role) ── */}
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-head">
+          <h3 className="card-title">Trilha de auditoria</h3>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>últimas {auditLog.length} ações administrativas</span>
+        </div>
+        <div className="card-body">
+          {auditLog.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+              Nenhuma ação administrativa registrada ainda — criações, edições, exclusões e resets de senha aparecerão aqui.
+            </p>
+          ) : (
+            <div className="table-wrap" tabIndex={0}>
+              <table className="table">
+                <thead>
+                  <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr>
+                </thead>
+                <tbody>
+                  {auditLog.map(entry => (
+                    <tr key={entry.id}>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+                        {new Date(entry.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{entry.actor_email ?? '—'}</td>
+                      <td style={{ fontSize: 12, fontWeight: 600 }}>{AUDIT_ACTION_LABELS[entry.action] ?? entry.action}</td>
+                      <td style={{ fontSize: 12 }}>{entry.target_email ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
