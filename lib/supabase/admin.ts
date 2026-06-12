@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto'
  * Retorna { error, status } em falha — nunca expõe o service key ao client.
  */
 export async function requireAdmin(): Promise<
-  | { ok: true; adminClient: SupabaseClient; callerId: string }
+  | { ok: true; adminClient: SupabaseClient; callerId: string; callerEmail: string }
   | { ok: false; error: string; status: number }
 > {
   const cookieStore = await cookies()
@@ -41,7 +41,34 @@ export async function requireAdmin(): Promise<
     serviceKey,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
-  return { ok: true, adminClient, callerId: user.id }
+  return { ok: true, adminClient, callerId: user.id, callerEmail: user.email ?? '' }
+}
+
+/**
+ * Registra uma ação administrativa na trilha de auditoria (admin_audit_log).
+ * Escrita via service role — a tabela não tem policy de INSERT para
+ * authenticated. Nunca derruba a ação principal: erro de log vira console.error.
+ */
+export async function logAdminAction(
+  adminClient: SupabaseClient,
+  entry: {
+    actorId: string
+    actorEmail: string
+    action: 'user.create' | 'user.update' | 'user.delete' | 'user.reset_password' | 'invite.send'
+    targetId?: string | null
+    targetEmail?: string | null
+    details?: Record<string, unknown>
+  }
+): Promise<void> {
+  const { error } = await adminClient.from('admin_audit_log').insert({
+    actor_id: entry.actorId,
+    actor_email: entry.actorEmail,
+    action: entry.action,
+    target_id: entry.targetId ?? null,
+    target_email: entry.targetEmail ?? null,
+    details: entry.details ?? null,
+  })
+  if (error) console.error('[audit] falha ao registrar ação administrativa:', error.message)
 }
 
 // Alphabet excludes ambiguous chars (0/O, 1/l/I) so the admin can dictate it safely.

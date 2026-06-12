@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/lib/supabase/admin'
+import { requireAdmin, logAdminAction } from '@/lib/supabase/admin'
 import { ROLE_LABELS } from '@/shared/domain'
 
 const VALID_ROLES = Object.keys(ROLE_LABELS)
@@ -45,6 +45,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: `Falha ao atualizar perfil: ${profileError.message}` }, { status: 500 })
   }
 
+  await logAdminAction(auth.adminClient, {
+    actorId: auth.callerId, actorEmail: auth.callerEmail,
+    action: 'user.update', targetId: id, targetEmail: email?.toLowerCase() ?? null,
+    details: profilePatch,
+  })
+
   return NextResponse.json({ ok: true })
 }
 
@@ -58,8 +64,17 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     return NextResponse.json({ error: 'Você não pode excluir a própria conta.' }, { status: 400 })
   }
 
+  // Snapshot do alvo ANTES da exclusão — o e-mail some com o cascade.
+  const { data: targetProfile } = await auth.adminClient
+    .from('user_profiles').select('email').eq('id', id).maybeSingle()
+
   const { error } = await auth.adminClient.auth.admin.deleteUser(id)
   if (error) return NextResponse.json({ error: `Falha ao excluir: ${error.message}` }, { status: 500 })
+
+  await logAdminAction(auth.adminClient, {
+    actorId: auth.callerId, actorEmail: auth.callerEmail,
+    action: 'user.delete', targetId: id, targetEmail: targetProfile?.email ?? null,
+  })
 
   return NextResponse.json({ ok: true })
 }

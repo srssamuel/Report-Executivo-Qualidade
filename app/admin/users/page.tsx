@@ -10,10 +10,11 @@ export default async function AdminUsersPage() {
   const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
   if (!profile || profile.role !== 'admin') redirect('/')
 
-  const [{ data: users }, { data: invitations }, { data: products }] = await Promise.all([
+  const [{ data: users }, { data: invitations }, { data: products }, { data: auditLog }] = await Promise.all([
     supabase.from('user_profiles').select('*').order('created_at', { ascending: false }),
     supabase.from('invitations').select('*').order('created_at', { ascending: false }),
     supabase.from('products').select('*').order('name'),
+    supabase.from('admin_audit_log').select('id, actor_email, action, target_email, created_at').order('created_at', { ascending: false }).limit(50),
   ])
 
   return (
@@ -22,6 +23,7 @@ export default async function AdminUsersPage() {
       invitations={invitations ?? []}
       products={products ?? []}
       currentUserId={user.id}
+      auditLog={auditLog ?? []}
     />
   )
 }

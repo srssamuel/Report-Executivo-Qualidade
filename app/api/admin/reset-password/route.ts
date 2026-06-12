@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import { logAdminAction } from '@/lib/supabase/admin'
 
 // ── Input validation ─────────────────────────────────────────────────────────
 
@@ -151,6 +152,11 @@ export async function POST(request: NextRequest) {
   if (flagError) {
     return NextResponse.json({ error: `Senha redefinida, mas falha ao marcar troca obrigatória: ${flagError.message}` }, { status: 500 })
   }
+
+  await logAdminAction(adminClient, {
+    actorId: user.id, actorEmail: user.email ?? '',
+    action: 'user.reset_password', targetId: userId, targetEmail: target.email,
+  })
 
   return NextResponse.json({
     ok: true,
