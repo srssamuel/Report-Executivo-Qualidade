@@ -123,6 +123,21 @@ export function DashboardView({
   /* ── Layout personalizável (Onda 1.4): ordem/visibilidade por usuário ── */
   const [layout, setLayout] = useState<DashboardLayout>(() => normalizeDashboardLayout(null, DASH_SECTION_IDS))
   const [customizeOpen, setCustomizeOpen] = useState(false)
+  const customizeRef = React.useRef<HTMLDivElement>(null)
+  // Esc ou clique fora fecham o popover de personalização.
+  useEffect(() => {
+    if (!customizeOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (customizeRef.current && !customizeRef.current.contains(e.target as Node)) setCustomizeOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCustomizeOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [customizeOpen])
   useEffect(() => {
     if (!currentUserId) return
     const supabase = createClient()
@@ -287,7 +302,7 @@ export function DashboardView({
   return (
     <>
       {/* ── Personalizar painel: ordem e visibilidade das seções ── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10, position: 'relative' }}>
+      <div ref={customizeRef} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10, position: 'relative' }}>
         <button
           type="button"
           className="btn small ghost"
