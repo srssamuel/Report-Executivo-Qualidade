@@ -11,6 +11,7 @@ import {
   riskOf,
   scoreOf,
   dataGaps,
+  daysToDue,
   ownersOf,
   countsBy,
   productTone,
@@ -33,7 +34,17 @@ import {
   QUARTER_MONTHS,
   QUARTER_LABELS
 } from '@/shared/domain'
-import { Badge, ProgressGauge, HBarChart, VBarChart, DonutChart } from '@/shared/components'
+import { Badge, ProgressGauge, HBarChart } from '@/shared/components'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+
+/** Snapshot diário da carteira (portfolio_snapshots, migration 022). */
+interface PortfolioSnapshot {
+  day: string
+  total: number | null
+  active: number | null
+}
 
 interface DashboardViewProps {
   filtered: Item[]
@@ -73,6 +84,23 @@ export function DashboardView({
   weeklyCapacity,
   onDrill,
 }: DashboardViewProps) {
+  /* Evolução da carteira: snapshots diários (telemetria já existente). */
+  const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([])
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('portfolio_snapshots')
+      .select('day, total, active')
+      .order('day', { ascending: true })
+      .limit(120)
+      .then(({ data }) => { if (data) setSnapshots(data as PortfolioSnapshot[]) })
+  }, [])
+  const evolution = snapshots.map(sn => ({
+    day: new Date(`${sn.day}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    Total: sn.total ?? 0,
+    Concluídas: (sn.total ?? 0) - (sn.active ?? 0),
+  }))
+
   const decisionQueue = [...filtered]
     .filter(i => !isDone(i))
     .sort((a, b) => riskSeverity(riskOf(a)) - riskSeverity(riskOf(b)) || scoreOf(a) - scoreOf(b))
@@ -83,8 +111,37 @@ export function DashboardView({
     .sort((a, b) => dataGaps(b).length - dataGaps(a).length)
     .slice(0, 8)
 
-  const ownerCounts: Record<string, number> = {}
-  filtered.forEach(it => ownersOf(it.owner).forEach(o => ownerCounts[o] = (ownerCounts[o] ?? 0) + 1))
+  /* ── Heatmap Produto × Status (substitui os 3 gráficos de distribuição) ── */
+  const HEAT_STATUSES = ['A iniciar', 'Em andamento', 'Em validação', 'Bloqueado', 'Atrasado', 'Pausado', 'Concluído']
+  const heatProducts = Object.entries(countsBy(filtered, i => i.product ?? 'Sem produto'))
+    .sort((a, b) => b[1] - a[1])
+    .map(([prod]) => prod)
+  const heatCell: Record<string, number> = {}
+  let heatMax = 1
+  filtered.forEach(it => {
+    const key = `${it.product ?? 'Sem produto'}|${it.status}`
+    heatCell[key] = (heatCell[key] ?? 0) + 1
+    if (HEAT_STATUSES.includes(it.status) && heatCell[key] > heatMax) heatMax = heatCell[key]
+  })
+  const heatBg = (status: string, count: number): string => {
+    if (count === 0) return 'transparent'
+    const alpha = 0.15 + 0.6 * (count / heatMax)
+    if (['Bloqueado', 'Atrasado'].includes(status)) return `rgba(189, 47, 61, ${alpha})`
+    if (status === 'Concluído') return `rgba(10, 110, 73, ${alpha})`
+    return `rgba(30, 96, 213, ${alpha})`
+  }
+
+  /* ── Aging dos críticos: crítico que envelhece é o que explode ── */
+  const agingCriticos = filtered
+    .filter(i => ['Bloqueado', 'Atrasado'].includes(riskOf(i)))
+    .map(it => {
+      const overdue = Math.max(0, -(daysToDue(it.dueDate) ?? 0))
+      const stale = it.lastUpdate ? Math.max(0, Math.floor((Date.now() - new Date(it.lastUpdate).getTime()) / 86400000)) : 0
+      return { it, age: Math.max(overdue, stale) }
+    })
+    .sort((a, b) => b.age - a.age)
+    .slice(0, 5)
+  const agingMax = Math.max(1, ...agingCriticos.map(a => a.age))
 
   /* ── Capacity heatmap (reuse ownerLoad + capacityTone) ── */
   const load = ownerLoad(filtered) // ownerLoad já filtra !isDone internamente
@@ -167,9 +224,6 @@ export function DashboardView({
   /* Health tone for KPI hero */
   const healthTone = avgScore >= 80 ? 'green' : avgScore >= 60 ? 'amber' : 'red'
 
-  /* Status distribution for donut */
-  const statusDist = countsBy(filtered, i => i.status)
-
   return (
     <>
       {/* ── KPI Grid ────────────────────────────────────────── */}
@@ -251,29 +305,55 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* ── Distribution Charts ─────────────────────────────── */}
+      {/* ── Onde dói: mapa de calor Produto × Status (clicável → drill) ── */}
       <div className="dash-section">
         <div className="section-head">
-          <h2 className="section-title"><TrendingUp size={18} /> Distribuição da carteira</h2>
+          <h2 className="section-title"><TrendingUp size={18} /> Onde dói — Produto × Status</h2>
         </div>
-        <div className="grid three">
-          <div className="card panel-product">
-            <div className="card-head"><h3 className="card-title">Por produto</h3></div>
-            <div className="card-body chart-container">
-              <HBarChart data={countsBy(filtered, i => i.product ?? 'Sem produto')} total={filtered.length} />
-            </div>
-          </div>
-          <div className="card panel-status">
-            <div className="card-head"><h3 className="card-title">Por status</h3></div>
-            <div className="card-body chart-container">
-              <VBarChart data={statusDist} total={filtered.length} />
-            </div>
-          </div>
-          <div className="card panel-risk">
-            <div className="card-head"><h3 className="card-title">Por risco</h3></div>
-            <div className="card-body chart-container">
-              <DonutChart data={countsBy(filtered, i => riskOf(i))} total={filtered.length} centerLabel={`${filtered.length}`} />
-            </div>
+        <div className="card">
+          <div className="card-body" style={{ overflowX: 'auto' }}>
+            <table className="table" style={{ minWidth: 640 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Produto</th>
+                  {HEAT_STATUSES.map(st => <th key={st} style={{ textAlign: 'center', fontSize: 11 }}>{st}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {heatProducts.map(prod => (
+                  <tr key={prod}>
+                    <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{prod}</td>
+                    {HEAT_STATUSES.map(st => {
+                      const count = heatCell[`${prod}|${st}`] ?? 0
+                      return (
+                        <td key={st} style={{ textAlign: 'center', padding: 4 }}>
+                          {count > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => onDrill({ product: prod, status: st })}
+                              title={`${count} frente(s) de ${prod} em ${st} — clique para abrir o recorte`}
+                              style={{
+                                width: '100%', minHeight: 34, border: 'none', borderRadius: 6,
+                                background: heatBg(st, count), cursor: 'pointer',
+                                fontWeight: 800, fontSize: 13,
+                                color: count / heatMax > 0.55 ? '#fff' : 'var(--text-title, #0b1f3a)',
+                              }}
+                            >
+                              {count}
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--line)', fontSize: 12 }}>·</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              Intensidade = volume · vermelho = travado/atrasado · clique na célula abre a Carteira filtrada.
+            </p>
           </div>
         </div>
       </div>
@@ -282,9 +362,27 @@ export function DashboardView({
       <div className="dash-section">
         <div className="grid two">
           <div className="card panel-owner">
-            <div className="card-head"><h3 className="card-title">Por responsável</h3></div>
-            <div className="card-body chart-container">
-              <HBarChart data={ownerCounts} total={filtered.length} />
+            <div className="card-head">
+              <h3 className="card-title">Aging dos críticos</h3>
+              <Badge label={`${agingCriticos.length} no radar`} tone={agingCriticos.length ? 'tone-red' : 'tone-green'} />
+            </div>
+            <div className="card-body">
+              {agingCriticos.length === 0 ? (
+                <div className="empty">Nenhum item crítico envelhecendo no recorte atual.</div>
+              ) : (
+                <div className="capacity-bars">
+                  {agingCriticos.map(({ it, age }) => (
+                    <div key={it.id} className="capacity-row" style={{ cursor: 'pointer' }} onClick={() => onEdit(it.id)} title="Abrir o item">
+                      <b title={`${it.project ?? it.id} — ${it.demand ?? ''}`}>{it.project ?? it.id}</b>
+                      <div className="capacity-track danger"><i style={{ width: `${Math.round((age / agingMax) * 100)}%` }} /></div>
+                      <small>{age}d · {riskOf(it)}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                Dias vencido ou sem atualização (o maior) — crítico que envelhece é o que explode.
+              </p>
             </div>
           </div>
           <div className="card panel-gaps">
@@ -369,6 +467,34 @@ export function DashboardView({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tendência: evolução da carteira (snapshots diários) ── */}
+      <div className="dash-section">
+        <div className="section-head">
+          <h2 className="section-title"><TrendingUp size={18} /> Evolução da carteira</h2>
+        </div>
+        <div className="card">
+          <div className="card-body">
+            {evolution.length < 3 ? (
+              <div className="empty">
+                Histórico em construção — o snapshot diário já está ativo; a curva aparece após alguns dias de uso ({evolution.length} registrado(s)).
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={evolution} margin={{ top: 8, right: 16, bottom: 0, left: -18 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--muted)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--muted)' }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="Total" stroke="#1e60d5" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="Concluídas" stroke="#0a6e49" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
