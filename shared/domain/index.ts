@@ -538,6 +538,35 @@ export function riskScore(it: Item, all: Item[]): RiskScoreResult | null {
   return { score, band: riskBand(score), factors, mainReason: riskOf(it) }
 }
 
+/** Fator de maior contribuição no score composto — o "porquê" dominante. */
+export function riskMainFactor(rs: RiskScoreResult): RiskFactor {
+  return rs.factors.reduce((max, f) => (f.contribution > max.contribution ? f : max), rs.factors[0]!)
+}
+
+/**
+ * Ação recomendada derivada do fator dominante do score — texto pronto para
+ * virar a próxima ação do item (botão "Definir como próxima ação" em Riscos).
+ */
+export function riskRecommendedAction(it: Item, rs: RiskScoreResult): string {
+  const f = riskMainFactor(rs)
+  switch (f.key) {
+    case 'prazo':
+      return `Renegociar prazo ou priorizar a entrega — ${f.detail.toLowerCase()}.`
+    case 'status':
+      return it.status === 'Bloqueado'
+        ? 'Escalar o destrave do bloqueio na próxima reunião de pauta.'
+        : `Rever o andamento — status atual: ${it.status}.`
+    case 'progresso':
+      return 'Replanejar escopo ou alocar reforço — progresso abaixo do tempo decorrido.'
+    case 'staleness':
+      return `Atualizar o item e registrar próxima ação — ${f.detail.toLowerCase()}.`
+    case 'dependencia':
+      return it.predecessorId
+        ? `Cobrar a predecessora ${it.predecessorId} para destravar esta frente.`
+        : `Tratar a dependência registrada: ${it.dependencyNote || 'ver nota do item'}.`
+  }
+}
+
 export function itemEffort(it: Item): number {
   return clamp(Number(it.effortHours ?? estimateEffortHours(it)), 0, 9999)
 }

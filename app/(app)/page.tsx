@@ -1306,7 +1306,7 @@ export default function AppPage() {
       {view === 'dashboard' && <DashboardView filtered={filtered} avgScore={avgScore} late={late} soon={soon} gaps={gaps} active={active} total={total} effort={effort} onEdit={openModal} gains={gains} items={items} okrTargets={okrTargets} okrMeasurements={okrMeasurements} isOkrFallback={isOkrFallback} weeklyCapacity={weeklyCapacity} onDrill={drillTo} />}
       {view === 'portfolio' && <PortfolioView filtered={filtered} onEdit={openModal} onQuickComment={(id) => openModal(id, true)} canEdit={canEditItems} onFieldChange={updateField} allItems={items} productOptions={uniqueProductList} />}
       {view === 'board' && <BoardView filtered={filtered} onEdit={openModal} onStatusChange={(id, status) => updateField(id, 'status', status)} />}
-      {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} />}
+      {view === 'risks' && <RisksView filtered={filtered} onEdit={openModal} onFieldChange={updateField} canEdit={canEditItems} />}
       {view === 'timeline' && <TimelineView filtered={filtered} onEdit={openModal} />}
       {view === 'capacity' && <CapacityView filtered={filtered} weeklyCapacity={weeklyCapacity} setWeeklyCapacity={setWeeklyCapacity} people={people} onUpdatePerson={updatePerson} onCreatePerson={createPerson} canManage={canManagePeople(profile?.role)} urgentForm={urgentForm} setUrgentForm={setUrgentForm} simulate={simulateUrgent} simulated={urgentSimulated} setSimulated={setUrgentSimulated} items={items} onEdit={openModal} canEdit={canEditItems} saveItem={saveItem} setItems={setItems} showToast={showToast} />}
       {view === 'executive' && <ExecutiveView filtered={filtered} filters={filters} items={items} userProfiles={userProfiles} profile={profile} />}
