@@ -21,12 +21,16 @@
 
 ## Onda 1 — execução autônoma (alto impacto, sem dependências externas)
 
-| #   | Item                                                                                                                                      | Valor                                    | Esforço  |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------- |
-| 1.1 | **Drill-down nos KPIs**: clicar em KPI do Dashboard/Executivo abre o recorte filtrado correspondente (e histórico quando houver snapshot) | Decisão em 1 clique a partir do número   | ~1 dia   |
-| 1.2 | **Nível de confiança no OKR** (dono marca 🟢/🟡/🔴 por KR) + realce de KR sem lançamento no mês corrente                                  | Antecipa risco antes do fim do trimestre | ~0,5 dia |
-| 1.3 | **Audit log de ações administrativas** (criar/editar/excluir usuário, reset de senha) em tabela própria com RLS admin-only                | Rastreabilidade/conformidade             | ~0,5 dia |
-| 1.4 | **Dashboard personalizável leve**: mostrar/ocultar/reordenar seções, persistido por usuário                                               | Cada papel vê primeiro o que lhe importa | ~1 dia   |
+| #   | Item                                                                                                                                      | Valor                                    | Status      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------- |
+| 1.1 | **Drill-down nos KPIs**: clicar em KPI do Dashboard/Executivo abre o recorte filtrado correspondente (e histórico quando houver snapshot) | Decisão em 1 clique a partir do número   | ✅ Entregue |
+| 1.2 | **Nível de confiança no OKR** (dono marca 🟢/🟡/🔴 por KR) + realce de KR sem lançamento no mês corrente                                  | Antecipa risco antes do fim do trimestre | ✅ Entregue |
+| 1.3 | **Audit log de ações administrativas** (criar/editar/excluir usuário, reset de senha) em tabela própria com RLS admin-only                | Rastreabilidade/conformidade             | ✅ Entregue |
+| 1.4 | **Dashboard personalizável leve**: mostrar/ocultar/reordenar seções, persistido por usuário                                               | Cada papel vê primeiro o que lhe importa | ⏳ Pendente |
+
+> Redesign agressivo (Sprints A–D de `redesign-proposal.md`) **entregue em 2026-06-12**:
+> Sala de Comando, matriz de riscos, Carteira click-to-edit, Board DnD, Capacidade
+> demandantes, Timeline por pessoa, Executivo boletim, @menções in-app e OKRs em cards.
 
 ## Onda 2 — viável, aguardando decisão/credencial do dono
 

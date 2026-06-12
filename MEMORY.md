@@ -15,6 +15,17 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-12 (b) — Redesign agressivo completo (Sprints A–D) + 2 incidentes de produção resolvidos
+
+- **Diretriz do Samuel:** "quero consultoria consultiva e agressiva na proposta" com dores por aba + "@menções com alertas WhatsApp/Email" + "vai até o fim, não pare, decida e resolva" + "tudo precisa ser commitado e merge no main". Proposta consolidada em `docs/redesign-proposal.md` (cada aba responde UMA pergunta de gestão em 10s); triagem em `docs/roadmap.md`.
+- **Sprint A (decisão):** Dashboard "Sala de Comando" — heatmap Produto×Status, aging dos críticos, fila de decisão com drill, evolução por snapshots · Riscos viram **matriz 2D Urgência×Exposição** (ScatterChart: X dias até prazo, Y `riskScore` 5 fatores, bolha esforço) + decomposição dos fatores + botão "virar próxima ação" (`riskRecommendedAction`).
+- **Sprint B (uso diário):** Carteira **click-to-edit** (célula é texto limpo, vira input ao clicar — fim do formulário permanente), borda de risco por linha, zebra · Board: drag pelo card inteiro (só `listeners` no `<article>`; `attributes` removidos — reintroduziam nested-interactive), chip "dias parado", limite WIP 6 com cabeçalho âmbar.
+- **Sprint C (foto do time):** Capacidade — matriz Pessoa×Demandante (horas), semáforo de disponibilidade 🟢🟡🔴 com horas livres, composição por tipo (tags) · Timeline por pessoa com linha "hoje", zoom 30/90/180d e colisões em âmbar · Executivo — boletim NOTA A–E (carteira 35 · uso 25 · risco 25 · OKR 15), 4 cartões-farol, "3 decisões da semana".
+- **Sprint D (colaboração, PR #22):** **@menções Fase A** — `extractMentions` reusa o chokepoint `canonicalizeOwner` (apelido único resolve, ambíguo é descartado); migration **025 `notifications`** (RLS por dono); sino no topo com não-lidas. Fase B (WhatsApp/Email) aguarda credencial do canal. · **OKRs em cards** — card por objetivo com anel de progresso ponderado do trimestre, KRs com barra+confiança+farol do mês, pior primeiro; lançamento/auditoria saem da linha expandida para **drawer lateral** (`.drawer` no design system). Migrations da onda: **023** confidence em medições · **024** `admin_audit_log` (imutável, SELECT só admin) · **025** notifications.
+- **Incidente 1 — "sessão expirada" presa em loop (produção):** refresh token rotacionado → POST /token 400; signOut de servidor falhava com token morto, cookie sobrevivia e o middleware devolvia /login→/ infinito ("fica apenas carregando"). Fix: `signOut({ scope: 'local' })` limpa cookies sempre. **Dados verificados intactos via SQL** (65 itens · 158 históricos · 50 OKRs/300 medições · 17 pessoas) — nada foi apagado.
+- **Incidente 2 — usuários QA órfãos em produção:** `cancel-in-progress` do e2e.yml pulava o teardown → 2 admins `qa-e2e-*` órfãos deletados via SQL. Autolimpeza no global-setup ganhou **idade mínima de 30 min** depois que a 1ª versão apagou o usuário do run paralelo (push+PR disparavam 2 E2E simultâneos); `concurrency.group` agora usa `head_ref` — 1 run por branch.
+- **Pendências com o Samuel:** canal de alerta da Fase B (WhatsApp Meta/Twilio ou E-mail Resend — precisa credencial) · lista do que está quebrado no Desenvolvimento · toggle leaked password protection (painel Supabase Auth).
+
 ### 2026-06-12 — Harness E2E (avaliação completa da página) + app 100% limpo em a11y critical/serious
 
 - **Diretriz do Samuel:** "crie login para teste, você tem essa autonomia; sempre avalie a página completa para criticar completo" e "ao finalizar as críticas aplique as soluções".
