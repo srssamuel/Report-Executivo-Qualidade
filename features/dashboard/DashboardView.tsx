@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { TrendingUp, Users, Target } from 'lucide-react'
+import { TrendingUp, Users, Target, Settings2 } from 'lucide-react'
 import {
   Item,
   Gain,
@@ -32,7 +32,9 @@ import {
   quarterFromMonthIndex,
   periodoCoversQuarter,
   QUARTER_MONTHS,
-  QUARTER_LABELS
+  QUARTER_LABELS,
+  DashboardLayout,
+  normalizeDashboardLayout
 } from '@/shared/domain'
 import { Badge, ProgressGauge, HBarChart } from '@/shared/components'
 import { useEffect, useState } from 'react'
@@ -45,6 +47,20 @@ interface PortfolioSnapshot {
   total: number | null
   active: number | null
 }
+
+/* Seções personalizáveis do painel (Onda 1.4) — ordem padrão é a ordem do array. */
+const DASH_SECTIONS = [
+  { id: 'decisao', label: 'Saúde & fila de decisão' },
+  { id: 'heatmap', label: 'Onde dói — Produto × Status' },
+  { id: 'aging', label: 'Aging dos críticos & lacunas' },
+  { id: 'capacidade', label: 'Capacidade e concentração de risco' },
+  { id: 'evolucao', label: 'Evolução da carteira' },
+  { id: 'okrs', label: 'Atingimento de OKRs' },
+  { id: 'ganhos', label: 'Ganhos registrados' },
+] as const
+type DashSectionId = (typeof DASH_SECTIONS)[number]['id']
+const DASH_SECTION_IDS = DASH_SECTIONS.map(s => s.id)
+const DASH_SECTION_LABELS = Object.fromEntries(DASH_SECTIONS.map(s => [s.id, s.label])) as Record<DashSectionId, string>
 
 interface DashboardViewProps {
   filtered: Item[]
@@ -64,6 +80,8 @@ interface DashboardViewProps {
   weeklyCapacity: number
   /** Drill-down: aplica filtros e navega para a view de detalhe. */
   onDrill: (filters: Partial<Filters>, view?: 'portfolio' | 'capacity') => void
+  /** Dono das preferências de layout (user_preferences). */
+  currentUserId: string
 }
 
 export function DashboardView({
@@ -83,6 +101,7 @@ export function DashboardView({
   isOkrFallback,
   weeklyCapacity,
   onDrill,
+  currentUserId,
 }: DashboardViewProps) {
   /* Evolução da carteira: snapshots diários (telemetria já existente). */
   const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([])
@@ -100,6 +119,45 @@ export function DashboardView({
     Total: sn.total ?? 0,
     Concluídas: (sn.total ?? 0) - (sn.active ?? 0),
   }))
+
+  /* ── Layout personalizável (Onda 1.4): ordem/visibilidade por usuário ── */
+  const [layout, setLayout] = useState<DashboardLayout>(() => normalizeDashboardLayout(null, DASH_SECTION_IDS))
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  useEffect(() => {
+    if (!currentUserId) return
+    const supabase = createClient()
+    supabase
+      .from('user_preferences')
+      .select('value')
+      .eq('user_id', currentUserId)
+      .eq('key', 'dashboard_layout')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setLayout(normalizeDashboardLayout(data.value as Partial<DashboardLayout>, DASH_SECTION_IDS))
+      })
+  }, [currentUserId])
+
+  const persistLayout = (next: DashboardLayout) => {
+    setLayout(next)
+    if (!currentUserId) return
+    const supabase = createClient()
+    supabase
+      .from('user_preferences')
+      .upsert({ user_id: currentUserId, key: 'dashboard_layout', value: next })
+      .then(({ error }) => { if (error) console.error('Falha ao salvar layout do painel:', error.message) })
+  }
+  const toggleSection = (id: string) => persistLayout({
+    ...layout,
+    hidden: layout.hidden.includes(id) ? layout.hidden.filter(h => h !== id) : [...layout.hidden, id],
+  })
+  const moveSection = (id: string, dir: -1 | 1) => {
+    const order = [...layout.order]
+    const i = order.indexOf(id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= order.length) return
+    ;[order[i], order[j]] = [order[j], order[i]]
+    persistLayout({ ...layout, order })
+  }
 
   const decisionQueue = [...filtered]
     .filter(i => !isDone(i))
@@ -228,6 +286,63 @@ export function DashboardView({
 
   return (
     <>
+      {/* ── Personalizar painel: ordem e visibilidade das seções ── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10, position: 'relative' }}>
+        <button
+          type="button"
+          className="btn small ghost"
+          aria-expanded={customizeOpen}
+          onClick={() => setCustomizeOpen(o => !o)}
+        >
+          <Settings2 size={14} /> Personalizar painel
+        </button>
+        {customizeOpen && (
+          <div className="card" style={{ position: 'absolute', top: '110%', right: 0, zIndex: 60, width: 330, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+              <strong style={{ fontSize: 12 }}>Seções do painel</strong>
+              <button
+                type="button"
+                className="btn small ghost"
+                onClick={() => persistLayout(normalizeDashboardLayout(null, DASH_SECTION_IDS))}
+              >
+                Restaurar padrão
+              </button>
+            </div>
+            {layout.order.map((id, idx) => (
+              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', borderTop: idx > 0 ? '1px solid var(--line)' : 'none' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, fontSize: 12, cursor: 'pointer', minWidth: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={!layout.hidden.includes(id)}
+                    onChange={() => toggleSection(id)}
+                  />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {DASH_SECTION_LABELS[id as DashSectionId] ?? id}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  className="btn small square ghost"
+                  aria-label={`Mover ${DASH_SECTION_LABELS[id as DashSectionId] ?? id} para cima`}
+                  disabled={idx === 0}
+                  onClick={() => moveSection(id, -1)}
+                >↑</button>
+                <button
+                  type="button"
+                  className="btn small square ghost"
+                  aria-label={`Mover ${DASH_SECTION_LABELS[id as DashSectionId] ?? id} para baixo`}
+                  disabled={idx === layout.order.length - 1}
+                  onClick={() => moveSection(id, 1)}
+                >↓</button>
+              </div>
+            ))}
+            <p style={{ margin: '8px 0 0', fontSize: 10, color: 'var(--muted)' }}>
+              Salvo automaticamente para o seu usuário.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* ── KPI Grid ────────────────────────────────────────── */}
       <div className="kpi-grid">
         {[
@@ -252,7 +367,10 @@ export function DashboardView({
         ))}
       </div>
 
-      {/* ── Health + Decision Queue ──────────────────────────── */}
+      {/* ── Seções personalizáveis: ordem e visibilidade vêm de `layout` ── */}
+      {([
+        // Saúde + fila de decisão
+        { id: 'decisao' as const, node: (
       <div className="dash-section">
         <div className="grid two">
           <div className="card panel-health">
@@ -306,8 +424,10 @@ export function DashboardView({
           </div>
         </div>
       </div>
+        ) },
 
-      {/* ── Onde dói: mapa de calor Produto × Status (clicável → drill) ── */}
+        // Onde dói: mapa de calor Produto × Status (clicável → drill)
+        { id: 'heatmap' as const, node: (
       <div className="dash-section">
         <div className="section-head">
           <h2 className="section-title"><TrendingUp size={18} /> Onde dói — Produto × Status</h2>
@@ -359,8 +479,10 @@ export function DashboardView({
           </div>
         </div>
       </div>
+        ) },
 
-      {/* ── Owners + Governance Gaps ────────────────────────── */}
+        // Aging dos críticos + lacunas de governança
+        { id: 'aging' as const, node: (
       <div className="dash-section">
         <div className="grid two">
           <div className="card panel-owner">
@@ -414,8 +536,10 @@ export function DashboardView({
           </div>
         </div>
       </div>
+        ) },
 
-      {/* ── Capacidade + Concentração de risco ───────────────── */}
+        // Capacidade + concentração de risco
+        { id: 'capacidade' as const, node: (
       <div className="dash-section">
         <div className="section-head">
           <h2 className="section-title"><Users size={18} /> Capacidade e concentração de risco</h2>
@@ -472,8 +596,10 @@ export function DashboardView({
           </div>
         </div>
       </div>
+        ) },
 
-      {/* ── Tendência: evolução da carteira (snapshots diários) ── */}
+        // Tendência: evolução da carteira (snapshots diários)
+        { id: 'evolucao' as const, node: (
       <div className="dash-section">
         <div className="section-head">
           <h2 className="section-title"><TrendingUp size={18} /> Evolução da carteira</h2>
@@ -500,9 +626,10 @@ export function DashboardView({
           </div>
         </div>
       </div>
+        ) },
 
-      {/* ── Atingimento de OKRs ──────────────────────────────── */}
-      {hasOkr && (
+        // Atingimento de OKRs (some quando não há OKR carregado)
+        { id: 'okrs' as const, node: hasOkr ? (
         <div className="dash-section">
           <div className="section-head">
             <h2 className="section-title"><Target size={18} /> Atingimento de OKRs</h2>
@@ -550,10 +677,10 @@ export function DashboardView({
             </div>
           </div>
         </div>
-      )}
+        ) : null },
 
-      {/* ── Gains Summary ───────────────────────────────────── */}
-      {gains.length > 0 && (
+        // Ganhos registrados (some quando não há ganhos)
+        { id: 'ganhos' as const, node: gains.length > 0 ? (
         <div className="dash-section">
           <div className="section-head">
             <h2 className="section-title">Ganhos registrados</h2>
@@ -607,7 +734,11 @@ export function DashboardView({
             </div>
           </div>
         </div>
-      )}
+        ) : null },
+      ] as { id: DashSectionId; node: React.ReactNode }[])
+        .filter(s => s.node !== null && !layout.hidden.includes(s.id))
+        .sort((a, b) => layout.order.indexOf(a.id) - layout.order.indexOf(b.id))
+        .map(s => <React.Fragment key={s.id}>{s.node}</React.Fragment>)}
     </>
   )
 }

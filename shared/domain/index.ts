@@ -1044,3 +1044,28 @@ export interface ProfileEvaluation {
 }
 
 
+
+/* ── Layout personalizável do Dashboard (Onda 1.4) ─────────────────────────
+ * O usuário esconde/reordena seções; o layout salvo precisa sobreviver a
+ * versões: seções removidas do produto somem do layout salvo, seções novas
+ * entram no FIM na ordem padrão. */
+export interface DashboardLayout {
+  order: string[]
+  hidden: string[]
+}
+
+export function normalizeDashboardLayout(
+  saved: Partial<DashboardLayout> | null | undefined,
+  knownIds: readonly string[]
+): DashboardLayout {
+  const known = new Set(knownIds)
+  const order = (Array.isArray(saved?.order) ? saved.order : [])
+    .filter((id): id is string => typeof id === 'string' && known.has(id))
+  const seen = new Set(order)
+  for (const id of knownIds) {
+    if (!seen.has(id)) order.push(id)
+  }
+  const hidden = (Array.isArray(saved?.hidden) ? saved.hidden : [])
+    .filter((id): id is string => typeof id === 'string' && known.has(id))
+  return { order, hidden: [...new Set(hidden)] }
+}
