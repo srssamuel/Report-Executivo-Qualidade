@@ -24,6 +24,25 @@ export default async function globalSetup(): Promise<void> {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
+  // Autolimpeza: runs cancelados no meio (concurrency cancel-in-progress)
+  // não executam o teardown — varre órfãos de execuções anteriores.
+  // Só apaga órfãos com 30+ min: um run E2E inteiro dura ~5 min, então
+  // qualquer usuário QA mais novo pode pertencer a um run AINDA ATIVO
+  // (apagá-lo derruba o login daquele run — aconteceu no PR #22).
+  const ORPHAN_MIN_AGE_MS = 30 * 60 * 1000
+  const cutoff = new Date(Date.now() - ORPHAN_MIN_AGE_MS).toISOString()
+  const { data: orphans } = await admin
+    .from('user_profiles')
+    .select('id, email')
+    .like('email', 'qa-e2e-%@example.com')
+    .lt('created_at', cutoff)
+  for (const orphan of orphans ?? []) {
+    const { error: delErr } = await admin.auth.admin.deleteUser(orphan.id)
+    console.log(delErr
+      ? `[e2e] falha ao limpar órfão ${orphan.email}: ${delErr.message}`
+      : `[e2e] órfão de run cancelado removido: ${orphan.email}`)
+  }
+
   const email = `qa-e2e-${Date.now()}-${randomBytes(3).toString('hex')}@example.com`
   const password = `${randomBytes(18).toString('base64url')}!aA1`
 

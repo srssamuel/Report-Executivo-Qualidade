@@ -1394,6 +1394,37 @@ body.table-dense td .mini-textarea {
   display: grid;
   gap: 20px;
 }
+/* Drawer lateral — painel de edição que não tira o usuário do contexto da lista */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(6, 22, 42, 0.42);
+  backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s var(--ease-out);
+}
+.drawer {
+  width: min(560px, 100%);
+  height: 100%;
+  background: #fff;
+  box-shadow: -18px 0 50px rgba(11, 31, 58, 0.22);
+  overflow-y: auto;
+  padding: 22px 24px 28px;
+  animation: drawerIn 0.22s var(--ease-out);
+}
+@keyframes drawerIn {
+  from {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2622,6 +2653,7 @@ body.table-dense td .mini-textarea {
   .topbar-actions,
   .btn,
   .modal-backdrop,
+  .drawer-backdrop,
   .toast {
     display: none !important;
   }

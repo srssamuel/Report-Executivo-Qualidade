@@ -36,6 +36,36 @@ interface OKRsViewProps {
 
 type TabId = 'dashboard' | 'measurements' | 'approvals' | 'recontracting'
 
+// Anel de progresso do objetivo: % = média ponderada do atingimento dos KRs no trimestre.
+function ProgressRing({ pct }: { pct: number | null }) {
+  const size = 64
+  const stroke = 7
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const frac = pct === null ? 0 : Math.max(0, Math.min(1, pct / 100))
+  const color = pct === null ? 'var(--line-strong)' : pct >= 100 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#ef4444'
+  return (
+    <svg
+      width={size}
+      height={size}
+      role="img"
+      aria-label={pct !== null ? `Atingimento do objetivo: ${Math.round(pct)}%` : 'Objetivo sem lançamentos no trimestre'}
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#edf3fa" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={`${c * frac} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" style={{ fontSize: 13, fontWeight: 800, fill: 'var(--blue-900)' }}>
+        {pct !== null ? `${Math.round(pct)}%` : '—'}
+      </text>
+    </svg>
+  )
+}
+
 export function OKRsView({
   targets,
   measurements,
@@ -241,6 +271,71 @@ export function OKRsView({
     }
   }, [managerTargets, okrMeasurementsMap, quarterMonths])
 
+
+  // Cards por Objetivo: agrupa os KRs do trimestre por (responsável, objetivo),
+  // com atingimento médio ponderado, confiança mais recente e farol do mês corrente.
+  const mesAtual = ALL_OKR_MONTHS[new Date().getMonth()]
+  const objectiveCards = useMemo(() => {
+    const monthOrder = (mes: string) => (ALL_OKR_MONTHS as readonly string[]).indexOf(mes)
+    type KrRow = {
+      t: OKRTarget
+      avg: number | null
+      conf: OKRConfidence | undefined
+      mesAtualPendente: boolean
+      lancados: number
+      totalMeses: number
+    }
+    const groups = new Map<string, { responsavel: string; objetivo: string; krs: KrRow[] }>()
+    managerTargets.forEach(t => {
+      const ms = (okrMeasurementsMap[t.id] || [])
+        .filter(m => quarterMonths.includes(m.mes))
+        .sort((a, b) => monthOrder(a.mes) - monthOrder(b.mes))
+      let sum = 0
+      let n = 0
+      let lancados = 0
+      ms.forEach(m => {
+        if (m.resultado_apurado !== null && m.resultado_apurado !== undefined) {
+          lancados++
+          const at = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
+          if (at !== null) { sum += at; n++ }
+        }
+      })
+      const conf = [...ms].reverse().find(m => m.confidence)?.confidence ?? undefined
+      const mesAtualPendente = ms.some(m => m.mes === mesAtual && (m.resultado_apurado === null || m.resultado_apurado === undefined))
+      const key = `${t.responsavel}::${t.objetivo}`
+      if (!groups.has(key)) groups.set(key, { responsavel: t.responsavel, objetivo: t.objetivo, krs: [] })
+      groups.get(key)!.krs.push({ t, avg: n > 0 ? sum / n : null, conf, mesAtualPendente, lancados, totalMeses: ms.length })
+    })
+    return [...groups.values()]
+      .map(g => {
+        let ws = 0
+        let ww = 0
+        g.krs.forEach(k => {
+          if (k.avg !== null) { ws += k.avg * k.t.peso; ww += k.t.peso }
+        })
+        return { ...g, score: ww > 0 ? (ws / ww) * 100 : null }
+      })
+      // pior primeiro: o card que precisa de atenção abre a leitura
+      .sort((a, b) =>
+        ((a.score ?? Number.POSITIVE_INFINITY) - (b.score ?? Number.POSITIVE_INFINITY)) ||
+        a.responsavel.localeCompare(b.responsavel, 'pt-BR'))
+  }, [managerTargets, okrMeasurementsMap, quarterMonths, mesAtual])
+
+  // Drawer de lançamento: a medição aberta (expandedOkrId) resolvida para {target, measurement}.
+  const activeLaunch = useMemo(() => {
+    if (!expandedOkrId) return null
+    const m = measurements.find(x => x.id === expandedOkrId)
+    if (!m) return null
+    const t = targets.find(x => x.id === m.okr_id)
+    return t ? { m, t } : null
+  }, [expandedOkrId, measurements, targets])
+
+  useEffect(() => {
+    if (!activeLaunch) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpandedOkrId(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeLaunch])
 
   // Action: Save a target
   const handleSaveTargetSubmit = async (e: React.FormEvent) => {
@@ -472,6 +567,68 @@ export function OKRsView({
               <small>Peso total: {okrStats.totalWeight}</small>
             </div>
           </div>
+
+          {/* Cards por Objetivo — anel de progresso + KRs com barra, confiança e farol do mês */}
+          {objectiveCards.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ margin: '0 0 12px' }}>Objetivos do {selectedPeriodLabel}</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+                {objectiveCards.map(card => (
+                  <div key={`${card.responsavel}::${card.objetivo}`} className="card">
+                    <div style={{ padding: '16px 18px 12px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <ProgressRing pct={card.score} />
+                      <div style={{ minWidth: 0 }}>
+                        {selectedManager === 'Todos' && (
+                          <div style={{ marginBottom: 4 }}><Badge label={card.responsavel} tone="tone-blue" /></div>
+                        )}
+                        <h4 style={{ margin: 0, fontSize: 13, lineHeight: 1.35, color: 'var(--text-title)' }}>{card.objetivo}</h4>
+                        <small style={{ color: 'var(--muted)', fontSize: 11 }}>
+                          {card.krs.length} KR{card.krs.length > 1 ? 's' : ''} · {QUARTER_LABELS[selectedQuarter]}
+                        </small>
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--line)', padding: '10px 12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {card.krs.map(k => {
+                        const pct = k.avg !== null ? k.avg * 100 : null
+                        const barColor = pct === null ? 'var(--line-strong)' : pct >= 100 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#ef4444'
+                        return (
+                          <button
+                            key={k.t.id}
+                            onClick={() => setActiveTab('measurements')}
+                            title={`Abrir lançamento de ${k.t.id_okr}`}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left', border: 'none',
+                              background: 'transparent', borderRadius: 8, padding: '8px 6px',
+                              cursor: 'pointer', font: 'inherit'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(47, 109, 181, 0.05)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                              <strong style={{ fontSize: 11 }}>{k.t.id_okr}</strong>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {k.t.key_result}
+                              </span>
+                              {k.conf && <Badge label={OKR_CONFIDENCE_LABELS[k.conf]} tone={okrConfidenceTone(k.conf)} />}
+                              {k.mesAtualPendente && <Badge label={`${mesAtual} pendente`} tone="tone-amber" />}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div className="progress-line" style={{ height: 6, flex: 1 }}>
+                                <i style={{ width: `${Math.min(100, pct ?? 0)}%`, height: '100%', background: barColor }} />
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                                {pct !== null ? `${Math.round(pct)}%` : 'sem dado'} · {k.lancados}/{k.totalMeses} meses
+                              </span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
             {/* Perspectivas / Pilares */}
@@ -742,163 +899,6 @@ export function OKRsView({
                             </tr>
                           )}
 
-                          {/* Painel de Lançamento / Auditoria Ativo */}
-                          {okrMeasures.map(m => {
-                            if (expandedOkrId !== m.id) return null
-                            const rating = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
-                            
-                            return (
-                              <tr key={m.id + '-form'} style={{ background: 'rgba(99, 102, 241, 0.02)' }}>
-                                <td colSpan={6} style={{ padding: '15px 20px', borderLeft: '4px solid #6366f1' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                                    <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span>Apuração do mês de <strong>{m.mes}</strong></span>
-                                      {m.audited
-                                        ? <Badge label="Homologado" tone="tone-green" />
-                                        : (m.resultado_apurado !== null && m.resultado_apurado !== undefined)
-                                          ? <Badge label="A homologar" tone="tone-amber" />
-                                          : <Badge label="Pendente de lançamento" tone="tone-gray" />}
-                                    </h4>
-                                    <button className="btn small square ghost" onClick={() => setExpandedOkrId(null)}>✕</button>
-                                  </div>
-
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                                    {/* Lançamento do Gerente */}
-                                    <div style={{ paddingRight: 10 }}>
-                                      <h5 style={{ margin: '0 0 10px 0', fontSize: 12 }}>Lançamento de Resultados (Gerente)</h5>
-                                      <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 10 }}>
-                                        <div style={{ display: 'flex', gap: 10 }}>
-                                          <label style={{ flex: 1 }}>Resultado Apurado
-                                            <input
-                                              className="input"
-                                              type="text"
-                                              placeholder={`Ex: 0.90, 320000, 5`}
-                                              value={measurementForm.resultado}
-                                              onChange={e => setMeasurementForm(f => ({ ...f, resultado: e.target.value }))}
-                                              disabled={!canLaunch}
-                                            />
-                                          </label>
-                                          <div style={{ flex: 1, alignSelf: 'end', paddingBottom: 6 }}>
-                                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                              Meta: {t.meta_exibida} ({t.unidade})
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        <label>Evidência / Comprovação
-                                          <textarea
-                                            className="textarea"
-                                            rows={2}
-                                            placeholder="Cole o link do SharePoint ou descreva onde a evidência foi registrada..."
-                                            value={measurementForm.comentario}
-                                            onChange={e => setMeasurementForm(f => ({ ...f, comentario: e.target.value }))}
-                                            disabled={!canLaunch}
-                                          />
-                                        </label>
-
-                                        <label>Confiança em fechar o trimestre
-                                          <select
-                                            className="select"
-                                            value={measurementForm.confidence}
-                                            onChange={e => setMeasurementForm(f => ({ ...f, confidence: e.target.value as '' | OKRConfidence }))}
-                                            disabled={!canLaunch}
-                                          >
-                                            <option value="">— Não informada —</option>
-                                            {OKR_CONFIDENCES.map(c => <option key={c} value={c}>{OKR_CONFIDENCE_LABELS[c]}</option>)}
-                                          </select>
-                                        </label>
-
-                                        {rating !== null && rating < 1.0 && (
-                                          <label>Plano de Ação Corretiva
-                                            <input
-                                              className="input"
-                                              type="text"
-                                              placeholder="O que será feito para reverter este resultado?"
-                                              value={measurementForm.acaoSugerida}
-                                              onChange={e => setMeasurementForm(f => ({ ...f, acaoSugerida: e.target.value }))}
-                                              disabled={!canLaunch}
-                                            />
-                                          </label>
-                                        )}
-
-                                        {canLaunch && (
-                                          <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center' }}>
-                                            <button
-                                              className="btn primary small"
-                                              onClick={() => handleSaveResult(t.id, m.mes)}
-                                            >
-                                              Salvar Lançamento
-                                            </button>
-                                            {m.audited && (
-                                              <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                                                Editar e salvar reabre para nova homologação.
-                                              </span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Auditoria Executiva */}
-                                    <div style={{ borderLeft: '1px solid rgba(0,0,0,0.08)', paddingLeft: 20 }}>
-                                      <h5 style={{ margin: '0 0 10px 0', fontSize: 12 }}>Checkdesk de Auditoria (Superintendência)</h5>
-                                      {isSuperOrAdmin ? (
-                                        <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 10 }}>
-                                          <label style={{ flexDirection: 'row', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-                                            <input
-                                              type="checkbox"
-                                              checked={auditForm.audited}
-                                              onChange={e => setAuditForm(f => ({ ...f, audited: e.target.checked }))}
-                                            />
-                                            <span><strong>Aprovar e Marcar como Auditado</strong></span>
-                                          </label>
-
-                                          <label>Feedback de Auditoria / Instrução Executiva
-                                            <textarea
-                                              className="textarea"
-                                              rows={2}
-                                              placeholder="Descreva as checagens realizadas ou correções exigidas..."
-                                              value={auditForm.feedback}
-                                              onChange={e => setAuditForm(f => ({ ...f, feedback: e.target.value }))}
-                                            />
-                                          </label>
-
-                                          <div style={{ marginTop: 5 }}>
-                                            <button
-                                              className="btn small"
-                                              style={{ background: '#10b981', color: 'white' }}
-                                              onClick={() => handleAuditResult(m.id)}
-                                            >
-                                              Registrar Auditoria
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div style={{ padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 11 }}>
-                                          {m.audited ? (
-                                            <div>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontWeight: 700, marginBottom: 6 }}>
-                                                <CheckCircle size={14} /> Metas Auditadas com Sucesso
-                                              </div>
-                                              <p style={{ margin: '0 0 6px 0' }}><strong>Feedback Superintendência:</strong> {m.audit_feedback || 'Nenhuma ressalva cadastrada.'}</p>
-                                              <p style={{ margin: 0, fontSize: 10, color: 'var(--muted)' }}>O valor já conta no resultado. Se precisar corrigir, edite e salve — o lançamento volta automaticamente para homologação.</p>
-                                            </div>
-                                          ) : (
-                                            <div>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f59e0b', fontWeight: 700, marginBottom: 6 }}>
-                                                <AlertTriangle size={14} /> Aguardando Auditoria
-                                              </div>
-                                              Lançado pelo gerente. Aguardando homologação do superintendente no ritual tático semanal.
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
                         </React.Fragment>
                       )
                     })
@@ -1337,6 +1337,159 @@ export function OKRsView({
           )}
         </div>
       )}
+
+      {/* Drawer lateral de Lançamento & Auditoria (substitui a linha expandida na tabela) */}
+      {activeLaunch && (() => {
+        const { t, m } = activeLaunch
+        const rating = calculateOkrAtingimento(m.resultado_apurado, t.meta_numerica, t.direcao)
+        return (
+          <div
+            className="drawer-backdrop"
+            onClick={e => { if ((e.target as HTMLElement).classList.contains('drawer-backdrop')) setExpandedOkrId(null) }}
+          >
+            <aside className="drawer" role="dialog" aria-modal="true" aria-label={`Apuração de ${t.id_okr} — ${m.mes}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{t.id_okr} · Apuração de {m.mes}</span>
+                  {m.audited
+                    ? <Badge label="Homologado" tone="tone-green" />
+                    : (m.resultado_apurado !== null && m.resultado_apurado !== undefined)
+                      ? <Badge label="A homologar" tone="tone-amber" />
+                      : <Badge label="Pendente de lançamento" tone="tone-gray" />}
+                </h3>
+                <button className="btn small square ghost" aria-label="Fechar painel de apuração" onClick={() => setExpandedOkrId(null)}>✕</button>
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+                <div style={{ fontWeight: 600, color: 'var(--text-title)' }}>{t.objetivo}</div>
+                <div>{t.key_result}</div>
+                <div style={{ marginTop: 4 }}><strong>Meta:</strong> {t.meta_exibida} ({t.unidade}) · <strong>Peso:</strong> {t.peso} · <strong>Responsável:</strong> {t.responsavel}</div>
+              </div>
+
+              <h5 style={{ margin: '0 0 10px 0', fontSize: 12 }}>Lançamento de Resultados (Gerente)</h5>
+              <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 10 }}>
+                <label>Resultado Apurado
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder={`Ex: 0.90, 320000, 5`}
+                    value={measurementForm.resultado}
+                    onChange={e => setMeasurementForm(f => ({ ...f, resultado: e.target.value }))}
+                    disabled={!canLaunch}
+                  />
+                </label>
+
+                <label>Evidência / Comprovação
+                  <textarea
+                    className="textarea"
+                    rows={2}
+                    placeholder="Cole o link do SharePoint ou descreva onde a evidência foi registrada..."
+                    value={measurementForm.comentario}
+                    onChange={e => setMeasurementForm(f => ({ ...f, comentario: e.target.value }))}
+                    disabled={!canLaunch}
+                  />
+                </label>
+
+                <label>Confiança em fechar o trimestre
+                  <select
+                    className="select"
+                    value={measurementForm.confidence}
+                    onChange={e => setMeasurementForm(f => ({ ...f, confidence: e.target.value as '' | OKRConfidence }))}
+                    disabled={!canLaunch}
+                  >
+                    <option value="">— Não informada —</option>
+                    {OKR_CONFIDENCES.map(c => <option key={c} value={c}>{OKR_CONFIDENCE_LABELS[c]}</option>)}
+                  </select>
+                </label>
+
+                {rating !== null && rating < 1.0 && (
+                  <label>Plano de Ação Corretiva
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="O que será feito para reverter este resultado?"
+                      value={measurementForm.acaoSugerida}
+                      onChange={e => setMeasurementForm(f => ({ ...f, acaoSugerida: e.target.value }))}
+                      disabled={!canLaunch}
+                    />
+                  </label>
+                )}
+
+                {canLaunch && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      className="btn primary small"
+                      onClick={() => handleSaveResult(t.id, m.mes)}
+                    >
+                      Salvar Lançamento
+                    </button>
+                    {m.audited && (
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                        Editar e salvar reabre para nova homologação.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 20, paddingTop: 16 }}>
+                <h5 style={{ margin: '0 0 10px 0', fontSize: 12 }}>Checkdesk de Auditoria (Superintendência)</h5>
+                {isSuperOrAdmin ? (
+                  <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: 10 }}>
+                    <label style={{ flexDirection: 'row', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={auditForm.audited}
+                        onChange={e => setAuditForm(f => ({ ...f, audited: e.target.checked }))}
+                      />
+                      <span><strong>Aprovar e Marcar como Auditado</strong></span>
+                    </label>
+
+                    <label>Feedback de Auditoria / Instrução Executiva
+                      <textarea
+                        className="textarea"
+                        rows={2}
+                        placeholder="Descreva as checagens realizadas ou correções exigidas..."
+                        value={auditForm.feedback}
+                        onChange={e => setAuditForm(f => ({ ...f, feedback: e.target.value }))}
+                      />
+                    </label>
+
+                    <div style={{ marginTop: 5 }}>
+                      <button
+                        className="btn small"
+                        style={{ background: '#10b981', color: 'white' }}
+                        onClick={() => handleAuditResult(m.id)}
+                      >
+                        Registrar Auditoria
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 6, fontSize: 11 }}>
+                    {m.audited ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontWeight: 700, marginBottom: 6 }}>
+                          <CheckCircle size={14} /> Metas Auditadas com Sucesso
+                        </div>
+                        <p style={{ margin: '0 0 6px 0' }}><strong>Feedback Superintendência:</strong> {m.audit_feedback || 'Nenhuma ressalva cadastrada.'}</p>
+                        <p style={{ margin: 0, fontSize: 10, color: 'var(--muted)' }}>O valor já conta no resultado. Se precisar corrigir, edite e salve — o lançamento volta automaticamente para homologação.</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f59e0b', fontWeight: 700, marginBottom: 6 }}>
+                          <AlertTriangle size={14} /> Aguardando Auditoria
+                        </div>
+                        Lançado pelo gerente. Aguardando homologação do superintendente no ritual tático semanal.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </aside>
+          </div>
+        )
+      })()}
 
     </div>
   )

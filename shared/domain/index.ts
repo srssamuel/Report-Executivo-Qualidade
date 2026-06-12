@@ -271,6 +271,22 @@ export function ownersOf(owner?: string): string[] {
   return [...new Set(splitOwners(owner).map(canonicalizeOwner))]
 }
 
+/**
+ * Extrai @menções de um texto e resolve cada token contra o cadastro
+ * (canonicalizeOwner — mesmos tiers conservadores do ownersOf). Só retorna
+ * nomes que resolveram para um usuário canônico único; tokens ambíguos ou
+ * desconhecidos são ignorados.
+ */
+export function extractMentions(text: string): string[] {
+  const canon = new Set(getCanonicalOwners())
+  const found = new Set<string>()
+  for (const m of String(text ?? '').matchAll(/@([\p{L}][\p{L}\d._-]*)/gu)) {
+    const resolved = canonicalizeOwner(m[1]!)
+    if (canon.has(resolved)) found.add(resolved)
+  }
+  return [...found]
+}
+
 export function normalizeStatus(status: unknown): string {
   const raw = String(status ?? '').trim()
   const found = STATUSES.find(s => s.toLowerCase() === raw.toLowerCase())

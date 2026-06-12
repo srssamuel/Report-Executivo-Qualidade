@@ -7,8 +7,11 @@ on:
     branches: ['claude/**', 'integ/**']
   workflow_dispatch:
 
+# head_ref unifica push e pull_request do MESMO branch num só grupo:
+# sem isso, cada push em branch com PR aberto dispara 2 E2E paralelos
+# que disputam o banco (a limpeza de um run apagava o usuário QA do outro).
 concurrency:
-  group: e2e-${{ github.ref }}
+  group: e2e-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
