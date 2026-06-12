@@ -540,7 +540,7 @@ function ReportPreview({ text }: { text: string }) {
   }
   flushList()
 
-  return <div className="report-preview">{blocks}</div>
+  return <div className="report-preview" tabIndex={0} role="region" aria-label="Prévia do relatório executivo">{blocks}</div>
 }
 
 export function ExecutiveView({ filtered, filters, items, userProfiles, profile }: ExecutiveViewProps) {
@@ -720,7 +720,7 @@ export function ExecutiveView({ filtered, filters, items, userProfiles, profile 
                     🟢{lv.verdes} 🟡{lv.amarelos} 🔴{lv.vermelhos} · cobertura {lv.cobertura}% ({lv.comUso}/{lv.count} usam)
                   </span>
                 </div>
-                <div className="table-wrap">
+                <div className="table-wrap" tabIndex={0}>
                   <table className="admin-table">
                     <thead>
                       <tr>
@@ -770,7 +770,7 @@ export function ExecutiveView({ filtered, filters, items, userProfiles, profile 
           {resourceStats.length === 0 ? (
             <p style={{ color: 'var(--muted)' }}>Nenhum recurso no recorte atual.</p>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" tabIndex={0}>
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -843,7 +843,7 @@ export function ExecutiveView({ filtered, filters, items, userProfiles, profile 
                     </span>
                   </div>
                 </div>
-                <div className="table-wrap">
+                <div className="table-wrap" tabIndex={0}>
                   <table className="admin-table">
                     <thead>
                       <tr>

@@ -15,6 +15,17 @@
 
 ## Diário de Bordo Cronológico (Mais Recente Primeiro)
 
+### 2026-06-12 — Harness E2E (avaliação completa da página) + app 100% limpo em a11y critical/serious
+
+- **Diretriz do Samuel:** "crie login para teste, você tem essa autonomia; sempre avalie a página completa para criticar completo" e "ao finalizar as críticas aplique as soluções".
+- **Harness (PR #12, squash `65edce0`):** Playwright no CI (`e2e.yml`) — **usuário QA efêmero** criado via service role no global-setup (admin, pula first-login) e apagado no teardown (cascata limpa perfil/telemetria; zero credencial fixa); auth (3 specs), navegação autenticada nas 10 views com captura de erros de runtime + **screenshot full-page por view como artefato**; varredura **axe-core WCAG 2 A/AA por view** com seletor+causa no log; /admin/users. Roda em PRs para main + push `claude/**`/`integ/**`. `bypassCSP` (CSP estrito bloquearia o axe). Lições do harness: filtrar ruído por `msg.location().url` (404 do `/_vercel/speed-insights` fora da Vercel); `<option>` nunca é "visible" p/ Playwright → `toBeAttached`.
+- **Crítica completa → soluções aplicadas (3 rodadas de scan):**
+  - **Rodada 1 (22 critical):** Carteira com 576 campos/197 selects/65 botões sem nome + toolbar global — `aria-label` contextual com o ID do item em TODOS os controles inline (PortfolioView), 5 selects da toolbar (page.tsx), botão de largura, selects de OKRs/Dev, inputs por pessoa da Capacidade.
+  - **Rodada 2 (serious, contraste):** tokens escurecidos no mesmo matiz — `--muted-2` #8a98aa→#647487 · `--green` #0b8a5b→#0a6e49 · `--amber` #b86b00→#8f5200 (design-tokens.json espelhado); h4 inline dos OKRs → #047857/#b45309; textos #94a3b8 do Dev → var(--muted-2); `tabIndex` nas 4 regiões roláveis do Executivo (`scrollable-region-focusable`).
+  - **Rodada 3 (últimos 75 nós):** `--muted` #5f7188→#56657a (badges soft do Dashboard a 4.39–4.48:1); **Board**: `attributes` do dnd-kit movidos do `<article>` para o handle (nested-interactive, 56 nós); **Arquivados**: `.archived-row` usava `opacity:.75` que **diluía** as cores (axe via hexes que não existiam no código!) → `filter: saturate(0.55)` preserva o efeito sem matar contraste.
+- **Gate elevado e travado:** a11y agora reprova `critical` E `serious` em todo PR. Scan final (`c0abc1c`): **zero violações nas 10 views**.
+- **Backlog a11y (não bloqueante):** violações `moderate`/`minor` seguem reportadas no log do CI.
+
 ### 2026-06-11 (b) — Operação InstAI: migração para recanto-maanain + saneamento do banco · docs técnicos atualizados
 
 - **Achado dos advisors (entrada anterior) resolvido de ponta a ponta.** Samuel confirmou: app InstAI é dele → "altere ele para o projeto do recanto maanain".

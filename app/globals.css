@@ -25,13 +25,13 @@
   --surface-green: #f5fbf8;
   --surface-violet: #faf8ff;
   --ink: #0b1f3a;
-  --muted: #5f7188;
-  --muted-2: #8a98aa;
+  --muted: #56657a; /* AA 5.2:1 sobre tons soft (era #5f7188, 4.4:1) */
+  --muted-2: #647487; /* AA 4.8:1 em branco (era #8a98aa, 2.9:1) */
   --line: #e3ecf6;
   --line-strong: #c8d9ec;
-  --green: #0b8a5b;
+  --green: #0a6e49; /* AA 5.7:1 em --green-soft (era #0b8a5b, 4.0:1) */
   --green-soft: #e8f7f1;
-  --amber: #b86b00;
+  --amber: #8f5200; /* AA 5.7:1 em --amber-soft (era #b86b00, 3.7:1) */
   --amber-soft: #fff4df;
   --red: #bd2f3d;
   --red-soft: #ffecef;
@@ -2061,9 +2061,10 @@ body.table-dense td .mini-textarea {
   text-overflow: ellipsis;
 }
 
-/* Archived row */
+/* Archived row — dessaturado em vez de opacity: o efeito "apagado" se mantém
+   sem diluir o contraste do texto abaixo de AA (axe: color-contrast) */
 .archived-row {
-  opacity: 0.75;
+  filter: saturate(0.55);
 }
 
 /* User info chip */

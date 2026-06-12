@@ -34,10 +34,11 @@ export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: st
     opacity: isDragging ? 0.5 : 1,
   }
   return (
-    <article ref={setNodeRef} style={style} className={`task-card${isDragging ? ' dragging' : ''}`} {...attributes}>
+    <article ref={setNodeRef} style={style} className={`task-card${isDragging ? ' dragging' : ''}`}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
         <button
           className="btn-drag"
+          {...attributes}
           {...listeners}
           aria-label="Arrastar"
           style={{ cursor: 'grab', background: 'none', border: 'none', padding: '2px 0', color: 'var(--muted-2)', flexShrink: 0 }}

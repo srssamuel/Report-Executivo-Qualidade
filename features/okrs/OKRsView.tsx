@@ -357,7 +357,7 @@ export function OKRsView({
           gap: 12,
           fontSize: 12,
           lineHeight: '1.4em',
-          color: '#d97706'
+          color: '#b45309'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={18} style={{ flexShrink: 0 }} />
@@ -510,11 +510,11 @@ export function OKRsView({
                     Neste módulo você recontrata os OKRs de um trimestre para o seguinte (Q1→Q2→Q3→Q4). A recontratação copia a árvore de objetivos e KRs, mas reinicia as apurações dos três meses do novo trimestre.
                   </div>
                   <div style={{ padding: 10, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 6, borderLeft: '3px solid #10b981' }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}><UserCheck size={12} /> Fluxo de Apuração e Evidências</h4>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#047857', display: 'flex', alignItems: 'center', gap: 4 }}><UserCheck size={12} /> Fluxo de Apuração e Evidências</h4>
                     Os gerentes devem lançar mensalmente o <strong>Resultado Apurado</strong> e anexar no campo de <strong>Evidência/Comentário</strong> o link da comprovação ou notas de apoio. Lançamentos sem evidência clara serão invalidados.
                   </div>
                   <div style={{ padding: 10, background: 'rgba(245, 158, 11, 0.05)', borderRadius: 6, borderLeft: '3px solid #f59e0b' }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4 }}><ShieldAlert size={12} /> Roteiro de Auditoria por Pilar</h4>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}><ShieldAlert size={12} /> Roteiro de Auditoria por Pilar</h4>
                     <ul>
                       <li><strong>Performance</strong>: Checagem baseada em relatórios do NEP Delivery Control.</li>
                       <li><strong>Governança</strong>: Validação das atas de reuniões e relatórios semanais.</li>
@@ -686,7 +686,7 @@ export function OKRsView({
                                           isPending && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} className="pulse-dot" />
                                         )}
                                       </span>
-                                      <strong style={{ fontSize: 11, marginTop: 1, color: isPending ? '#d97706' : 'inherit' }}>
+                                      <strong style={{ fontSize: 11, marginTop: 1, color: isPending ? '#b45309' : 'inherit' }}>
                                         {displayVal}
                                       </strong>
                                     </div>
@@ -955,7 +955,7 @@ export function OKRsView({
                           <td style={{ maxWidth: 220, fontSize: 11, color: 'var(--text-muted)' }}>
                             {m.evidencia_comentario
                               ? <span title={m.evidencia_comentario}>{m.evidencia_comentario.length > 90 ? m.evidencia_comentario.slice(0, 90) + '…' : m.evidencia_comentario}</span>
-                              : <span style={{ color: '#d97706' }}>Sem evidência anexada</span>}
+                              : <span style={{ color: '#b45309' }}>Sem evidência anexada</span>}
                           </td>
                           <td>
                             <button className="btn small" style={{ background: '#10b981', color: 'white' }} onClick={() => handleApproveOne(m.id)}>
