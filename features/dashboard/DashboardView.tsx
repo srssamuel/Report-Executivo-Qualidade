@@ -5,6 +5,7 @@ import { TrendingUp, Users, Target } from 'lucide-react'
 import {
   Item,
   Gain,
+  Filters,
   isDone,
   riskSeverity,
   riskOf,
@@ -50,6 +51,8 @@ interface DashboardViewProps {
   okrMeasurements: OKRMeasurement[]
   isOkrFallback: boolean
   weeklyCapacity: number
+  /** Drill-down: aplica filtros e navega para a view de detalhe. */
+  onDrill: (filters: Partial<Filters>, view?: 'portfolio' | 'capacity') => void
 }
 
 export function DashboardView({
@@ -68,6 +71,7 @@ export function DashboardView({
   okrMeasurements,
   isOkrFallback,
   weeklyCapacity,
+  onDrill,
 }: DashboardViewProps) {
   const decisionQueue = [...filtered]
     .filter(i => !isDone(i))
@@ -171,18 +175,24 @@ export function DashboardView({
       {/* ── KPI Grid ────────────────────────────────────────── */}
       <div className="kpi-grid">
         {[
-          { label: 'Score executivo', value: `${avgScore}%`, sub: `Média ponderada · ${total} frentes`, cls: healthTone, hero: true },
-          { label: 'Ativas', value: active, sub: 'em execução ou planejadas', cls: 'blue', hero: false },
-          { label: 'Concluídas', value: total - active, sub: 'entregues ou canceladas', cls: 'green', hero: false },
-          { label: 'Críticas', value: late, sub: 'atrasadas ou bloqueadas', cls: late > 0 ? 'red' : 'green', hero: false },
-          { label: 'Lacunas', value: gaps, sub: 'governança incompleta', cls: gaps > 0 ? 'amber' : 'green', hero: false },
-          { label: 'Esforço restante', value: `${effort}h`, sub: `${soon} vencem em breve`, cls: 'blue', hero: false },
+          { label: 'Score executivo', value: `${avgScore}%`, sub: `Média ponderada · ${total} frentes`, cls: healthTone, hero: true, hint: 'Ver carteira ordenada por risco', drill: () => onDrill({ sort: 'risk' }) },
+          { label: 'Ativas', value: active, sub: 'em execução ou planejadas', cls: 'blue', hero: false, hint: 'Ver carteira completa', drill: () => onDrill({}) },
+          { label: 'Concluídas', value: total - active, sub: 'entregues ou canceladas', cls: 'green', hero: false, hint: 'Ver concluídas na carteira', drill: () => onDrill({ status: 'Concluído', sort: 'updated' }) },
+          { label: 'Críticas', value: late, sub: 'atrasadas ou bloqueadas', cls: late > 0 ? 'red' : 'green', hero: false, hint: 'Ver apenas as críticas', drill: () => onDrill({ criticalOnly: true, sort: 'risk' }) },
+          { label: 'Lacunas', value: gaps, sub: 'governança incompleta', cls: gaps > 0 ? 'amber' : 'green', hero: false, hint: 'Ver itens com lacunas de governança', drill: () => onDrill({ gapsOnly: true }) },
+          { label: 'Esforço restante', value: `${effort}h`, sub: `${soon} vencem em breve`, cls: 'blue', hero: false, hint: 'Ver capacidade da equipe', drill: () => onDrill({}, 'capacity') },
         ].map((k, idx) => (
-          <div className={`kpi ${k.cls}${k.hero ? ' kpi-hero' : ''} animate-fade-up stagger-${idx + 1}`} key={k.label}>
+          <button
+            type="button"
+            className={`kpi ${k.cls}${k.hero ? ' kpi-hero' : ''} animate-fade-up stagger-${idx + 1}`}
+            key={k.label}
+            title={k.hint}
+            onClick={k.drill}
+          >
             <span>{k.label}</span>
             <strong>{k.value}</strong>
             <small>{k.sub}</small>
-          </div>
+          </button>
         ))}
       </div>
 
