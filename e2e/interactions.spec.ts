@@ -50,7 +50,8 @@ test.describe('Interações críticas', () => {
     await expect(page.getByText('Seções do painel')).toBeVisible()
 
     // Esconde "Evolução da carteira" → o título da seção some do painel.
-    await page.getByLabel('Evolução da carteira').uncheck()
+    // (getByRole exclui os botões "Mover … para cima/baixo", que contêm o mesmo texto)
+    await page.getByRole('checkbox', { name: 'Evolução da carteira' }).uncheck()
     await expect(page.getByRole('heading', { name: 'Evolução da carteira' })).toBeHidden()
 
     // Restaurar padrão → a seção volta.
