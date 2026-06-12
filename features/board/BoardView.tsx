@@ -27,7 +27,7 @@ import { Badge } from '@/shared/components'
 
 // ── Sortable Card (DnD) ────────────────────────────────────────────────────
 export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: string) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style: React.CSSProperties = {
     transform: DndCSS.Transform.toString(transform),
     transition,
@@ -42,7 +42,6 @@ export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: st
       ref={setNodeRef}
       style={{ ...style, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
       className={`task-card${isDragging ? ' dragging' : ''}`}
-      {...attributes}
       {...listeners}
     >
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
