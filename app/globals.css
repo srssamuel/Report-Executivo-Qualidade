@@ -25,7 +25,7 @@
   --surface-green: #f5fbf8;
   --surface-violet: #faf8ff;
   --ink: #0b1f3a;
-  --muted: #5f7188;
+  --muted: #56657a; /* AA 5.2:1 sobre tons soft (era #5f7188, 4.4:1) */
   --muted-2: #647487; /* AA 4.8:1 em branco (era #8a98aa, 2.9:1) */
   --line: #e3ecf6;
   --line-strong: #c8d9ec;
@@ -2061,9 +2061,10 @@ body.table-dense td .mini-textarea {
   text-overflow: ellipsis;
 }
 
-/* Archived row */
+/* Archived row — dessaturado em vez de opacity: o efeito "apagado" se mantém
+   sem diluir o contraste do texto abaixo de AA (axe: color-contrast) */
 .archived-row {
-  opacity: 0.75;
+  filter: saturate(0.55);
 }
 
 /* User info chip */

@@ -47,7 +47,7 @@
     },
     "neutral": {
       "ink": { "value": "#0b1f3a", "description": "Primary text" },
-      "muted": { "value": "#5f7188", "description": "Secondary text" },
+      "muted": { "value": "#56657a", "description": "Secondary text" },
       "muted-2": { "value": "#647487", "description": "Tertiary text" },
       "line": { "value": "#e3ecf6", "description": "Default border" },
       "line-strong": { "value": "#c8d9ec", "description": "Strong border" },
