@@ -20,7 +20,7 @@ import {
   urgencyCandidateScore, recommendationType,
   nextId, clamp, canEdit, canDelete, isAdmin, canManagePeople, Person,
   riskScore, riskBandTone,
-  OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, calculateOkrAtingimento, resolveOkrStatus,
+  OKRTarget, OKRMeasurement, OKRFeedback, OKRStatus, OKRConfidence, calculateOkrAtingimento, resolveOkrStatus,
   quarterForMonth, monthsForPeriodo, periodoCoversQuarter, Quarter,
   UserPDI, ProfileEvaluation
 } from '@/shared/domain'
@@ -627,7 +627,7 @@ export default function AppPage() {
 
   // ── OKR Event Handlers ─────────────────────────────────────────────────────
 
-  async function handleSaveMeasurement(okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string) {
+  async function handleSaveMeasurement(okrId: string, mes: string, resultado: number | null, comentario: string, acaoSugerida: string, confidence: OKRConfidence | null = null) {
     const target = okrTargets.find(t => t.id === okrId)
     if (!target) return
 
@@ -647,6 +647,7 @@ export default function AppPage() {
       status,
       evidencia_comentario: comentario || null,
       acao_sugerida: acaoSugerida || null,
+      confidence,
       audited: false
     }
 
