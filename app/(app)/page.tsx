@@ -165,8 +165,10 @@ export default function AppPage() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError || !user) {
-          setLoadError('Sessão expirada. Faça login novamente.')
-          setLoading(false)
+          // Sessão irrecuperável (refresh token rotacionado/invalidado): limpar
+          // os cookies velhos e voltar ao login — sem prender o usuário no erro.
+          await supabase.auth.signOut().catch(() => { /* cookies já inválidos */ })
+          window.location.href = '/login'
           return
         }
 

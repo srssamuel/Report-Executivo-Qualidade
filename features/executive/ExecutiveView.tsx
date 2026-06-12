@@ -19,6 +19,7 @@ import {
   scoreOf,
   daysToDue,
   itemRemainingEffort,
+  ownerLoad,
 } from '@/shared/domain'
 import { createClient } from '@/lib/supabase/client'
 
@@ -609,8 +610,60 @@ export function ExecutiveView({ filtered, filters, items, userProfiles, profile 
     setTimeout(() => setCopied(false), 2000)
   }
 
+  /* ── Boletim de 1 tela (redesign §7): nota A–E + 3 decisões da semana ── */
+  const carteiraScore = totalFrentes ? Math.round(filtered.reduce((sum, i) => sum + scoreOf(i), 0) / totalFrentes) : 0
+  const usoMedio = usage.length ? Math.round(usage.reduce((sum, u) => sum + u.indice, 0) / usage.length) : 0
+  const riscoScore = totalPendentes ? Math.max(0, 100 - Math.round((totalCriticas / totalPendentes) * 100)) : 100
+  const notaComposta = Math.round(carteiraScore * 0.35 + aderenciaGlobal * 0.25 + usoMedio * 0.25 + riscoScore * 0.15)
+  const NOTA = notaComposta >= 85 ? 'A' : notaComposta >= 70 ? 'B' : notaComposta >= 55 ? 'C' : notaComposta >= 40 ? 'D' : 'E'
+  const notaCor = notaComposta >= 70 ? '#0a6e49' : notaComposta >= 55 ? '#8f5200' : '#bd2f3d'
+  const farol = (v: number) => (v >= 70 ? '🟢' : v >= 55 ? '🟡' : '🔴')
+
+  const decisoes: string[] = []
+  const topRisco = filtered
+    .map(i => ({ i, rs: riskScore(i, filtered) }))
+    .filter((x): x is { i: Item; rs: NonNullable<ReturnType<typeof riskScore>> } => x.rs !== null)
+    .sort((a, b) => b.rs.score - a.rs.score)[0]
+  if (topRisco && topRisco.rs.score >= 50) {
+    decisoes.push(`Destravar "${topRisco.i.project ?? topRisco.i.id}" — maior risco da carteira (score ${topRisco.rs.score}, ${topRisco.rs.mainReason}).`)
+  }
+  const topLacuna = [...filtered].filter(i => !isDone(i) && dataGaps(i).length > 0).sort((a, b) => dataGaps(b).length - dataGaps(a).length)[0]
+  if (topLacuna) {
+    decisoes.push(`Completar a governança de "${topLacuna.project ?? topLacuna.id}" — ${dataGaps(topLacuna).join(', ')}.`)
+  }
+  const cargaTop = Object.entries(ownerLoad(filtered)).filter(([o]) => o !== 'Sem responsável').sort((a, b) => b[1] - a[1])[0]
+  if (cargaTop) {
+    decisoes.push(`Avaliar redistribuição: ${cargaTop[0]} concentra ${Math.round(cargaTop[1])}h de esforço restante.`)
+  }
+  if (!decisoes.length) decisoes.push('Sem pendências estruturais — manter o ritual semanal e o registro de decisões.')
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      {/* ── Boletim de 1 tela: a nota da operação sem rolar ── */}
+      <div className="card">
+        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'center' }}>
+          <div style={{ textAlign: 'center', minWidth: 110 }}>
+            <div aria-label={`Nota geral ${NOTA}`} style={{ fontSize: 56, fontWeight: 900, lineHeight: 1, color: notaCor }}>{NOTA}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>nota geral · {notaComposta}/100</div>
+            <div style={{ fontSize: 10, color: 'var(--muted-2)' }}>carteira 35 · governança 25 · uso 25 · risco 15</div>
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              <div style={{ fontSize: 12 }}>{farol(carteiraScore)} <b>Carteira</b> · {carteiraScore}% <span style={{ color: 'var(--muted)' }}>governança média das frentes</span></div>
+              <div style={{ fontSize: 12 }}>{farol(aderenciaGlobal)} <b>Aderência</b> · {aderenciaGlobal}% <span style={{ color: 'var(--muted)' }}>frentes sem lacunas</span></div>
+              <div style={{ fontSize: 12 }}>{farol(usoMedio)} <b>Uso do portal</b> · {usoMedio} <span style={{ color: 'var(--muted)' }}>índice médio do time</span></div>
+              <div style={{ fontSize: 12 }}>{farol(riscoScore)} <b>Risco</b> · {totalCriticas} crítica(s) <span style={{ color: 'var(--muted)' }}>de {totalPendentes} abertas</span></div>
+            </div>
+            <div style={{ borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+              <b style={{ fontSize: 12 }}>3 decisões da semana</b>
+              <ol style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--text-title, #0b1f3a)', display: 'grid', gap: 2 }}>
+                {decisoes.slice(0, 3).map((d, i) => <li key={i}>{d}</li>)}
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KPIs com tendência — alimentados pelos snapshots diários (lib/tracking) */}
       <KpiTrendStrip items={items} />
 
