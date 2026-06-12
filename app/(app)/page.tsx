@@ -190,9 +190,11 @@ export default function AppPage() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError || !user) {
-          // Sessão irrecuperável (refresh token rotacionado/invalidado): limpar
-          // os cookies velhos e voltar ao login — sem prender o usuário no erro.
-          await supabase.auth.signOut().catch(() => { /* cookies já inválidos */ })
+          // Sessão irrecuperável (refresh token rotacionado/invalidado).
+          // scope LOCAL: limpa os cookies do navegador SEMPRE, sem depender de
+          // revogação no servidor (que falha com token morto e deixava o cookie
+          // vivo — o middleware então devolvia /login → / em loop infinito).
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => { /* já limpo */ })
           window.location.href = '/login'
           return
         }

@@ -24,6 +24,19 @@ export default async function globalSetup(): Promise<void> {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
+  // Autolimpeza: runs cancelados no meio (concurrency cancel-in-progress)
+  // não executam o teardown — varre órfãos de execuções anteriores.
+  const { data: orphans } = await admin
+    .from('user_profiles')
+    .select('id, email')
+    .like('email', 'qa-e2e-%@example.com')
+  for (const orphan of orphans ?? []) {
+    const { error: delErr } = await admin.auth.admin.deleteUser(orphan.id)
+    console.log(delErr
+      ? `[e2e] falha ao limpar órfão ${orphan.email}: ${delErr.message}`
+      : `[e2e] órfão de run cancelado removido: ${orphan.email}`)
+  }
+
   const email = `qa-e2e-${Date.now()}-${randomBytes(3).toString('hex')}@example.com`
   const password = `${randomBytes(18).toString('base64url')}!aA1`
 
