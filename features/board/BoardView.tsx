@@ -27,24 +27,27 @@ import { Badge } from '@/shared/components'
 
 // ── Sortable Card (DnD) ────────────────────────────────────────────────────
 export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: string) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style: React.CSSProperties = {
     transform: DndCSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+  // Dias sem atualização: item parado na coluna fica evidente.
+  const staleDays = item.lastUpdate
+    ? Math.max(0, Math.floor((Date.now() - new Date(item.lastUpdate).getTime()) / 86400000))
+    : null
   return (
-    <article ref={setNodeRef} style={style} className={`task-card${isDragging ? ' dragging' : ''}`}>
+    <article
+      ref={setNodeRef}
+      style={{ ...style, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+      className={`task-card${isDragging ? ' dragging' : ''}`}
+      {...listeners}
+    >
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-        <button
-          className="btn-drag"
-          {...attributes}
-          {...listeners}
-          aria-label="Arrastar"
-          style={{ cursor: 'grab', background: 'none', border: 'none', padding: '2px 0', color: 'var(--muted-2)', flexShrink: 0 }}
-        >
+        <span aria-hidden="true" style={{ color: 'var(--muted-2)', flexShrink: 0, paddingTop: 2 }}>
           <GripVertical size={14} />
-        </button>
+        </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="task-meta">
             <Badge label={item.product ?? 'Sem produto'} tone={productTone(item.product)} />
@@ -58,8 +61,19 @@ export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: st
             <i style={{ width: `${clamp(Number(item.progress ?? 0), 0, 100)}%` }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
-            <small>Score {scoreOf(item)}%</small>
-            <button className="btn small" onClick={() => onEdit(item.id)}>Editar</button>
+            <small style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              Score {scoreOf(item)}%
+              {staleDays !== null && staleDays >= 4 && (
+                <Badge label={`${staleDays}d parado`} tone={staleDays >= 7 ? 'tone-red' : 'tone-amber'} />
+              )}
+            </small>
+            <button
+              className="btn small"
+              onPointerDown={e => e.stopPropagation()}
+              onClick={() => onEdit(item.id)}
+            >
+              Editar
+            </button>
           </div>
         </div>
       </div>
@@ -68,6 +82,9 @@ export function SortableTaskCard({ item, onEdit }: { item: Item; onEdit: (id: st
 }
 
 // ── Droppable Lane wrapper ────────────────────────────────────────────────
+/** Limite saudável de itens em andamento por coluna — acima disso o cabeçalho acende. */
+const WIP_LIMIT = 6
+
 export function DroppableLane({
   laneId,
   status,
@@ -82,12 +99,13 @@ export function DroppableLane({
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: laneId })
+  const wipBlown = count > WIP_LIMIT && !['Concluído', 'Entregue'].includes(status)
   return (
     <div ref={setNodeRef} className={`lane${isOver ? ' lane-over' : ''}`}>
-      <div className="lane-head">
+      <div className="lane-head" title={wipBlown ? `Acima do limite saudável de ${WIP_LIMIT} itens — priorize concluir antes de puxar novos` : undefined}>
         <div className={`lane-dot ${dot}`} />
         <h3>{status}</h3>
-        <Badge label={String(count)} />
+        <Badge label={wipBlown ? `${count} · WIP!` : String(count)} tone={wipBlown ? 'tone-amber' : undefined} />
       </div>
       {children}
     </div>
