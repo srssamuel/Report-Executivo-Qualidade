@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { riskScore, normalizeItem, isoDate, addDays } from './index'
+import { riskScore, riskMainFactor, riskRecommendedAction, normalizeItem, isoDate, addDays } from './index'
 
 function mk(over: Partial<Parameters<typeof normalizeItem>[0]> = {}) {
   return normalizeItem({ id: 'T-001', status: 'Em andamento', priority: 'Média', progress: 0, lastUpdate: new Date().toISOString(), ...over })
@@ -75,5 +75,22 @@ describe('riskBand', () => {
     const probe = (due: string, status: string) => riskScore(mk({ dueDate: due, status }), [])!
     expect(probe(isoDate(addDays(new Date(), -2)), 'Bloqueado').band).toBe('Crítico')
     expect(probe(isoDate(addDays(new Date(), 3)), 'Pausado').band).toBe('Alto')
+  })
+})
+
+describe('riskMainFactor / riskRecommendedAction', () => {
+  it('o fator dominante é o de maior contribuição', () => {
+    const it = mk({ status: 'Bloqueado', dueDate: isoDate(addDays(new Date(), -3)) })
+    const rs = riskScore(it, [])!
+    // prazo vencido: raw 100 × peso 0.40 = 40 > status bloqueado: 100 × 0.20 = 20
+    expect(riskMainFactor(rs).key).toBe('prazo')
+  })
+
+  it('a ação recomendada acompanha o fator dominante', () => {
+    const atrasado = mk({ dueDate: isoDate(addDays(new Date(), -3)) })
+    expect(riskRecommendedAction(atrasado, riskScore(atrasado, [])!)).toMatch(/prazo|entrega/i)
+
+    const parado = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return mk({ lastUpdate: d.toISOString(), dueDate: isoDate(addDays(new Date(), 60)) }) })()
+    expect(riskRecommendedAction(parado, riskScore(parado, [])!)).toMatch(/atualizar/i)
   })
 })

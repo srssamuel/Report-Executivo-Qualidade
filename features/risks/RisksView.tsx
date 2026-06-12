@@ -9,27 +9,87 @@ import {
   riskTone,
   statusTone,
   dateFmt,
+  daysToDue,
   dataGaps,
   isDone,
   riskScore,
   riskBandTone,
+  riskRecommendedAction,
+  itemRemainingEffort,
   type RiskScoreResult,
+  type RiskBand,
 } from '@/shared/domain'
 import { Badge } from '@/shared/components'
+import {
+  ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
+  CartesianGrid, Tooltip, ReferenceLine, Cell,
+} from 'recharts'
+
+/* Cores das bandas alinhadas aos tokens do design system (SVG não lê var()). */
+const BAND_COLOR: Record<RiskBand, string> = {
+  'Crítico': '#bd2f3d',
+  'Alto': '#8f5200',
+  'Médio': '#56657a',
+  'Baixo': '#0a6e49',
+}
+
+interface MatrixPoint {
+  id: string
+  label: string
+  days: number
+  score: number
+  effort: number
+  band: RiskBand
+  reason: string
+}
+
+function MatrixTooltip({ active, payload }: { active?: boolean; payload?: { payload: MatrixPoint }[] }) {
+  if (!active || !payload?.length) return null
+  const pt = payload[0].payload
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px', fontSize: 12, boxShadow: '0 8px 20px rgba(11,31,58,0.10)', maxWidth: 260 }}>
+      <strong style={{ display: 'block', marginBottom: 2 }}>{pt.label}</strong>
+      <span style={{ color: 'var(--muted)' }}>
+        Score {pt.score} · {pt.band} — {pt.reason}<br />
+        {pt.days < 0 ? `Vencido há ${Math.abs(pt.days)} dia(s)` : `Vence em ${pt.days} dia(s)`} · {pt.effort}h restantes
+      </span>
+    </div>
+  )
+}
 
 interface RisksViewProps {
   filtered: Item[]
   onEdit: (id: string) => void
+  onFieldChange: (id: string, field: keyof Item, value: unknown) => void
+  canEdit: boolean
 }
 
-export function RisksView({ filtered, onEdit }: RisksViewProps) {
+export function RisksView({ filtered, onEdit, onFieldChange, canEdit }: RisksViewProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [appliedAction, setAppliedAction] = useState<string | null>(null)
 
   // Fila por score de risco composto (5 fatores ponderados) — itens abertos, desc.
   const ranked = filtered
     .map(it => ({ it, rs: riskScore(it, filtered) }))
     .filter((x): x is { it: Item; rs: RiskScoreResult } => x.rs !== null)
     .sort((a, b) => b.rs.score - a.rs.score)
+
+  // Matriz Urgência × Exposição: só itens abertos COM prazo (sem prazo fica na fila).
+  const matrixPoints: MatrixPoint[] = ranked
+    .map(({ it, rs }) => {
+      const days = daysToDue(it.dueDate)
+      if (days === null) return null
+      return {
+        id: it.id,
+        label: `${it.project ?? 'Sem projeto'} — ${it.demand ?? it.id}`,
+        days,
+        score: rs.score,
+        effort: itemRemainingEffort(it),
+        band: rs.band,
+        reason: rs.mainReason,
+      }
+    })
+    .filter((x): x is MatrixPoint => x !== null)
 
   const critical = [...filtered]
     .filter(i => ['Bloqueado', 'Atrasado'].includes(riskOf(i)))
@@ -69,6 +129,53 @@ export function RisksView({ filtered, onEdit }: RisksViewProps) {
 
   return (
     <>
+      {/* ── Matriz Urgência × Exposição ─────────────────────────
+          X = dias até o prazo (urgência cresce para a esquerda do 0)
+          Y = score composto · bolha = esforço restante · cor = banda */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3 className="card-title">Matriz de decisão — Urgência × Exposição</h3>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            zona vermelha (alto + ≤7 dias) = agir esta semana · bolha = esforço restante
+          </span>
+        </div>
+        <div className="card-body">
+          {matrixPoints.length === 0 ? (
+            <div className="empty">Sem itens abertos com prazo para plotar.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <ScatterChart margin={{ top: 10, right: 16, bottom: 4, left: -12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                <XAxis
+                  type="number"
+                  dataKey="days"
+                  name="Dias até o prazo"
+                  reversed
+                  tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                  tickFormatter={(v: number) => (v < 0 ? `${v}d` : `${v}d`)}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="score"
+                  name="Score de risco"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                />
+                <ZAxis type="number" dataKey="effort" range={[60, 420]} />
+                <Tooltip content={<MatrixTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                <ReferenceLine x={7} stroke="#8f5200" strokeDasharray="4 4" label={{ value: '7 dias', position: 'top', fontSize: 10, fill: '#8f5200' }} />
+                <ReferenceLine y={50} stroke="#bd2f3d" strokeDasharray="4 4" label={{ value: 'Alto', position: 'right', fontSize: 10, fill: '#bd2f3d' }} />
+                <Scatter data={matrixPoints} onClick={(data: { payload?: MatrixPoint }) => { if (data.payload) onEdit(data.payload.id) }} cursor="pointer">
+                  {matrixPoints.map(pt => (
+                    <Cell key={pt.id} fill={BAND_COLOR[pt.band]} fillOpacity={0.75} stroke={BAND_COLOR[pt.band]} />
+                  ))}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
       {/* Fila por score de risco composto — clique no card expande o "por quê" (5 fatores) */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
@@ -101,6 +208,22 @@ export function RisksView({ filtered, onEdit }: RisksViewProps) {
                   </span>
                   {open && (
                     <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12, padding: '6px 8px', background: 'var(--amber-soft, #fff4df)', borderRadius: 6 }}>
+                        <strong style={{ color: '#8f5200' }}>Ação sugerida:</strong>
+                        <span style={{ flex: 1, minWidth: 180 }}>{riskRecommendedAction(it, rs)}</span>
+                        {canEdit && (
+                          <button
+                            className="btn small"
+                            onClick={e => {
+                              e.stopPropagation()
+                              onFieldChange(it.id, 'nextAction', riskRecommendedAction(it, rs))
+                              setAppliedAction(it.id)
+                            }}
+                          >
+                            {appliedAction === it.id ? 'Aplicada ✓' : 'Definir como próxima ação'}
+                          </button>
+                        )}
+                      </div>
                       {rs.factors.map(f => (
                         <div
                           key={f.key}
