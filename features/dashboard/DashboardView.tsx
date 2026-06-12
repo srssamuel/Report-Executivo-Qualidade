@@ -125,7 +125,9 @@ export function DashboardView({
   })
   const heatBg = (status: string, count: number): string => {
     if (count === 0) return 'transparent'
-    const alpha = 0.15 + 0.6 * (count / heatMax)
+    // Teto de 0.55 de alpha: o texto escuro (var(--text-title)) mantém AA 4.5:1
+    // sobre qualquer família de cor — sem branchs de texto branco.
+    const alpha = Math.min(0.55, 0.12 + 0.43 * (count / heatMax))
     if (['Bloqueado', 'Atrasado'].includes(status)) return `rgba(189, 47, 61, ${alpha})`
     if (status === 'Concluído') return `rgba(10, 110, 73, ${alpha})`
     return `rgba(30, 96, 213, ${alpha})`
@@ -336,7 +338,7 @@ export function DashboardView({
                                 width: '100%', minHeight: 34, border: 'none', borderRadius: 6,
                                 background: heatBg(st, count), cursor: 'pointer',
                                 fontWeight: 800, fontSize: 13,
-                                color: count / heatMax > 0.55 ? '#fff' : 'var(--text-title, #0b1f3a)',
+                                color: 'var(--text-title, #0b1f3a)',
                               }}
                             >
                               {count}
