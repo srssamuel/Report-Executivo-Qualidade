@@ -45,6 +45,38 @@ export function PortfolioView({
     ? { minHeight: 128, minWidth: 180 }
     : { minHeight: 56, minWidth: 180 }
 
+  /* ── Click-to-edit: a célula mostra TEXTO limpo; vira input só ao clicar.
+        (era um formulário permanente de ~600 campos — a causa da poluição) ── */
+  const [editingCell, setEditingCell] = useState<string | null>(null)
+  const closeCell = () => setEditingCell(null)
+  function CellDisplay({ k, label, children, empty = '—' }: {
+    k: string
+    label: string
+    children: React.ReactNode
+    empty?: string
+  }) {
+    const hasContent = children !== null && children !== undefined && children !== ''
+    return (
+      <button
+        type="button"
+        className="cell-display"
+        aria-label={label}
+        title="Clique para editar"
+        onClick={() => setEditingCell(k)}
+      >
+        {hasContent ? children : <span style={{ color: 'var(--muted-2)' }}>{empty}</span>}
+      </button>
+    )
+  }
+
+  /* Borda esquerda da linha na cor do risco — leitura periférica. */
+  const rowAccent = (it: Item): string => {
+    const r = riskOf(it)
+    if (['Bloqueado', 'Atrasado'].includes(r)) return 'inset 3px 0 0 #bd2f3d'
+    if (['Vence hoje', 'Atenção 7 dias'].includes(r)) return 'inset 3px 0 0 #8f5200'
+    return 'none'
+  }
+
   return (
     <>
       <div className="section-head">
@@ -57,7 +89,7 @@ export function PortfolioView({
         </div>
       </div>
       <div className="table-wrap">
-        <table>
+        <table className="portfolio-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -88,26 +120,32 @@ export function PortfolioView({
               </tr>
             ) : (
               filtered.map(it => (
-                <tr key={it.id}>
+                <tr key={it.id} style={{ boxShadow: rowAccent(it) }}>
                   {/* ID */}
                   <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{it.id}</td>
 
                   {/* Produto */}
                   <td style={{ minWidth: 110 }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:product` ? (
                       <>
                         <input
+                          autoFocus
                           className="mini-input"
                           list="portfolioProductOpts"
                           aria-label={`Produto de ${it.id}`}
                           defaultValue={it.product ?? ''}
-                          onBlur={e => onFieldChange(it.id, 'product', e.target.value.trim())}
+                          onBlur={e => { onFieldChange(it.id, 'product', e.target.value.trim()); closeCell() }}
+                          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') closeCell() }}
                           style={{ minWidth: 100 }}
                         />
                         <datalist id="portfolioProductOpts">
                           {productOptions.map(p => <option key={p} value={p} />)}
                         </datalist>
                       </>
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:product`} label={`Editar produto de ${it.id}`}>
+                        <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
+                      </CellDisplay>
                     ) : (
                       <Badge label={it.product ?? 'Sem produto'} tone={productTone(it.product)} />
                     )}
@@ -115,14 +153,20 @@ export function PortfolioView({
 
                   {/* Projeto */}
                   <td className="row-title" style={{ minWidth: 140 }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:project` ? (
                       <input
+                        autoFocus
                         className="mini-input"
                         aria-label={`Projeto de ${it.id}`}
                         defaultValue={it.project ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'project', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'project', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') closeCell() }}
                         style={{ minWidth: 130 }}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:project`} label={`Editar projeto de ${it.id}`}>
+                        <strong>{it.project}</strong>
+                      </CellDisplay>
                     ) : (
                       it.project
                     )}
@@ -130,14 +174,20 @@ export function PortfolioView({
 
                   {/* Demanda */}
                   <td style={{ minWidth: 200 }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:demand` ? (
                       <textarea
+                        autoFocus
                         className="mini-textarea"
                         aria-label={`Demanda de ${it.id}`}
                         defaultValue={it.demand ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'demand', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'demand', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Escape') closeCell() }}
                         style={textareaStyle}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:demand`} label={`Editar demanda de ${it.id}`}>
+                        <span className={textExpanded ? '' : 'cell-clamp'}>{it.demand}</span>
+                      </CellDisplay>
                     ) : (
                       it.demand
                     )}
@@ -145,15 +195,21 @@ export function PortfolioView({
 
                   {/* Início */}
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:startDate` ? (
                       <input
+                        autoFocus
                         type="date"
                         className="mini-input"
                         aria-label={`Início de ${it.id}`}
                         defaultValue={it.startDate ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'startDate', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'startDate', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') closeCell() }}
                         style={{ minWidth: 130 }}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:startDate`} label={`Editar início de ${it.id}`}>
+                        {it.startDate ? dateFmt(it.startDate) : ''}
+                      </CellDisplay>
                     ) : (
                       it.startDate ? dateFmt(it.startDate) : '—'
                     )}
@@ -161,15 +217,21 @@ export function PortfolioView({
 
                   {/* Prazo */}
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:dueDate` ? (
                       <input
+                        autoFocus
                         type="date"
                         className="mini-input"
                         aria-label={`Prazo de ${it.id}`}
                         defaultValue={it.dueDate ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'dueDate', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'dueDate', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') closeCell() }}
                         style={{ minWidth: 130 }}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:dueDate`} label={`Editar prazo de ${it.id}`}>
+                        {it.dueDate ? dateFmt(it.dueDate) : ''}
+                      </CellDisplay>
                     ) : (
                       dateFmt(it.dueDate)
                     )}
@@ -241,14 +303,22 @@ export function PortfolioView({
                               </option>
                             ))}
                         </select>
-                        <textarea
-                          className="mini-textarea"
-                          aria-label={`Nota de dependência de ${it.id}`}
-                          defaultValue={it.dependencyNote ?? ''}
-                          placeholder="Nota de dependência…"
-                          onBlur={e => onFieldChange(it.id, 'dependencyNote', e.target.value)}
-                          style={{ minHeight: 36, minWidth: 130 }}
-                        />
+                        {editingCell === `${it.id}:depnote` ? (
+                          <textarea
+                            autoFocus
+                            className="mini-textarea"
+                            aria-label={`Nota de dependência de ${it.id}`}
+                            defaultValue={it.dependencyNote ?? ''}
+                            placeholder="Nota de dependência…"
+                            onBlur={e => { onFieldChange(it.id, 'dependencyNote', e.target.value); closeCell() }}
+                            onKeyDown={e => { if (e.key === 'Escape') closeCell() }}
+                            style={{ minHeight: 36, minWidth: 130 }}
+                          />
+                        ) : (
+                          <CellDisplay k={`${it.id}:depnote`} label={`Editar nota de dependência de ${it.id}`} empty="+ nota">
+                            <span className="cell-clamp" style={{ fontSize: 11 }}>{it.dependencyNote}</span>
+                          </CellDisplay>
+                        )}
                       </div>
                     ) : (
                       <div style={{ fontSize: 12 }}>
@@ -264,14 +334,20 @@ export function PortfolioView({
 
                   {/* Responsável */}
                   <td style={{ minWidth: 120 }}>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:owner` ? (
                       <input
+                        autoFocus
                         className="mini-input"
                         aria-label={`Responsável de ${it.id}`}
                         defaultValue={it.owner ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'owner', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'owner', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') closeCell() }}
                         style={{ minWidth: 110 }}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:owner`} label={`Editar responsável de ${it.id}`}>
+                        {it.owner}
+                      </CellDisplay>
                     ) : (
                       it.owner
                     )}
@@ -344,14 +420,20 @@ export function PortfolioView({
 
                   {/* Próxima ação */}
                   <td>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:nextAction` ? (
                       <textarea
+                        autoFocus
                         className="mini-textarea"
                         aria-label={`Próxima ação de ${it.id}`}
                         defaultValue={it.nextAction ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'nextAction', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'nextAction', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Escape') closeCell() }}
                         style={textareaStyle}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:nextAction`} label={`Editar próxima ação de ${it.id}`} empty="+ ação">
+                        <span className={textExpanded ? '' : 'cell-clamp'}>{it.nextAction}</span>
+                      </CellDisplay>
                     ) : (
                       it.nextAction
                     )}
@@ -359,14 +441,20 @@ export function PortfolioView({
 
                   {/* Comentário executivo */}
                   <td>
-                    {canEdit ? (
+                    {canEdit && editingCell === `${it.id}:execComment` ? (
                       <textarea
+                        autoFocus
                         className="mini-textarea"
                         aria-label={`Comentário executivo de ${it.id}`}
                         defaultValue={it.executiveComment ?? ''}
-                        onBlur={e => onFieldChange(it.id, 'executiveComment', e.target.value)}
+                        onBlur={e => { onFieldChange(it.id, 'executiveComment', e.target.value); closeCell() }}
+                        onKeyDown={e => { if (e.key === 'Escape') closeCell() }}
                         style={textareaStyle}
                       />
+                    ) : canEdit ? (
+                      <CellDisplay k={`${it.id}:execComment`} label={`Editar comentário executivo de ${it.id}`} empty="+ comentário">
+                        <span className={textExpanded ? '' : 'cell-clamp'}>{it.executiveComment}</span>
+                      </CellDisplay>
                     ) : (
                       it.executiveComment
                     )}
