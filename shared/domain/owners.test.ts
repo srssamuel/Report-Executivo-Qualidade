@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { setCanonicalOwners, getCanonicalOwners, splitOwners, canonicalizeOwner, ownersOf } from './index'
+import { setCanonicalOwners, getCanonicalOwners, splitOwners, canonicalizeOwner, ownersOf, extractMentions } from './index'
 
 const CADASTRO = [
   'Pedro Almeida Santos',
@@ -73,6 +73,23 @@ describe('canonicalizeOwner — tiers conservadores', () => {
   it('com registro vazio devolve o token como veio', () => {
     setCanonicalOwners([])
     expect(canonicalizeOwner('Pedro')).toBe('Pedro')
+  })
+})
+
+describe('extractMentions — @menções resolvidas pelo cadastro', () => {
+  it('resolve apelido/primeiro nome único para o nome canônico', () => {
+    expect(extractMentions('@Pedro vamos revisar com a @Kath amanhã')).toEqual([
+      'Pedro Almeida Santos',
+      'Kathelleen Heloisa Silva',
+    ])
+  })
+
+  it('ignora tokens ambíguos ou fora do cadastro', () => {
+    expect(extractMentions('@Carlos pode ajudar? cc @Zeus')).toEqual([])
+  })
+
+  it('deduplica menções repetidas', () => {
+    expect(extractMentions('@Pedro e de novo @pedro')).toEqual(['Pedro Almeida Santos'])
   })
 })
 

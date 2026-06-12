@@ -5,13 +5,14 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Briefcase, Kanban, AlertTriangle, Calendar,
   Zap, FileText, Archive, Download, Upload, Plus,
-  LogOut, Users, ArrowUpDown, X, Sun, Moon, Award, TrendingUp,
+  LogOut, Users, ArrowUpDown, X, Sun, Moon, Award, TrendingUp, Bell,
 } from 'lucide-react'
 import { Badge, ConfirmDialog } from '@/shared/components'
 import {
   Item, UserProfile, Filters, Role, Gain, Product, GainType,
   STATUSES, PRIORITIES, PRODUCT_SUGGESTIONS, GAIN_TYPES, GAIN_TYPE_LABELS, gainTypeTone,
   normalizeItem,
+  extractMentions,
   filteredItems, sortItems,
   riskOf,
   scoreOf, dataGaps, isDone, ownersOf, setCanonicalOwners,
@@ -70,6 +71,30 @@ export default function AppPage() {
   const [uiLayout, setUiLayout] = useState<'standard' | 'wide' | 'ultra'>('wide')
   const [tableDense, setTableDense] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+
+  // ── Notificações in-app (@menções) ──
+  interface AppNotification {
+    id: string
+    kind: string
+    payload: { item_id?: string; author?: string; excerpt?: string } | null
+    read_at: string | null
+    created_at: string
+  }
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [notifOpen, setNotifOpen] = useState(false)
+  const unreadCount = notifications.filter(n => !n.read_at).length
+  async function markNotifRead(id: string) {
+    const now = new Date().toISOString()
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read_at: now } : n))
+    await supabase.from('notifications').update({ read_at: now }).eq('id', id)
+  }
+  async function markAllNotifRead() {
+    const now = new Date().toISOString()
+    const ids = notifications.filter(n => !n.read_at).map(n => n.id)
+    if (!ids.length) return
+    setNotifications(prev => prev.map(n => n.read_at ? n : { ...n, read_at: now }))
+    await supabase.from('notifications').update({ read_at: now }).in('id', ids)
+  }
   /** Drill-down dos KPIs: aplica o recorte e leva para a view de detalhe. */
   const drillTo = useCallback((partial: Partial<Filters>, target: ViewId = 'portfolio') => {
     setFilters({ ...EMPTY_FILTERS, ...partial })
@@ -172,13 +197,15 @@ export default function AppPage() {
           return
         }
 
-        const [profileRes, itemsRes, gainsRes, productsRes, peopleRes] = await Promise.all([
+        const [profileRes, itemsRes, gainsRes, productsRes, peopleRes, notifRes] = await Promise.all([
           supabase.from('user_profiles').select('*').eq('id', user.id).single(),
           supabase.from('items').select('*').order('due_date', { ascending: true, nullsFirst: false }),
           supabase.from('gains').select('*').order('created_at', { ascending: false }),
           supabase.from('products').select('*').order('name'),
           supabase.from('people').select('*').eq('active', true).order('name'),
+          supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(30),
         ])
+        if (notifRes.data) setNotifications(notifRes.data as AppNotification[])
 
         if (profileRes.data) {
           const prof = profileRes.data as UserProfile & { password_changed?: boolean }
@@ -532,7 +559,22 @@ export default function AppPage() {
     if (error) { showToast(`Erro ao registrar comentário: ${error.message}`); return }
     await updateField(modalId as string, 'executiveComment', text)
     setForm(f => ({ ...f, commentText: '' }))
-    showToast('Comentário registrado.')
+
+    // @menções: resolve tokens pelo cadastro e notifica os mencionados.
+    const mentioned = extractMentions(text)
+      .map(name => userProfiles.find(u => u.full_name === name))
+      .filter((u): u is UserProfile => !!u && u.id !== user?.id)
+    if (mentioned.length) {
+      const authorName = profile?.full_name || profile?.email || 'Alguém'
+      await supabase.from('notifications').insert(mentioned.map(u => ({
+        user_id: u.id,
+        kind: 'mention',
+        payload: { item_id: modalId, author: authorName, excerpt: text.slice(0, 140) },
+      }))).then(({ error: nErr }) => { if (nErr) console.error('[menções]', nErr.message) })
+      showToast(`Comentário registrado — ${mentioned.length} pessoa(s) notificada(s).`)
+    } else {
+      showToast('Comentário registrado.')
+    }
   }
 
   async function addGain() {
@@ -1230,6 +1272,52 @@ export default function AppPage() {
           <button className="btn small ghost theme-toggle" onClick={toggleDarkMode} title={darkMode ? 'Modo claro' : 'Modo escuro'}>
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              className="btn small ghost"
+              aria-label={unreadCount ? `Notificações: ${unreadCount} não lida(s)` : 'Notificações'}
+              title="Notificações"
+              onClick={() => setNotifOpen(o => !o)}
+              style={{ position: 'relative' }}
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, background: '#bd2f3d', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {notifOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 320, maxHeight: 380, overflowY: 'auto', background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 12px 32px rgba(11,31,58,0.14)', zIndex: 60, padding: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px 8px' }}>
+                  <strong style={{ fontSize: 12 }}>Notificações</strong>
+                  {unreadCount > 0 && <button className="btn small ghost" onClick={markAllNotifRead}>Marcar todas lidas</button>}
+                </div>
+                {notifications.length === 0 ? (
+                  <p style={{ margin: 0, padding: '8px 6px', fontSize: 12, color: 'var(--muted)' }}>
+                    Nada por aqui — você será avisado quando alguém te mencionar com @ num comentário.
+                  </p>
+                ) : (
+                  notifications.map(n => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => { markNotifRead(n.id); setNotifOpen(false); if (n.payload?.item_id) openModal(n.payload.item_id) }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: n.read_at ? 'transparent' : 'rgba(30,96,213,0.06)', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', font: 'inherit', marginBottom: 2 }}
+                    >
+                      <span style={{ display: 'block', fontSize: 12 }}>
+                        <strong>{n.payload?.author ?? 'Alguém'}</strong> mencionou você{n.payload?.item_id ? ` em ${n.payload.item_id}` : ''}
+                      </span>
+                      {n.payload?.excerpt && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>“{n.payload.excerpt}”</span>}
+                      <span style={{ display: 'block', fontSize: 10, color: 'var(--muted-2)', marginTop: 2 }}>
+                        {new Date(n.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </span>
           {profile && (
             <span className="user-info">
               {profile.full_name || profile.email} · {profile.role}
